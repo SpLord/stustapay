@@ -135,13 +135,18 @@ def _check_order_revenue_consistency(hourly_sales_stats: Timeseries, orders: lis
 
 
 async def generate_revenue_report(conn: Connection, node: Node, fees=0.01) -> bytes:
+    """
+    See get_hourly_sales_stats in stustapay/core/service/order/stats.py for a reference on how these stats are calculated
+    """
+
     assert node.event_node_id is not None
     event = await fetch_event_for_node(conn=conn, node=node)
     from_time, to_time = get_event_time_bounds(TimeseriesStatsQuery(from_time=None, to_time=None), event)
     orders = await conn.fetch_many(
         OrderWithFees,
         "select o.*, o.total_price * $2 as fees, o.total_price - o.total_price * $2 as total_price_minus_fees "
-        "from orders_at_node_and_children($1) o where o.payment_method = 'tag' and o.booked_at >= $3 and o.booked_at <= $4 order by o.booked_at",
+        "from orders_at_node_and_children($1) o "
+        "where (o.order_type = 'sale' or o.order_type = 'cancel_sale') and o.booked_at >= $3 and o.booked_at <= $4 order by o.booked_at",
         node.id,
         fees,
         from_time,

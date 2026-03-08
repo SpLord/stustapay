@@ -1,34 +1,36 @@
 {
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs/nixos-25.05";
-    nixpkgs-unstable.url = "github:nixos/nixpkgs/nixos-unstable";
+    nixpkgs.url = "github:nixos/nixpkgs/nixos-25.11";
     flake-utils.url = "github:numtide/flake-utils";
   };
 
-  outputs = { self, nixpkgs, nixpkgs-unstable, flake-utils, ... }: flake-utils.lib.eachDefaultSystem (system:
+  outputs = { self, nixpkgs, flake-utils, ... }: flake-utils.lib.eachDefaultSystem (system:
     let
       pkgs = import nixpkgs {
         inherit system;
         overlays = [];
-      };
-      pkgs-unstable = import nixpkgs-unstable {
-        inherit system;
-        overlays = [];
+        config = {
+          # This exception is needed for a stustapay dependency.
+          # It's irrelevant for security in production because it's used exclusively in the TSE simulator.
+          permittedInsecurePackages = [
+            "python3.13-ecdsa-0.19.1"
+          ];
+        };
       };
       python = pkgs.python3.override {
         self = python;
         packageOverrides = final: prev: {
           sftkit = final.buildPythonPackage rec {
             pname = "sftkit";
-            version = "0.3.3";
+            version = "0.4.2";
             src = prev.fetchPypi {
               inherit pname version;
-              hash = "sha256-tODMDsHmcT1Nqbj0U7cypO2exVOUt2PNodi2yp0Qyss=";
+              hash = "sha256-dj+rV69lU7LzJaNGTsi0wTfg1tyNxI7J8BKf3iUQfYw=";
             };
             pyproject = true;
             doCheck = false;
             build-system = with final; [
-              pdm-backend
+              uv-build
             ];
             dependencies = with final; [
               fastapi
@@ -38,6 +40,10 @@
               pydantic
             ];
             pythonRelaxDeps = [ "pydantic" ];
+            postPatch = ''
+              substituteInPlace pyproject.toml \
+                --replace "uv_build>=0.9.9,<0.10.0" "uv_build>=0.9.7,<0.10.0"
+            '';
           };
         };
       };
@@ -48,7 +54,7 @@
         pname = "stustapay-admin-ui";
         version = "0.1.0";
         src = ./web;
-        npmDepsHash = "sha256-HHkH55vobtnAButsyD2kqG4fJaBjtN8LyZTY0cpoi8Q=";
+        npmDepsHash = "sha256-e+SfMEuub7YSCY0fKpgL51pT6SQwn57Y6J+SPx/uLK4=";
         npmInstallFlags = "--verbose";
         dontNpmBuild = true;
         buildPhase = ''
@@ -67,7 +73,7 @@
         pname = "stustapay-customer-ui";
         version = "0.1.0";
         src = ./web;
-        npmDepsHash = "sha256-HHkH55vobtnAButsyD2kqG4fJaBjtN8LyZTY0cpoi8Q=";
+        npmDepsHash = "sha256-e+SfMEuub7YSCY0fKpgL51pT6SQwn57Y6J+SPx/uLK4=";
         npmInstallFlags = "--verbose";
         dontNpmBuild = true;
         buildPhase = ''
@@ -135,6 +141,7 @@
           "passlib"
           "weasyprint"
           "mako"
+          "pandas"
         ];
       };
 
