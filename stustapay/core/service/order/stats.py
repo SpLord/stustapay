@@ -179,9 +179,10 @@ async def get_hourly_sales_stats(*, conn: Connection, node: Node, from_time: dat
     """
     We are interested in general sales revenue excluding all topups, payouts and ticket sales.
 
-    Therefore, we filter the orders for payment type 'tag' which will result in only including actual vending products.
-    We currently assume that only payments made with a tag are actual vending payments (since anything else is
-    currently not possible in the system).
+    As the system now allows payments for actual products by tag, card or cash, we need to filter by the order_type
+    instead of the payment_method. 'sale' and 'cancel_sale' cover all orders that were previously assigned the 'tag'
+    method. The other order types are 'cashier_shift_start', 'cashier_shift_end', 'pay_out', 'money_transfer_imbalance',
+    'top_up', 'ticket' and 'money_transfer', which we don't want to include in the sales stats.
     """
 
     stats = await conn.fetch_many(
@@ -193,7 +194,7 @@ async def get_hourly_sales_stats(*, conn: Connection, node: Node, from_time: dat
         "   round(sum(li.total_price), 2) as revenue "
         "from orders_at_node_and_children($3) o "
         "join line_item li on o.id = li.order_id "
-        "where o.booked_at >= $1 and o.booked_at <= $2 and o.payment_method = 'tag' "
+        "where o.booked_at >= $1 and o.booked_at <= $2 and (o.order_type = 'sale' or o.order_type = 'cancel_sale')"
         "group by from_time, to_time "
         "order by from_time",
         from_time,
