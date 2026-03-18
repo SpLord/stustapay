@@ -3021,9 +3021,14 @@ export type ExternalTicket = {
   ticket_type: ExternalTicketType;
   external_link?: string | null;
   customer_email?: string | null;
+  customer_name?: string | null;
+  initial_top_up_amount: number;
+  pretix_item_id?: number | null;
   id: number;
   customer_account_id: number;
   has_checked_in: boolean;
+  cancelled: boolean;
+  externally_checked_in: boolean;
 };
 export type UserTagSecret = {
   key0: string;
