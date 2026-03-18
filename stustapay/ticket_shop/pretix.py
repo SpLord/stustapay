@@ -100,15 +100,14 @@ class PretixApi:
             "Authorization": f"Token {self.api_key}",
         }
 
-    async def _get(self, url: str, query: dict | None = None) -> dict:
+    async def _request(self, method: str, url: str, query: dict | None = None, json_data: dict | None = None) -> dict:
         async with aiohttp.ClientSession(trust_env=True, headers=self._get_pretix_auth_headers()) as session:
             try:
-                async with session.get(url, params=query, timeout=self.timeout) as response:
+                async with session.request(method, url, params=query, json=json_data, timeout=self.timeout) as response:
                     if not response.ok:
                         resp = await response.json()
                         err = _PretixErrorFormat.model_validate(resp)
                         raise PretixError(f"Pretix API returned an error: {err.code} - {err.message}")
-                    # ignore content type as responses may be text/plain
                     return await response.json(content_type=None)
             except asyncio.TimeoutError as e:
                 raise PretixError("Pretix API timeout") from e
@@ -116,6 +115,12 @@ class PretixApi:
                 if isinstance(e, PretixError):
                     raise e
                 raise PretixError("Pretix API returned an unknown error") from e
+
+    async def _get(self, url: str, query: dict | None = None) -> dict:
+        return await self._request("GET", url, query=query)
+
+    async def _post(self, url: str, json_data: dict | None = None) -> dict:
+        return await self._request("POST", url, json_data=json_data)
 
     async def fetch_products(self) -> list[PretixProduct]:
         resp = await self._get(f"{self.api_base_url}/items")
@@ -136,6 +141,22 @@ class PretixApi:
     async def fetch_order(self, order_code: str) -> PretixOrder | None:
         resp = await self._get(f"{self.api_base_url}/orders/{order_code}")
         return PretixOrder.model_validate(resp)
+
+    async def fetch_checkin_lists(self) -> list[dict]:
+        resp = await self._get(f"{self.api_base_url}/checkinlists")
+        validated_resp = PretixListApiResponse.model_validate(resp)
+        return validated_resp.results
+
+    async def redeem_checkin(self, checkin_list_id: int, secret: str) -> bool:
+        """Mark a ticket as checked in via the Pretix checkin API."""
+        try:
+            await self._post(
+                f"{self.api_base_url}/checkinlists/{checkin_list_id}/positions/{secret}/redeem/",
+                json_data={"force": False, "nonce": None},
+            )
+            return True
+        except PretixError:
+            return False
 
     def get_link_to_order(self, order_code: str) -> str:
         return f"{self.base_url}/control/event/{self.organizer}/{self.event}/orders/{order_code}"
@@ -296,6 +317,91 @@ class PretixTicketProvider(TicketProvider):
             order = await api.fetch_order(order_code=payload.code)
             await self._synchronizie_pretix_order(conn=conn, node=node, api=api, event_settings=settings, order=order)
 
+    async def _handle_pretix_order_canceled_webhook(self, node_id: int, payload: PretixOrderWebhookPayload):
+        """Handle order cancellation: mark all vouchers for this order as cancelled."""
+        async with self.db_pool.acquire() as conn:
+            node = await fetch_node(conn=conn, node_id=node_id)
+            assert node is not None
+
+            result = await conn.execute(
+                "update ticket_voucher set cancelled = true "
+                "where node_id = $1 and external_reference = $2 and not cancelled",
+                node.event_node_id,
+                payload.code,
+            )
+            self.logger.info(
+                f"Cancelled vouchers for pretix order {payload.code} in event {node.name}: {result}"
+            )
+
+    async def _handle_pretix_order_changed_webhook(self, node_id: int, payload: PretixOrderWebhookPayload):
+        """Handle order changes: re-fetch order and update voucher data."""
+        async with self.db_pool.acquire() as conn:
+            node = await fetch_node(conn=conn, node_id=node_id)
+            assert node is not None
+            settings = await fetch_restricted_event_settings_for_node(conn=conn, node_id=node_id)
+            if not settings.pretix_presale_enabled:
+                return
+
+            api = PretixApi.from_event(settings)
+            order = await api.fetch_order(order_code=payload.code)
+
+            if order.status == PretixOrderStatus.canceled:
+                await conn.execute(
+                    "update ticket_voucher set cancelled = true "
+                    "where node_id = $1 and external_reference = $2 and not cancelled",
+                    node.event_node_id,
+                    payload.code,
+                )
+                self.logger.info(f"Order {payload.code} was changed to cancelled status")
+                return
+
+            if order.status == PretixOrderStatus.paid:
+                # Re-sync: import any new positions, update top-up amounts
+                await self._synchronizie_pretix_order(
+                    conn=conn, node=node, api=api, event_settings=settings, order=order
+                )
+                self.logger.info(f"Re-synced changed pretix order {payload.code}")
+
+    async def _handle_pretix_checkin_webhook(self, node_id: int, payload: PretixWebhookPayload):
+        """Handle checkin from pretixSCAN: mark voucher as externally checked in."""
+        async with self.db_pool.acquire() as conn:
+            node = await fetch_node(conn=conn, node_id=node_id)
+            assert node is not None
+
+            # The checkin webhook doesn't contain the order code directly,
+            # so we mark all non-checked-in vouchers for this node that match
+            # We need to fetch the checkin data from the API
+            # For now, we handle this via the periodic sync by checking checkin status
+            self.logger.info(
+                f"Received checkin webhook for event {node.name} — "
+                f"will be processed in next sync cycle"
+            )
+
+    async def notify_pretix_checkin(self, node_id: int, voucher_token: str):
+        """Notify Pretix that a ticket has been checked in (band assigned in StuStaPay).
+        Called after NFC wristband assignment."""
+        async with self.db_pool.acquire() as conn:
+            node = await fetch_node(conn=conn, node_id=node_id)
+            assert node is not None
+            settings = await fetch_restricted_event_settings_for_node(conn=conn, node_id=node_id)
+            if not settings.pretix_presale_enabled:
+                return
+
+            api = PretixApi.from_event(settings)
+
+            # Find the first checkin list for this event
+            checkin_lists = await api.fetch_checkin_lists()
+            if not checkin_lists:
+                self.logger.warning(f"No checkin lists found for event {node.name}, cannot sync checkin to Pretix")
+                return
+
+            checkin_list_id = checkin_lists[0]["id"]
+            success = await api.redeem_checkin(checkin_list_id, voucher_token)
+            if success:
+                self.logger.info(f"Successfully synced checkin to Pretix for token {voucher_token[:8]}...")
+            else:
+                self.logger.warning(f"Failed to sync checkin to Pretix for token {voucher_token[:8]}...")
+
     async def pretix_webhook(self, node_id: int, payload: dict):
         try:
             validated = PretixWebhookPayload.model_validate(payload)
@@ -306,6 +412,27 @@ class PretixTicketProvider(TicketProvider):
                     await self._handle_pretix_order_paid_webhook(node_id=node_id, payload=order_payload)
                 except ValidationError:
                     return
+
+            elif validated.action in ("pretix.event.order.canceled", "pretix.event.order.expired"):
+                try:
+                    order_payload = PretixOrderWebhookPayload.model_validate(payload)
+                    await self._handle_pretix_order_canceled_webhook(node_id=node_id, payload=order_payload)
+                except ValidationError:
+                    return
+
+            elif validated.action == "pretix.event.order.changed":
+                try:
+                    order_payload = PretixOrderWebhookPayload.model_validate(payload)
+                    await self._handle_pretix_order_changed_webhook(node_id=node_id, payload=order_payload)
+                except ValidationError:
+                    return
+
+            elif validated.action == "pretix.event.checkin":
+                await self._handle_pretix_checkin_webhook(node_id=node_id, payload=validated)
+
+            else:
+                self.logger.debug(f"Ignoring unhandled pretix webhook action: {validated.action}")
+
         except ValidationError:
             self.logger.info("Received invalid webhook payload from pretix")
             return

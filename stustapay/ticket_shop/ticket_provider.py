@@ -30,6 +30,8 @@ class ExternalTicket(CreateExternalTicket):
     id: int
     customer_account_id: int
     has_checked_in: bool
+    cancelled: bool = False
+    externally_checked_in: bool = False
 
 
 async def fetch_external_tickets(conn: Connection, node: Node) -> list[ExternalTicket]:
@@ -39,7 +41,7 @@ async def fetch_external_tickets(conn: Connection, node: Node) -> list[ExternalT
         "   tv.*, "
         "   case when a.user_tag_id is null then false else true end as has_checked_in "
         "from ticket_voucher tv join account a on tv.customer_account_id = a.id "
-        "where tv.node_id = $1",
+        "where tv.node_id = $1 and not tv.cancelled",
         node.event_node_id,
     )
 
