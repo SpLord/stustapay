@@ -3197,6 +3197,7 @@ export type PublicEventSettings = {
   pretix_organizer: string | null;
   pretix_event: string | null;
   pretix_ticket_ids: number[] | null;
+  pretix_topup_ids: number[] | null;
   ust_id: string;
   bon_issuer: string;
   bon_address: string;
@@ -3301,6 +3302,7 @@ export type NewEvent = {
   pretix_organizer: string | null;
   pretix_event: string | null;
   pretix_ticket_ids: number[] | null;
+  pretix_topup_ids: number[] | null;
   ust_id: string;
   bon_issuer: string;
   bon_address: string;
@@ -3355,6 +3357,7 @@ export type UpdateEvent = {
   pretix_organizer: string | null;
   pretix_event: string | null;
   pretix_ticket_ids: number[] | null;
+  pretix_topup_ids: number[] | null;
   ust_id: string;
   bon_issuer: string;
   bon_address: string;
@@ -3412,6 +3415,7 @@ export type RestrictedEventSettings = {
   pretix_organizer: string | null;
   pretix_event: string | null;
   pretix_ticket_ids: number[] | null;
+  pretix_topup_ids: number[] | null;
   ust_id: string;
   bon_issuer: string;
   bon_address: string;
