@@ -162,7 +162,7 @@ class PretixTicketProvider(TicketProvider):
         all add-on positions that reference this ticket and are top-up products."""
         total_topup = 0.0
         for position in order.positions:
-            if position.item in pretix_topup_ids and position.addon_to == ticket_position.positionid:
+            if position.item in pretix_topup_ids and position.addon_to == ticket_position.id:
                 try:
                     total_topup += float(position.price) if position.price else 0.0
                 except (ValueError, TypeError):
