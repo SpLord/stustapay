@@ -38,7 +38,10 @@ class PretixOrderPosition(BaseModel):
     positionid: int
     item: int
     secret: str
-    attendee_email: str | None
+    attendee_email: str | None = None
+    attendee_name: str | None = None
+    addon_to: int | None = None
+    price: str | None = None
 
 
 class PretixOrderStatus(enum.Enum):
@@ -152,6 +155,28 @@ class PretixTicketProvider(TicketProvider):
         super().__init__(config, db_pool)
         self.logger = logging.getLogger("pretix_ticket_provider")
 
+    def _compute_topup_for_ticket(
+        self, order: PretixOrder, ticket_position: PretixOrderPosition, pretix_topup_ids: list[int]
+    ) -> float:
+        """Compute the total top-up amount for a ticket position by summing up
+        all add-on positions that reference this ticket and are top-up products."""
+        total_topup = 0.0
+        for position in order.positions:
+            if position.item in pretix_topup_ids and position.addon_to == ticket_position.positionid:
+                try:
+                    total_topup += float(position.price) if position.price else 0.0
+                except (ValueError, TypeError):
+                    pass
+        return total_topup
+
+    def _resolve_customer_email(self, order: PretixOrder, position: PretixOrderPosition) -> str | None:
+        """Resolve customer email: prefer attendee_email on position, fall back to order email."""
+        if position.attendee_email:
+            return position.attendee_email
+        if order.email:
+            return order.email
+        return None
+
     async def _synchronizie_pretix_order(
         self, conn: Connection, node: Node, api: PretixApi, event_settings: RestrictedEventSettings, order: PretixOrder
     ):
@@ -163,9 +188,16 @@ class PretixTicketProvider(TicketProvider):
 
         assert event_settings.pretix_ticket_ids is not None
         pretix_ticket_product_ids = event_settings.pretix_ticket_ids
+        pretix_topup_ids = event_settings.pretix_topup_ids or []
+
         async with conn.transaction(isolation="serializable"):
             for position in order.positions:
                 if position.item in pretix_ticket_product_ids:
+                    # Compute top-up amount from add-on positions linked to this ticket
+                    topup_amount = self._compute_topup_for_ticket(order, position, pretix_topup_ids)
+
+                    customer_email = self._resolve_customer_email(order, position)
+
                     imported = await self.store_external_ticket(
                         conn=conn,
                         node=node,
@@ -175,11 +207,17 @@ class PretixTicketProvider(TicketProvider):
                             token=position.secret,
                             ticket_type=ExternalTicketType.pretix,
                             external_link=api.get_link_to_order(order.code),
-                            customer_email=position.attendee_email,
+                            customer_email=customer_email,
+                            customer_name=position.attendee_name,
+                            initial_top_up_amount=topup_amount,
+                            pretix_item_id=position.item,
                         ),
                     )
                     if imported:
-                        self.logger.debug(f"Imported ticket from pretix order {order.code}")
+                        self.logger.info(
+                            f"Imported ticket from pretix order {order.code} "
+                            f"(item={position.item}, topup={topup_amount:.2f})"
+                        )
 
     async def _synchronize_tickets_for_node(
         self, conn: Connection, node: Node, event_settings: RestrictedEventSettings
