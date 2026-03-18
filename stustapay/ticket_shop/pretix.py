@@ -287,10 +287,42 @@ class PretixTicketProvider(TicketProvider):
                         settings = await fetch_restricted_event_settings_for_node(conn=conn, node_id=node.id)
                         self.logger.debug(f"Synchronizing pretix tickets for event {node.name}")
                         await self._synchronize_tickets_for_node(conn=conn, node=node, event_settings=settings)
+                        await self._sync_pending_checkins(conn=conn, node=node, event_settings=settings)
             except Exception:
                 self.logger.exception("process pending orders threw an error")
 
             await asyncio.sleep(self.config.core.pretix_synchronization_interval.seconds)
+
+    async def _sync_pending_checkins(
+        self, conn: Connection, node: Node, event_settings: RestrictedEventSettings
+    ):
+        """Sync pending checkins to Pretix (NFC band was assigned in StuStaPay)."""
+        pending = await conn.fetch(
+            "select id, token from ticket_voucher "
+            "where node_id = $1 and needs_pretix_checkin = true and not cancelled",
+            node.event_node_id,
+        )
+        if not pending:
+            return
+
+        api = PretixApi.from_event(event_settings)
+        checkin_lists = await api.fetch_checkin_lists()
+        if not checkin_lists:
+            self.logger.warning(f"No checkin lists found for event {node.name}, cannot sync checkins to Pretix")
+            return
+
+        checkin_list_id = checkin_lists[0]["id"]
+
+        for row in pending:
+            success = await api.redeem_checkin(checkin_list_id, row["token"])
+            if success:
+                await conn.execute(
+                    "update ticket_voucher set needs_pretix_checkin = false where id = $1",
+                    row["id"],
+                )
+                self.logger.info(f"Synced checkin to Pretix for voucher {row['id']}")
+            else:
+                self.logger.warning(f"Failed to sync checkin to Pretix for voucher {row['id']}")
 
     async def _handle_pretix_order_paid_webhook(self, node_id: int, payload: PretixOrderWebhookPayload):
         async with self.db_pool.acquire() as conn:
