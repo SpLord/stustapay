@@ -21,6 +21,9 @@ class CreateExternalTicket(BaseModel):
     ticket_type: ExternalTicketType
     external_link: str | None = None
     customer_email: str | None = None
+    customer_name: str | None = None
+    initial_top_up_amount: float = 0.0
+    pretix_item_id: int | None = None
 
 
 class ExternalTicket(CreateExternalTicket):
@@ -58,12 +61,14 @@ class TicketProvider:
         )
         if not exists_already:
             customer_account_id = await conn.fetchval(
-                "insert into account(node_id, type) values ($1, 'private') returning id",
+                "insert into account(node_id, type, name) values ($1, 'private', $2) returning id",
                 node.event_node_id,
+                ticket.customer_name,
             )
             await conn.execute(
-                "insert into ticket_voucher(node_id, created_at, customer_account_id, token, ticket_type, external_link, external_reference) "
-                "   values ($1, $2, $3, $4, $5, $6, $7)",
+                "insert into ticket_voucher(node_id, created_at, customer_account_id, token, ticket_type, "
+                "   external_link, external_reference, initial_top_up_amount, pretix_item_id) "
+                "   values ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
                 node.event_node_id,
                 ticket.created_at,
                 customer_account_id,
@@ -71,10 +76,13 @@ class TicketProvider:
                 ticket.ticket_type.name,
                 ticket.external_link,
                 ticket.external_reference,
+                ticket.initial_top_up_amount,
+                ticket.pretix_item_id,
             )
             if ticket.customer_email:
                 await conn.execute(
-                    "insert into customer_info (customer_account_id, email) values ($1, $2) on conflict (customer_account_id) do update set email = $2",
+                    "insert into customer_info (customer_account_id, email) values ($1, $2) "
+                    "on conflict (customer_account_id) do update set email = $2",
                     customer_account_id,
                     ticket.customer_email,
                 )
