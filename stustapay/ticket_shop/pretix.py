@@ -57,6 +57,11 @@ class PretixProduct(BaseModel):
     default_price: float
 
 
+class PretixInvoiceAddress(BaseModel):
+    name: str | None = None
+    company: str | None = None
+
+
 class PretixOrder(BaseModel):
     code: str
     event: str
@@ -64,6 +69,7 @@ class PretixOrder(BaseModel):
     positions: list[PretixOrderPosition]
     datetime: datetime
     status: PretixOrderStatus
+    invoice_address: PretixInvoiceAddress | None = None
 
 
 class PretixWebhookPayload(BaseModel):
@@ -177,6 +183,14 @@ class PretixTicketProvider(TicketProvider):
             return order.email
         return None
 
+    def _resolve_customer_name(self, order: PretixOrder, position: PretixOrderPosition) -> str | None:
+        """Resolve customer name: prefer attendee_name, fall back to invoice address name."""
+        if position.attendee_name:
+            return position.attendee_name
+        if order.invoice_address and order.invoice_address.name:
+            return order.invoice_address.name
+        return None
+
     async def _synchronizie_pretix_order(
         self, conn: Connection, node: Node, api: PretixApi, event_settings: RestrictedEventSettings, order: PretixOrder
     ):
@@ -197,6 +211,7 @@ class PretixTicketProvider(TicketProvider):
                     topup_amount = self._compute_topup_for_ticket(order, position, pretix_topup_ids)
 
                     customer_email = self._resolve_customer_email(order, position)
+                    customer_name = self._resolve_customer_name(order, position)
 
                     imported = await self.store_external_ticket(
                         conn=conn,
@@ -208,7 +223,7 @@ class PretixTicketProvider(TicketProvider):
                             ticket_type=ExternalTicketType.pretix,
                             external_link=api.get_link_to_order(order.code),
                             customer_email=customer_email,
-                            customer_name=position.attendee_name,
+                            customer_name=customer_name,
                             initial_top_up_amount=topup_amount,
                             pretix_item_id=position.item,
                         ),
