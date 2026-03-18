@@ -213,7 +213,8 @@ class PretixTicketProvider(TicketProvider):
         return None
 
     async def _synchronizie_pretix_order(
-        self, conn: Connection, node: Node, api: PretixApi, event_settings: RestrictedEventSettings, order: PretixOrder
+        self, conn: Connection, node: Node, api: PretixApi, event_settings: RestrictedEventSettings,
+        order: PretixOrder, product_names: dict[int, str] | None = None,
     ):
         if order.status != PretixOrderStatus.paid:
             self.logger.debug(
@@ -234,6 +235,8 @@ class PretixTicketProvider(TicketProvider):
                     customer_email = self._resolve_customer_email(order, position)
                     customer_name = self._resolve_customer_name(order, position)
 
+                    pretix_product_name = (product_names or {}).get(position.item)
+
                     imported = await self.store_external_ticket(
                         conn=conn,
                         node=node,
@@ -247,6 +250,7 @@ class PretixTicketProvider(TicketProvider):
                             customer_name=customer_name,
                             initial_top_up_amount=topup_amount,
                             pretix_item_id=position.item,
+                            pretix_product_name=pretix_product_name,
                         ),
                     )
                     if imported:
@@ -259,10 +263,19 @@ class PretixTicketProvider(TicketProvider):
         self, conn: Connection, node: Node, event_settings: RestrictedEventSettings
     ):
         api = PretixApi.from_event(event_settings)
+
+        # Build product name lookup
+        products = await api.fetch_products()
+        product_names: dict[int, str] = {}
+        for p in products:
+            name = next(iter(p.name.values()), "")
+            product_names[p.id] = name
+
         orders = await api.fetch_orders()
         for order in orders:
             await self._synchronizie_pretix_order(
-                conn=conn, node=node, api=api, event_settings=event_settings, order=order
+                conn=conn, node=node, api=api, event_settings=event_settings,
+                order=order, product_names=product_names,
             )
 
     async def synchronize_tickets(self):
@@ -347,7 +360,12 @@ class PretixTicketProvider(TicketProvider):
 
             api = PretixApi.from_event(settings)
             order = await api.fetch_order(order_code=payload.code)
-            await self._synchronizie_pretix_order(conn=conn, node=node, api=api, event_settings=settings, order=order)
+            products = await api.fetch_products()
+            product_names = {p.id: next(iter(p.name.values()), "") for p in products}
+            await self._synchronizie_pretix_order(
+                conn=conn, node=node, api=api, event_settings=settings,
+                order=order, product_names=product_names,
+            )
 
     async def _handle_pretix_order_canceled_webhook(self, node_id: int, payload: PretixOrderWebhookPayload):
         """Handle order cancellation: mark all vouchers for this order as cancelled."""

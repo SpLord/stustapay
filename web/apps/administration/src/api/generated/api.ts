@@ -3024,6 +3024,7 @@ export type ExternalTicket = {
   customer_name?: string | null;
   initial_top_up_amount: number;
   pretix_item_id?: number | null;
+  pretix_product_name?: string | null;
   id: number;
   customer_account_id: number;
   has_checked_in: boolean;

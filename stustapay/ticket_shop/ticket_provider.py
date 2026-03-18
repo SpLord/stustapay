@@ -24,6 +24,7 @@ class CreateExternalTicket(BaseModel):
     customer_name: str | None = None
     initial_top_up_amount: float = 0.0
     pretix_item_id: int | None = None
+    pretix_product_name: str | None = None
 
 
 class ExternalTicket(CreateExternalTicket):
@@ -70,8 +71,8 @@ class TicketProvider:
             )
             await conn.execute(
                 "insert into ticket_voucher(node_id, created_at, customer_account_id, token, ticket_type, "
-                "   external_link, external_reference, initial_top_up_amount, pretix_item_id) "
-                "   values ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+                "   external_link, external_reference, initial_top_up_amount, pretix_item_id, pretix_product_name) "
+                "   values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
                 node.event_node_id,
                 ticket.created_at,
                 customer_account_id,
@@ -81,6 +82,7 @@ class TicketProvider:
                 ticket.external_reference,
                 ticket.initial_top_up_amount,
                 ticket.pretix_item_id,
+                ticket.pretix_product_name,
             )
             if ticket.customer_email:
                 await conn.execute(
