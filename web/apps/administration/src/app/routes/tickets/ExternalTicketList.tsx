@@ -2,7 +2,7 @@ import { ExternalTicket, useListExternalTicketsQuery } from "@/api";
 import { CustomerRoutes } from "@/app/routes";
 import { ListLayout } from "@/components";
 import { useCurrentNode } from "@/hooks";
-import { Link, Tooltip } from "@mui/material";
+import { Link } from "@mui/material";
 import { Loading } from "@stustapay/components";
 import { DataGrid, GridColDef } from "@stustapay/framework";
 import * as React from "react";
@@ -42,20 +42,6 @@ export const ExternalTicketList: React.FC = () => {
       },
     },
     {
-      field: "token",
-      headerName: t("externalTicket.token"),
-      renderCell: ({ row: { token } }) => (
-        <Tooltip title={token}>
-          <span>{token}</span>
-        </Tooltip>
-      ),
-    },
-    {
-      field: "ticket_type",
-      headerName: t("externalTicket.type"),
-      type: "string",
-    },
-    {
       field: "created_at",
       headerName: t("externalTicket.createdAt"),
       type: "dateTime",
@@ -70,6 +56,12 @@ export const ExternalTicketList: React.FC = () => {
           {customer_account_id}
         </Link>
       ),
+    },
+    {
+      field: "pretix_product_name" as any,
+      headerName: t("externalTicket.ticketProduct", "Ticket"),
+      flex: 1,
+      valueGetter: (_value: any, row: any) => row.pretix_product_name ?? "",
     },
     {
       field: "customer_name" as any,
