@@ -41,8 +41,11 @@ async def fetch_external_tickets(conn: Connection, node: Node) -> list[ExternalT
         "select "
         "   tv.*, "
         "   a.name as customer_name, "
+        "   ci.email as customer_email, "
         "   case when a.user_tag_id is null then false else true end as has_checked_in "
-        "from ticket_voucher tv join account a on tv.customer_account_id = a.id "
+        "from ticket_voucher tv "
+        "join account a on tv.customer_account_id = a.id "
+        "left join customer_info ci on ci.customer_account_id = a.id "
         "where tv.node_id = $1",
         node.event_node_id,
     )
