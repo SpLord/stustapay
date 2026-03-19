@@ -2720,15 +2720,22 @@ export type NormalizedListAccountInt = {
     [key: string]: AccountRead;
   };
 };
+export type DepositOverview = {
+  total_deposit_charged: number;
+  total_deposit_returned: number;
+  deposit_balance: number;
+};
 export type MoneyOverview = {
   system_accounts: Account[];
   total_customer_account_balance: number;
   total_cash_register_balance: number;
+  deposit_overview?: DepositOverview | null;
 };
 export type MoneyOverviewRead = {
   system_accounts: AccountRead[];
   total_customer_account_balance: number;
   total_cash_register_balance: number;
+  deposit_overview?: DepositOverview | null;
 };
 export type FindAccountPayload = {
   search_term: string;
