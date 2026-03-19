@@ -113,6 +113,11 @@ export const ProductList: React.FC = () => {
       type: "boolean",
     },
     {
+      field: "is_deposit",
+      headerName: t("product.isDeposit", "Deposit"),
+      type: "boolean",
+    },
+    {
       field: "fixed_price",
       headerName: t("product.isFixedPrice"),
       type: "boolean",
