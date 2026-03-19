@@ -24,10 +24,17 @@ from stustapay.core.service.customer.common import fetch_customer
 from stustapay.core.service.transaction import book_transaction
 
 
+class DepositOverview(BaseModel):
+    total_deposit_charged: float = 0.0
+    total_deposit_returned: float = 0.0
+    deposit_balance: float = 0.0
+
+
 class MoneyOverview(BaseModel):
     system_accounts: list[Account]
     total_customer_account_balance: float
     total_cash_register_balance: float
+    deposit_overview: DepositOverview | None = None
 
 
 async def get_system_account_for_node(*, conn: Connection, node: Node, account_type: AccountType) -> Account:
@@ -147,10 +154,30 @@ class AccountService(Service[Config]):
             "select coalesce(sum(a.balance), 0.0) from account a where type = 'cash_register' and node_id = any($1)",
             node.ids_to_event_node,
         )
+        # Deposit (Pfand) stats: sum of all booked line items for deposit products
+        deposit_charged = await conn.fetchval(
+            "select coalesce(sum(li.total_price), 0.0) "
+            "from line_item li join product p on li.product_id = p.id "
+            "where p.is_deposit = true and p.price > 0 and li.node_id = any($1)",
+            node.ids_to_event_node,
+        )
+        deposit_returned = await conn.fetchval(
+            "select coalesce(abs(sum(li.total_price)), 0.0) "
+            "from line_item li join product p on li.product_id = p.id "
+            "where p.is_deposit = true and p.price < 0 and li.node_id = any($1)",
+            node.ids_to_event_node,
+        )
+        deposit_overview = DepositOverview(
+            total_deposit_charged=deposit_charged,
+            total_deposit_returned=deposit_returned,
+            deposit_balance=deposit_charged - deposit_returned,
+        )
+
         return MoneyOverview(
             system_accounts=system_accounts,
             total_customer_account_balance=total_customer_account_balance,
             total_cash_register_balance=total_cash_register_balance,
+            deposit_overview=deposit_overview,
         )
 
     @with_db_transaction(read_only=True)
