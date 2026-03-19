@@ -158,13 +158,13 @@ class AccountService(Service[Config]):
         deposit_charged = await conn.fetchval(
             "select coalesce(sum(li.total_price), 0.0) "
             "from line_item li join product p on li.product_id = p.id "
-            "where p.is_deposit = true and p.price > 0 and li.node_id = any($1)",
+            "where p.is_deposit = true and li.total_price > 0 and p.node_id = any($1)",
             node.ids_to_event_node,
         )
         deposit_returned = await conn.fetchval(
             "select coalesce(abs(sum(li.total_price)), 0.0) "
             "from line_item li join product p on li.product_id = p.id "
-            "where p.is_deposit = true and p.price < 0 and li.node_id = any($1)",
+            "where p.is_deposit = true and li.total_price < 0 and p.node_id = any($1)",
             node.ids_to_event_node,
         )
         deposit_overview = DepositOverview(
