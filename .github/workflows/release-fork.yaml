@@ -1,0 +1,118 @@
+name: Build and Release Fork
+on:
+  push:
+    tags: [ "v*" ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-deb:
+    name: "Build .deb package"
+    runs-on: ubuntu-latest
+    container:
+      image: debian:bookworm
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install build dependencies
+        run: |
+          apt-get update
+          apt-get install -y \
+            debhelper dh-virtualenv lsb-release dpkg-dev devscripts \
+            libsystemd-dev libpq-dev python3-dev python3-setuptools \
+            python3-pip python3-venv tar curl git
+          # Install Node.js 22
+          curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
+          apt-get install -y nodejs
+
+      - name: Build .deb
+        run: dpkg-buildpackage -us -uc -b
+
+      - name: List built packages
+        run: ls -lh ../*.deb
+
+      - name: Upload .deb artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: deb-package
+          path: ../*.deb
+
+  generate-patch:
+    name: "Generate patch file"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Generate patch against upstream
+        run: |
+          git remote add upstream https://github.com/stustapay/stustapay.git || true
+          git fetch upstream master
+          git diff upstream/master..HEAD > stustapay-pretix-integration.patch
+          echo "Patch size: $(wc -l < stustapay-pretix-integration.patch) lines"
+
+      - name: Upload patch artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: patch-file
+          path: stustapay-pretix-integration.patch
+
+  create-release:
+    name: "Create GitHub Release"
+    needs: [build-deb, generate-patch]
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: List artifacts
+        run: ls -lh artifacts/
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/*.deb
+            artifacts/*.patch
+          body: |
+            ## StuStaPay Fork — Improved Pretix Integration
+
+            Based on StuStaPay 2026.2.1 with enhanced Pretix integration and event features.
+
+            ### Pretix Integration
+            - Top-up/credit sync from Pretix add-on products (pretix_topup_ids)
+            - addon_to mapping for correct credit assignment in multi-ticket orders
+            - Email fallback (order.email when attendee_email missing)
+            - Name fallback (invoice_address.name when attendee_name missing)
+            - Cancellation sync (order.canceled/expired webhook)
+            - Order change sync (order.changed webhook)
+            - Bidirectional checkin sync (StuStaPay ↔ Pretix)
+            - Reject cancelled vouchers at terminal
+
+            ### Deposit / Pfand
+            - is_deposit flag on products for deposit tracking
+            - Deposit overview card (charged / returned / outstanding)
+
+            ### Tip / Trinkgeld
+            - Variable-price products for tips at terminal
+
+            ### Admin UI
+            - Top-Up Products checkbox in Pretix settings
+            - Presale stats + Deposit overview cards
+            - Product name, email, top-up in presale tickets list
+
+            ### Install
+            ```bash
+            dpkg -i stustapay_*.deb
+            stustapay db migrate
+            systemctl restart stustapay-*
+            ```
+          draft: false
+          prerelease: false
