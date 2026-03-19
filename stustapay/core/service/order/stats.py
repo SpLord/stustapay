@@ -194,7 +194,7 @@ async def get_hourly_sales_stats(*, conn: Connection, node: Node, from_time: dat
         "   round(sum(li.total_price), 2) as revenue "
         "from orders_at_node_and_children($3) o "
         "join line_item li on o.id = li.order_id "
-        "where o.booked_at >= $1 and o.booked_at <= $2 and (o.order_type = 'sale' or o.order_type = 'cancel_sale')"
+        "where o.booked_at >= $1 and o.booked_at <= $2 and (o.order_type = 'sale' or o.order_type = 'cancel_sale') "
         "group by from_time, to_time "
         "order by from_time",
         from_time,
