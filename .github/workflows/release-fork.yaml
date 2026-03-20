@@ -60,9 +60,47 @@ jobs:
           name: patch-file
           path: stustapay-pretix-integration.patch
 
+  build-apk:
+    name: "Build Android APK"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          lfs: true
+      - run: git lfs pull
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Decode keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        working-directory: ./app
+        run: |
+          echo $KEYSTORE_BASE64 | base64 --decode > keystore.jks
+          mkdir -p ~/.gradle
+          echo "ANDROID_KEY_STORE_FILE=$(pwd)/keystore.jks" >> ~/.gradle/gradle.properties
+          echo "ANDROID_KEY_STORE_PASSWORD=${KEYSTORE_PASSWORD}" >> ~/.gradle/gradle.properties
+          echo "ANDROID_KEY_ALIAS=${KEY_ALIAS}" >> ~/.gradle/gradle.properties
+          echo "ANDROID_KEY_PASSWORD=${KEY_PASSWORD}" >> ~/.gradle/gradle.properties
+      - name: Build release APK
+        working-directory: ./app
+        run: ./gradlew app:assembleRelease
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: apk-release
+          path: ./app/app/build/outputs/apk/release/app-release.apk
+
   create-release:
     name: "Create GitHub Release"
-    needs: [build-deb, generate-patch]
+    needs: [build-deb, generate-patch, build-apk]
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     steps:
@@ -81,6 +119,7 @@ jobs:
           files: |
             artifacts/*.deb
             artifacts/*.patch
+            artifacts/*.apk
           body: |
             ## StuStaPay Fork — Improved Pretix Integration
 

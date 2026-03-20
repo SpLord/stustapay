@@ -21,18 +21,18 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
       - name: decode keystore
         env:
-          ANDROID_KEY_STORE: ${{ secrets.ANDROID_KEY_STORE }}
-          ANDROID_KEY_STORE_PASSWORD: ${{ secrets.ANDROID_KEY_STORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         working-directory: ./app
         run: |
-          echo $ANDROID_KEY_STORE | base64 --decode > keystore.jks
+          echo $KEYSTORE_BASE64 | base64 --decode > keystore.jks
           mkdir -p ~/.gradle
           echo "ANDROID_KEY_STORE_FILE=$(pwd)/keystore.jks" >> ~/.gradle/gradle.properties
-          echo "ANDROID_KEY_STORE_PASSWORD=${ANDROID_KEY_STORE_PASSWORD}" >> ~/.gradle/gradle.properties
-          echo "ANDROID_KEY_ALIAS=${ANDROID_KEY_ALIAS}" >> ~/.gradle/gradle.properties
-          echo "ANDROID_KEY_PASSWORD=${ANDROID_KEY_PASSWORD}" >> ~/.gradle/gradle.properties
+          echo "ANDROID_KEY_STORE_PASSWORD=${KEYSTORE_PASSWORD}" >> ~/.gradle/gradle.properties
+          echo "ANDROID_KEY_ALIAS=${KEY_ALIAS}" >> ~/.gradle/gradle.properties
+          echo "ANDROID_KEY_PASSWORD=${KEY_PASSWORD}" >> ~/.gradle/gradle.properties
           ./gradlew app:signingReport
       - name: build app
         working-directory: ./app
