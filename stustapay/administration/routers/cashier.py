@@ -48,6 +48,11 @@ async def get_cashier_shift_stats(
     )
 
 
+@router.get("/revenue-report", response_model=list[dict])
+async def get_cashier_revenue_report(token: CurrentAuthToken, cashier_service: ContextCashierService, node_id: int):
+    return await cashier_service.get_cashier_revenue_report(token=token, node_id=node_id)
+
+
 @router.post("/{cashier_id}/close-out", response_model=CloseOutResult)
 async def close_out_cashier(
     token: CurrentAuthToken,

@@ -3,6 +3,7 @@ import { useCurrentNode, useCurrencyFormatter } from "@/hooks";
 import { Card, CardContent, Grid, Stack, Typography } from "@mui/material";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
+import { CashierRevenueReport } from "../CashierRevenueReport";
 import { MoneyOverview } from "../MoneyOverview";
 
 const PresaleStatsCard: React.FC = () => {
@@ -76,6 +77,7 @@ export const EventOverview: React.FC = () => {
     <Stack spacing={2}>
       <PresaleStatsCard />
       <MoneyOverview />
+      <CashierRevenueReport />
     </Stack>
   );
 };

@@ -167,6 +167,26 @@ class CashierService(Service[Config]):
         )
         return CashierShiftStats(booked_products=booked_products, orders=orders)
 
+    @with_db_transaction(read_only=True)
+    @requires_node(event_only=True)
+    @requires_user([Privilege.node_administration])
+    async def get_cashier_revenue_report(self, *, conn: Connection, node: Node) -> list[dict]:
+        """Get revenue per cashier per product for the entire event."""
+        rows = await conn.fetch(
+            "select u.id as cashier_id, u.login, u.display_name, "
+            "   p.id as product_id, p.name as product_name, p.is_deposit, "
+            "   sum(li.quantity) as quantity, sum(li.total_price) as revenue "
+            "from line_item li "
+            "join ordr o on li.order_id = o.id "
+            "join usr u on o.cashier_id = u.id "
+            "join product p on li.product_id = p.id "
+            "where p.node_id = any($1) "
+            "group by u.id, u.login, u.display_name, p.id, p.name, p.is_deposit "
+            "order by u.display_name, revenue desc",
+            node.ids_to_event_node,
+        )
+        return [dict(r) for r in rows]
+
     @with_db_transaction
     @requires_node(event_only=True, object_types=[ObjectType.user])
     @requires_user([Privilege.node_administration])
