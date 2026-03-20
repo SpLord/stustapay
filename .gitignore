@@ -55,3 +55,5 @@ TODO.md
 
 # docs
 /docs/**/*.pdf
+app/stustapay-release.jks
+*.jks
