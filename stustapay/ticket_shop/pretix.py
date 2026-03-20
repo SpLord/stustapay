@@ -426,11 +426,10 @@ class PretixTicketProvider(TicketProvider):
             node = await fetch_node(conn=conn, node_id=node_id)
             assert node is not None
 
-            # The checkin webhook doesn't contain the order code directly,
-            # so we mark all non-checked-in vouchers for this node that match
-            # We need to fetch the checkin data from the API
-            # For now, we handle this via the periodic sync by checking checkin status
-            self.logger.info(f"Received checkin webhook for event {node.name} — will be processed in next sync cycle")
+            self.logger.info(
+                f"Received checkin webhook for event {node.name} "
+                f"(action={payload.action}) — will be processed in next sync cycle"
+            )
 
     async def notify_pretix_checkin(self, node_id: int, voucher_token: str):
         """Notify Pretix that a ticket has been checked in (band assigned in StuStaPay).

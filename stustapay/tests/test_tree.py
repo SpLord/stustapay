@@ -81,6 +81,7 @@ async def test_event_creation(tree_service: TreeService, global_admin_token: str
             pretix_organizer=None,
             pretix_shop_url=None,
             pretix_ticket_ids=[],
+            pretix_topup_ids=[],
         ),
     )
     assert event_node.event is not None
@@ -139,6 +140,7 @@ async def test_event_creation(tree_service: TreeService, global_admin_token: str
                 pretix_organizer=None,
                 pretix_shop_url=None,
                 pretix_ticket_ids=[],
+            pretix_topup_ids=[],
             ),
         )
 
@@ -208,6 +210,7 @@ async def test_object_rules(tree_service: TreeService, global_admin_token: str):
             pretix_organizer=None,
             pretix_shop_url=None,
             pretix_ticket_ids=[],
+            pretix_topup_ids=[],
         ),
     )
     assert len(event_node.forbidden_objects_at_node) == 0
