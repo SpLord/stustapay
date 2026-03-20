@@ -213,8 +213,13 @@ class PretixTicketProvider(TicketProvider):
         return None
 
     async def _synchronizie_pretix_order(
-        self, conn: Connection, node: Node, api: PretixApi, event_settings: RestrictedEventSettings,
-        order: PretixOrder, product_names: dict[int, str] | None = None,
+        self,
+        conn: Connection,
+        node: Node,
+        api: PretixApi,
+        event_settings: RestrictedEventSettings,
+        order: PretixOrder,
+        product_names: dict[int, str] | None = None,
     ):
         if order.status != PretixOrderStatus.paid:
             self.logger.debug(
@@ -274,8 +279,12 @@ class PretixTicketProvider(TicketProvider):
         orders = await api.fetch_orders()
         for order in orders:
             await self._synchronizie_pretix_order(
-                conn=conn, node=node, api=api, event_settings=event_settings,
-                order=order, product_names=product_names,
+                conn=conn,
+                node=node,
+                api=api,
+                event_settings=event_settings,
+                order=order,
+                product_names=product_names,
             )
 
     async def synchronize_tickets(self):
@@ -306,13 +315,10 @@ class PretixTicketProvider(TicketProvider):
 
             await asyncio.sleep(self.config.core.pretix_synchronization_interval.seconds)
 
-    async def _sync_pending_checkins(
-        self, conn: Connection, node: Node, event_settings: RestrictedEventSettings
-    ):
+    async def _sync_pending_checkins(self, conn: Connection, node: Node, event_settings: RestrictedEventSettings):
         """Sync pending checkins to Pretix (NFC band was assigned in StuStaPay)."""
         pending = await conn.fetch(
-            "select id, token from ticket_voucher "
-            "where node_id = $1 and needs_pretix_checkin = true and not cancelled",
+            "select id, token from ticket_voucher where node_id = $1 and needs_pretix_checkin = true and not cancelled",
             node.event_node_id,
         )
         if not pending:
@@ -363,8 +369,12 @@ class PretixTicketProvider(TicketProvider):
             products = await api.fetch_products()
             product_names = {p.id: next(iter(p.name.values()), "") for p in products}
             await self._synchronizie_pretix_order(
-                conn=conn, node=node, api=api, event_settings=settings,
-                order=order, product_names=product_names,
+                conn=conn,
+                node=node,
+                api=api,
+                event_settings=settings,
+                order=order,
+                product_names=product_names,
             )
 
     async def _handle_pretix_order_canceled_webhook(self, node_id: int, payload: PretixOrderWebhookPayload):
@@ -379,9 +389,7 @@ class PretixTicketProvider(TicketProvider):
                 node.event_node_id,
                 payload.code,
             )
-            self.logger.info(
-                f"Cancelled vouchers for pretix order {payload.code} in event {node.name}: {result}"
-            )
+            self.logger.info(f"Cancelled vouchers for pretix order {payload.code} in event {node.name}: {result}")
 
     async def _handle_pretix_order_changed_webhook(self, node_id: int, payload: PretixOrderWebhookPayload):
         """Handle order changes: re-fetch order and update voucher data."""
@@ -422,10 +430,7 @@ class PretixTicketProvider(TicketProvider):
             # so we mark all non-checked-in vouchers for this node that match
             # We need to fetch the checkin data from the API
             # For now, we handle this via the periodic sync by checking checkin status
-            self.logger.info(
-                f"Received checkin webhook for event {node.name} — "
-                f"will be processed in next sync cycle"
-            )
+            self.logger.info(f"Received checkin webhook for event {node.name} — will be processed in next sync cycle")
 
     async def notify_pretix_checkin(self, node_id: int, voucher_token: str):
         """Notify Pretix that a ticket has been checked in (band assigned in StuStaPay).
