@@ -58,22 +58,22 @@ export const ExternalTicketList: React.FC = () => {
       ),
     },
     {
-      field: "pretix_product_name" as any,
+      field: "pretix_product_name",
       headerName: t("externalTicket.ticketProduct", "Ticket"),
       flex: 1,
-      valueGetter: (_value: any, row: any) => row.pretix_product_name ?? "",
+      valueGetter: (_value, row) => row.pretix_product_name ?? "",
     },
     {
-      field: "customer_name" as any,
+      field: "customer_name",
       headerName: t("externalTicket.customerName", "Customer"),
       flex: 1,
-      valueGetter: (_value: any, row: any) => row.customer_name ?? "",
+      valueGetter: (_value, row) => row.customer_name ?? "",
     },
     {
-      field: "customer_email" as any,
+      field: "customer_email",
       headerName: t("externalTicket.customerEmail", "Email"),
       flex: 1,
-      valueGetter: (_value: any, row: any) => row.customer_email ?? "",
+      valueGetter: (_value, row) => row.customer_email ?? "",
     },
     {
       field: "initial_top_up_amount",

@@ -64,6 +64,7 @@ const AccountBalanceCard: React.FC<AccountBalanceCardProps> = ({ account }) => {
 
 export const MoneyOverview: React.FC = () => {
   const theme = useTheme();
+  const { t } = useTranslation();
   const formatCurrency = useCurrencyFormatter();
   const { currentNode } = useCurrentNode();
   const { data: moneyOverviewData, isLoading: isAccountsLoading } = useGetMoneyOverviewQuery({
@@ -86,19 +87,19 @@ export const MoneyOverview: React.FC = () => {
         <Card>
           <CardContent>
             <Typography variant="h6" gutterBottom>
-              Deposit / Pfand
+              {t("overview.deposit", "Deposit / Pfand")}
             </Typography>
             <Grid container spacing={2}>
               <Grid size={4}>
-                <Typography variant="body2" color="text.secondary">Charged</Typography>
+                <Typography variant="body2" color="text.secondary">{t("overview.depositCharged", "Charged")}</Typography>
                 <Typography variant="h5">{formatCurrency(deposit.total_deposit_charged)}</Typography>
               </Grid>
               <Grid size={4}>
-                <Typography variant="body2" color="text.secondary">Returned</Typography>
+                <Typography variant="body2" color="text.secondary">{t("overview.depositReturned", "Returned")}</Typography>
                 <Typography variant="h5">{formatCurrency(deposit.total_deposit_returned)}</Typography>
               </Grid>
               <Grid size={4}>
-                <Typography variant="body2" color="text.secondary">Outstanding</Typography>
+                <Typography variant="body2" color="text.secondary">{t("overview.depositOutstanding", "Outstanding")}</Typography>
                 <Typography variant="h5" color={deposit.deposit_balance > 0 ? "success.main" : "error.main"}>
                   {formatCurrency(deposit.deposit_balance)}
                 </Typography>
