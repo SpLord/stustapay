@@ -30,6 +30,7 @@ class _PretixErrorFormat(BaseModel):
 
 class PretixListApiResponse(BaseModel):
     count: int
+    next: str | None = None
     results: list[dict]
 
 
@@ -122,21 +123,24 @@ class PretixApi:
     async def _post(self, url: str, json_data: dict | None = None) -> dict:
         return await self._request("POST", url, json_data=json_data)
 
+    async def _fetch_all_pages(self, url: str) -> list[dict]:
+        """Fetch all pages of a paginated Pretix API response."""
+        all_results: list[dict] = []
+        current_url: str | None = url
+        while current_url is not None:
+            resp = await self._get(current_url)
+            validated_resp = PretixListApiResponse.model_validate(resp)
+            all_results.extend(validated_resp.results)
+            current_url = validated_resp.next
+        return all_results
+
     async def fetch_products(self) -> list[PretixProduct]:
-        resp = await self._get(f"{self.api_base_url}/items")
-        validated_resp = PretixListApiResponse.model_validate(resp)
-        orders = []
-        for item in validated_resp.results:
-            orders.append(PretixProduct.model_validate(item))
-        return orders
+        results = await self._fetch_all_pages(f"{self.api_base_url}/items")
+        return [PretixProduct.model_validate(item) for item in results]
 
     async def fetch_orders(self) -> list[PretixOrder]:
-        resp = await self._get(f"{self.api_base_url}/orders")
-        validated_resp = PretixListApiResponse.model_validate(resp)
-        orders = []
-        for item in validated_resp.results:
-            orders.append(PretixOrder.model_validate(item))
-        return orders
+        results = await self._fetch_all_pages(f"{self.api_base_url}/orders")
+        return [PretixOrder.model_validate(item) for item in results]
 
     async def fetch_order(self, order_code: str) -> PretixOrder | None:
         resp = await self._get(f"{self.api_base_url}/orders/{order_code}")
@@ -302,6 +306,11 @@ class PretixTicketProvider(TicketProvider):
                     relevant_node_ids = await conn.fetchval(
                         "select array_agg(n.id) from node n join event e on n.event_id = e.id where e.pretix_presale_enabled"
                     )
+
+                    if not relevant_node_ids:
+                        self.logger.debug("No pretix-enabled events found, skipping sync")
+                        await asyncio.sleep(self.config.core.pretix_synchronization_interval.seconds)
+                        continue
 
                     for relevant_node_id in relevant_node_ids:
                         node = await fetch_node(conn=conn, node_id=relevant_node_id)
