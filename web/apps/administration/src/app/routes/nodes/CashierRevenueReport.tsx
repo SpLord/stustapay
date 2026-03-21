@@ -1,3 +1,4 @@
+import { CashierRevenueReportRow, useGetCashierRevenueReportQuery } from "@/api";
 import { useCurrentNode, useCurrencyFormatter } from "@/hooks";
 import { Card, CardContent, Stack, Typography } from "@mui/material";
 import { DataGrid, GridColDef } from "@stustapay/framework";
@@ -5,80 +6,44 @@ import { Loading } from "@stustapay/components";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 
-interface CashierRevenueRow {
-  id: string;
-  cashier_id: number;
-  login: string;
-  display_name: string;
-  product_id: number;
-  product_name: string;
-  is_deposit: boolean;
-  quantity: number;
-  revenue: number;
-}
-
 interface CashierSummary {
-  cashier_id: number;
+  id: number;
   display_name: string;
   total_revenue: number;
   total_tips: number;
   total_deposit: number;
   total_sales: number;
-  products: CashierRevenueRow[];
 }
 
 export const CashierRevenueReport: React.FC = () => {
   const { t } = useTranslation();
   const { currentNode } = useCurrentNode();
   const formatCurrency = useCurrencyFormatter();
-  const [data, setData] = React.useState<CashierRevenueRow[] | null>(null);
-  const [loading, setLoading] = React.useState(true);
+  const { data, isLoading } = useGetCashierRevenueReportQuery({ nodeId: currentNode.id });
 
-  React.useEffect(() => {
-    fetch(`/api/cashiers/revenue-report?node_id=${currentNode.id}`, {
-      headers: { Authorization: `Bearer ${localStorage.getItem("access_token") ?? ""}` },
-    })
-      .then((r) => r.json())
-      .then((rows: any[]) => {
-        setData(
-          rows.map((r, i) => ({
-            ...r,
-            id: `${r.cashier_id}-${r.product_id}`,
-          }))
-        );
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
-  }, [currentNode.id]);
+  if (isLoading) return <Loading />;
+  if (!data || data.length === 0) return null;
 
-  if (loading) return <Loading />;
-  if (!data || data.length === 0) {
-    return (
-      <Card>
-        <CardContent>
-          <Typography>{t("cashierReport.noData", "No sales data yet.")}</Typography>
-        </CardContent>
-      </Card>
-    );
-  }
+  const rows = data.map((r, i) => ({
+    ...r,
+    id: `${r.cashier_id}-${r.product_id}`,
+  }));
 
   // Aggregate per cashier
   const cashierMap = new Map<number, CashierSummary>();
   for (const row of data) {
     if (!cashierMap.has(row.cashier_id)) {
       cashierMap.set(row.cashier_id, {
-        cashier_id: row.cashier_id,
+        id: row.cashier_id,
         display_name: row.display_name,
         total_revenue: 0,
         total_tips: 0,
         total_deposit: 0,
         total_sales: 0,
-        products: [],
       });
     }
     const c = cashierMap.get(row.cashier_id)!;
     c.total_revenue += row.revenue;
-    c.products.push(row);
     if (row.product_name.toLowerCase().includes("trinkgeld") || row.product_name.toLowerCase().includes("tip")) {
       c.total_tips += row.revenue;
     } else if (row.is_deposit) {
@@ -88,12 +53,9 @@ export const CashierRevenueReport: React.FC = () => {
     }
   }
 
-  const summaryRows = Array.from(cashierMap.values()).map((c) => ({
-    id: c.cashier_id,
-    ...c,
-  }));
+  const summaryRows = Array.from(cashierMap.values());
 
-  const summaryColumns: GridColDef<(typeof summaryRows)[0]>[] = [
+  const summaryColumns: GridColDef<CashierSummary>[] = [
     { field: "display_name", headerName: t("cashierReport.cashier", "Cashier"), flex: 1 },
     {
       field: "total_sales",
@@ -125,7 +87,7 @@ export const CashierRevenueReport: React.FC = () => {
     },
   ];
 
-  const detailColumns: GridColDef<CashierRevenueRow>[] = [
+  const detailColumns: GridColDef<(typeof rows)[0]>[] = [
     { field: "display_name", headerName: t("cashierReport.cashier", "Cashier"), flex: 1 },
     { field: "product_name", headerName: t("cashierReport.product", "Product"), flex: 1 },
     { field: "quantity", headerName: t("cashierReport.quantity", "Qty"), type: "number" },
@@ -159,7 +121,7 @@ export const CashierRevenueReport: React.FC = () => {
             {t("cashierReport.detailTitle", "Sales by Cashier & Product")}
           </Typography>
           <DataGrid
-            rows={data}
+            rows={rows}
             columns={detailColumns}
             disableRowSelectionOnClick
             sx={{ p: 1, boxShadow: (theme) => theme.shadows[1] }}

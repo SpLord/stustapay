@@ -801,6 +801,13 @@ const injectedRtkApi = api
         }),
         providesTags: ["cashiers"],
       }),
+      getCashierRevenueReport: build.query<CashierRevenueReportApiResponse, CashierRevenueReportApiArg>({
+        query: (queryArg) => ({
+          url: `/cashiers/revenue-report`,
+          params: { node_id: queryArg.nodeId },
+        }),
+        providesTags: ["cashiers"],
+      }),
       closeOutCashier: build.mutation<CloseOutCashierApiResponse, CloseOutCashierApiArg>({
         query: (queryArg) => ({
           url: `/cashiers/${queryArg.cashierId}/close-out`,
@@ -1821,6 +1828,20 @@ export type GetCashierShiftStatsApiArg = {
   cashierId: number;
   nodeId: number;
   shiftId?: number | null;
+};
+export type CashierRevenueReportRow = {
+  cashier_id: number;
+  login: string;
+  display_name: string;
+  product_id: number;
+  product_name: string;
+  is_deposit: boolean;
+  quantity: number;
+  revenue: number;
+};
+export type CashierRevenueReportApiResponse = CashierRevenueReportRow[];
+export type CashierRevenueReportApiArg = {
+  nodeId: number;
 };
 export type CloseOutCashierApiResponse = /** status 200 Successful Response */ CloseOutResult;
 export type CloseOutCashierApiArg = {
@@ -3722,6 +3743,8 @@ export const {
   useLazyGetCashierShiftsQuery,
   useGetCashierShiftStatsQuery,
   useLazyGetCashierShiftStatsQuery,
+  useGetCashierRevenueReportQuery,
+  useLazyGetCashierRevenueReportQuery,
   useCloseOutCashierMutation,
   useGetProductStatsQuery,
   useLazyGetProductStatsQuery,
