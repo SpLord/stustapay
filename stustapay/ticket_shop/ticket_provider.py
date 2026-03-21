@@ -61,12 +61,12 @@ class TicketProvider:
         pass
 
     async def store_external_ticket(self, conn: Connection, node: Node, ticket: CreateExternalTicket) -> bool:
-        exists_already = await conn.fetchval(
-            "select exists(select from ticket_voucher where node_id = $1 and token = $2)",
+        existing = await conn.fetchrow(
+            "select id, customer_account_id from ticket_voucher where node_id = $1 and token = $2",
             node.event_node_id,
             ticket.token,
         )
-        if not exists_already:
+        if existing is None:
             customer_account_id = await conn.fetchval(
                 "insert into account(node_id, type, name) values ($1, 'private', $2) returning id",
                 node.event_node_id,
@@ -94,4 +94,29 @@ class TicketProvider:
                     customer_account_id,
                     ticket.customer_email,
                 )
-        return not exists_already
+            return True
+        else:
+            # Update existing voucher with latest data from Pretix
+            await conn.execute(
+                "update ticket_voucher set initial_top_up_amount = $1, pretix_item_id = $2, "
+                "   pretix_product_name = $3 where id = $4",
+                ticket.initial_top_up_amount,
+                ticket.pretix_item_id,
+                ticket.pretix_product_name,
+                existing["id"],
+            )
+            customer_account_id = existing["customer_account_id"]
+            if ticket.customer_name:
+                await conn.execute(
+                    "update account set name = $1 where id = $2",
+                    ticket.customer_name,
+                    customer_account_id,
+                )
+            if ticket.customer_email:
+                await conn.execute(
+                    "insert into customer_info (customer_account_id, email) values ($1, $2) "
+                    "on conflict (customer_account_id) do update set email = $2",
+                    customer_account_id,
+                    ticket.customer_email,
+                )
+            return False
