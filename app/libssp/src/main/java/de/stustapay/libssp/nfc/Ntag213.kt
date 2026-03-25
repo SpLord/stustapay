@@ -226,22 +226,7 @@ class Ntag213(private val rawTag: Tag) : TagTechnology {
 
     override fun connect() {
         nfcaTag.connect()
-
-        // Verify this is an NTAG chip (213, 215, or 216)
-        try {
-            val version = cmdGetVersion()
-            if (version.size < 8) {
-                throw TagIncompatibleException("Not an NTAG chip: version response too short")
-            }
-            // Check vendor (NXP = 0x04) and product type (NTAG = 0x04)
-            if ((version[1].toInt() and 0xFF) != 0x04 || (version[2].toInt() and 0xFF) != 0x04) {
-                throw TagIncompatibleException("Not an NTAG chip: vendor/product mismatch")
-            }
-        } catch (e: TagIncompatibleException) {
-            throw e
-        } catch (e: IOException) {
-            throw TagIncompatibleException("Not an NTAG213 chip: GET_VERSION failed")
-        }
+        // Chip type already verified by NfcHandler.detectChipType() — no extra GET_VERSION needed
     }
 
     override fun close() {

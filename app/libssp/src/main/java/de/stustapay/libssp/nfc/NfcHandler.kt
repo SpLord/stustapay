@@ -47,39 +47,45 @@ class NfcHandler @Inject constructor(
     }
 
     /**
-     * Detect chip type via GET_VERSION command, then dispatch to the right handler.
+     * Single-connect approach: connect once, detect chip type from GET_VERSION,
+     * then use the already-connected NfcA for the handler.
      */
-    private fun detectChipType(tag: Tag): String {
-        val nfca = NfcA.get(tag) ?: return "unknown"
-        try {
-            nfca.connect()
-            val version = nfca.transceive(byteArrayOf(0x60))
-            nfca.close()
-            if (version != null && version.size >= 8) {
-                val productType = version[2].toInt() and 0xFF
-                return when (productType) {
-                    0x03 -> "mf0aes"   // MIFARE Ultralight AES
-                    0x04 -> "ntag"     // NTAG family (213/215/216)
-                    else -> "unknown"
-                }
-            }
-        } catch (e: Exception) {
-            try { nfca.close() } catch (_: Exception) {}
-            Log.d("NfcHandler", "Chip detection failed: ${e.message}")
-        }
-        return "unknown"
-    }
-
     private fun handleTag(tag: Tag) {
         if (!tag.techList.contains("android.nfc.tech.NfcA")) {
             dataSource.setScanResult(NfcScanResult.Fail(NfcScanFailure.Incompatible("device has no NfcA support")))
             return
         }
 
-        val chipType = detectChipType(tag)
-        Log.d("NfcHandler", "Detected chip: $chipType")
+        val nfca = NfcA.get(tag)
+        if (nfca == null) {
+            dataSource.setScanResult(NfcScanResult.Fail(NfcScanFailure.Incompatible("NfcA not available")))
+            return
+        }
 
         try {
+            nfca.connect()
+
+            // Detect chip type via GET_VERSION (single connection, no reconnect needed)
+            var chipType = "unknown"
+            try {
+                val version = nfca.transceive(byteArrayOf(0x60))
+                if (version != null && version.size >= 8) {
+                    chipType = when (version[2].toInt() and 0xFF) {
+                        0x03 -> "mf0aes"
+                        0x04 -> "ntag"
+                        else -> "unknown"
+                    }
+                }
+            } catch (e: Exception) {
+                Log.d("NfcHandler", "GET_VERSION failed: ${e.message}")
+            }
+
+            Log.d("NfcHandler", "Detected chip: $chipType")
+
+            // Close the probe connection — handlers create their own NfcA from the Tag
+            nfca.close()
+
+            // Dispatch to the right handler (will reconnect internally)
             when (chipType) {
                 "ntag" -> {
                     val ntag = Ntag213(tag)
@@ -92,34 +98,33 @@ class NfcHandler @Inject constructor(
                     mfTag.close()
                 }
                 else -> {
-                    // Unknown chip — try MF0AES first, fallback to NTAG213
+                    // Unknown — default to NTAG213 (more common/cheaper chips)
                     try {
-                        val mfTag = MifareUltralightAES(tag)
-                        handleMfUlAesTag(mfTag)
-                        mfTag.close()
-                    } catch (e: TagIncompatibleException) {
-                        Log.d("NfcHandler", "MF0AES failed, trying NTAG213")
                         val ntag = Ntag213(tag)
                         handleNtag213Tag(ntag)
                         ntag.close()
+                    } catch (e: TagIncompatibleException) {
+                        val mfTag = MifareUltralightAES(tag)
+                        handleMfUlAesTag(mfTag)
+                        mfTag.close()
                     }
                 }
             }
         } catch (e: TagLostException) {
-            dataSource.setScanResult(NfcScanResult.Fail(NfcScanFailure.Lost(e.message ?: "Tag lost")))
+            dataSource.setScanResult(NfcScanResult.Fail(NfcScanFailure.Lost(e.message ?: "Band zu kurz gehalten")))
         } catch (e: TagAuthException) {
-            dataSource.setScanResult(NfcScanResult.Fail(NfcScanFailure.Auth(e.message ?: "Auth failed")))
+            dataSource.setScanResult(NfcScanResult.Fail(NfcScanFailure.Auth(e.message ?: "Authentifizierung fehlgeschlagen")))
         } catch (e: TagIncompatibleException) {
-            dataSource.setScanResult(NfcScanResult.Fail(NfcScanFailure.Incompatible(e.message ?: "Unsupported chip")))
+            dataSource.setScanResult(NfcScanResult.Fail(NfcScanFailure.Incompatible(e.message ?: "Chip nicht unterstützt")))
         } catch (e: TagConnectionException) {
-            dataSource.setScanResult(NfcScanResult.Fail(NfcScanFailure.Lost(e.message ?: "Connection failed")))
+            dataSource.setScanResult(NfcScanResult.Fail(NfcScanFailure.Lost(e.message ?: "Verbindung verloren")))
         } catch (e: IOException) {
-            dataSource.setScanResult(NfcScanResult.Fail(NfcScanFailure.Lost(e.message ?: "IO error")))
+            dataSource.setScanResult(NfcScanResult.Fail(NfcScanFailure.Lost(e.message ?: "Verbindungsfehler")))
         } catch (e: SecurityException) {
-            dataSource.setScanResult(NfcScanResult.Fail(NfcScanFailure.Lost(e.message ?: "Security error")))
+            dataSource.setScanResult(NfcScanResult.Fail(NfcScanFailure.Lost(e.message ?: "Sicherheitsfehler")))
         } catch (e: Exception) {
             e.printStackTrace()
-            dataSource.setScanResult(NfcScanResult.Fail(NfcScanFailure.Other(e.localizedMessage ?: "Unknown error")))
+            dataSource.setScanResult(NfcScanResult.Fail(NfcScanFailure.Other(e.localizedMessage ?: "Unbekannter Fehler")))
         }
     }
 
@@ -173,7 +178,7 @@ class NfcHandler @Inject constructor(
             is NfcScanRequest.Write -> {
                 tag.connect()
                 if (req.dataProtKey == null) {
-                    dataSource.setScanResult(NfcScanResult.Fail(NfcScanFailure.Auth("Key required for NTAG213 write")))
+                    dataSource.setScanResult(NfcScanResult.Fail(NfcScanFailure.Auth("Key required for write")))
                     return
                 }
                 tag.provisionTag("WWWWWWWWWWWWWWWW", req.dataProtKey, req.uidRetrKey)
@@ -185,7 +190,7 @@ class NfcHandler @Inject constructor(
                 dataSource.setScanResult(NfcScanResult.Write)
             }
             is NfcScanRequest.Test -> {
-                dataSource.setScanResult(NfcScanResult.Fail(NfcScanFailure.Other("Test not supported for NTAG213")))
+                dataSource.setScanResult(NfcScanResult.Fail(NfcScanFailure.Other("Test not supported for NTAG")))
             }
         }
     }
