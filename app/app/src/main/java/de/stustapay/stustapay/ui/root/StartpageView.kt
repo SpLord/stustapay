@@ -16,7 +16,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import de.stustapay.stustapay.BuildConfig
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import de.stustapay.libssp.util.restartApp
 import de.stustapay.stustapay.R
@@ -46,6 +48,16 @@ fun StartpageView(
             .fillMaxSize()
             .background(brush = Brush.verticalGradient(colors = gradientColors)),
     ) {
+
+        // Version tag bottom right
+        Text(
+            text = BuildConfig.VERSION_NAME,
+            fontSize = 10.sp,
+            color = MaterialTheme.colors.onBackground.copy(alpha = 0.25f),
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(8.dp)
+        )
 
         Column(
             modifier = Modifier
