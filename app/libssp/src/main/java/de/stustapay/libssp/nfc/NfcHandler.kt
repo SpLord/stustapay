@@ -56,12 +56,59 @@ class NfcHandler @Inject constructor(
             return
         }
 
-        val mfUlAesTag = MifareUltralightAES(tag)
-
         try {
+            val mfUlAesTag = MifareUltralightAES(tag)
             handleMfUlAesTag(mfUlAesTag)
-
             mfUlAesTag.close()
+        } catch (e: TagIncompatibleException) {
+            // MifareUltralightAES chip not detected, fall back to NTAG213
+            Log.d("NfcHandler", "MF0AES incompatible, trying NTAG213: ${e.message}")
+            try {
+                val ntag = Ntag213(tag)
+                handleNtag213Tag(ntag)
+                ntag.close()
+            } catch (e2: TagLostException) {
+                dataSource.setScanResult(
+                    NfcScanResult.Fail(
+                        NfcScanFailure.Lost(
+                            e2.message ?: "unknown reason"
+                        )
+                    )
+                )
+            } catch (e2: TagAuthException) {
+                dataSource.setScanResult(
+                    NfcScanResult.Fail(
+                        NfcScanFailure.Auth(
+                            e2.message ?: "unknown reason"
+                        )
+                    )
+                )
+            } catch (e2: TagIncompatibleException) {
+                dataSource.setScanResult(
+                    NfcScanResult.Fail(
+                        NfcScanFailure.Incompatible(
+                            e2.message ?: "unsupported chip"
+                        )
+                    )
+                )
+            } catch (e2: IOException) {
+                dataSource.setScanResult(
+                    NfcScanResult.Fail(
+                        NfcScanFailure.Lost(
+                            e2.message ?: "io error"
+                        )
+                    )
+                )
+            } catch (e2: Exception) {
+                e2.printStackTrace()
+                dataSource.setScanResult(
+                    NfcScanResult.Fail(
+                        NfcScanFailure.Other(
+                            e2.localizedMessage ?: "unknown exception"
+                        )
+                    )
+                )
+            }
         } catch (e: TagLostException) {
             dataSource.setScanResult(
                 NfcScanResult.Fail(
@@ -74,14 +121,6 @@ class NfcHandler @Inject constructor(
             dataSource.setScanResult(
                 NfcScanResult.Fail(
                     NfcScanFailure.Auth(
-                        e.message ?: "unknown reason"
-                    )
-                )
-            )
-        } catch (e: TagIncompatibleException) {
-            dataSource.setScanResult(
-                NfcScanResult.Fail(
-                    NfcScanFailure.Incompatible(
                         e.message ?: "unknown reason"
                     )
                 )
@@ -194,6 +233,77 @@ class NfcHandler @Inject constructor(
                 is NfcScanRequest.Test -> {
                     val log = tag.test(req.dataProtKey, req.uidRetrKey)
                     dataSource.setScanResult(NfcScanResult.Test(log))
+                }
+            }
+        }
+    }
+
+    private fun handleNtag213Tag(tag: Ntag213) {
+        val req = dataSource.getScanRequest()
+        if (req != null) {
+            when (req) {
+                is NfcScanRequest.Read -> {
+                    tag.connect()
+
+                    // For NTAG213: key0 (dataProtKey) first 4 bytes = PWD,
+                    // key1 (uidRetrKey) first 2 bytes = PACK
+                    val nfcTag = tag.readTag(req.dataProtKey, req.uidRetrKey)
+                    dataSource.setScanResult(NfcScanResult.Read(nfcTag))
+                }
+                is NfcScanRequest.Write -> {
+                    try {
+                        tag.connect()
+                    } catch (e: TagIncompatibleException) {
+                        dataSource.setScanResult(
+                            NfcScanResult.Fail(
+                                NfcScanFailure.Incompatible(
+                                    e.message ?: "unknown reason"
+                                )
+                            )
+                        )
+                        return
+                    }
+
+                    if (req.dataProtKey == null) {
+                        dataSource.setScanResult(
+                            NfcScanResult.Fail(
+                                NfcScanFailure.Auth("dataProtKey required for NTAG213 write")
+                            )
+                        )
+                        return
+                    }
+
+                    tag.provisionTag("WWWWWWWWWWWWWWWW", req.dataProtKey, req.uidRetrKey)
+                    dataSource.setScanResult(NfcScanResult.Write)
+                }
+                is NfcScanRequest.Rewrite -> {
+                    try {
+                        tag.connect()
+                    } catch (e: TagIncompatibleException) {
+                        dataSource.setScanResult(
+                            NfcScanResult.Fail(
+                                NfcScanFailure.Incompatible(
+                                    e.message ?: "unknown reason"
+                                )
+                            )
+                        )
+                        return
+                    }
+
+                    tag.writeTag(
+                        "WWWWWWWWWWWWWWWW",
+                        req.dataProtKey,
+                        req.uidRetrKey
+                    )
+                    dataSource.setScanResult(NfcScanResult.Write)
+                }
+                is NfcScanRequest.Test -> {
+                    // NTAG213 does not support the extended test mode
+                    dataSource.setScanResult(
+                        NfcScanResult.Fail(
+                            NfcScanFailure.Other("Test mode not supported for NTAG213")
+                        )
+                    )
                 }
             }
         }
