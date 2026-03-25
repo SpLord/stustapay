@@ -224,9 +224,13 @@ class Ntag213(private val rawTag: Tag) : TagTechnology {
 
     // -- TagTechnology interface --
 
+    /**
+     * Connect to the tag. If already connected (from NfcHandler probe), skip.
+     */
     override fun connect() {
-        nfcaTag.connect()
-        // Chip type already verified by NfcHandler.detectChipType() — no extra GET_VERSION needed
+        if (!nfcaTag.isConnected) {
+            nfcaTag.connect()
+        }
     }
 
     override fun close() {

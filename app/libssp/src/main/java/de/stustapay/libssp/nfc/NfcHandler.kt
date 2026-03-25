@@ -47,25 +47,32 @@ class NfcHandler @Inject constructor(
     }
 
     /**
-     * Single-connect approach: connect once, detect chip type from GET_VERSION,
-     * then use the already-connected NfcA for the handler.
+     * Single-connection approach:
+     * 1. Connect NfcA once
+     * 2. GET_VERSION to detect chip type (stays connected)
+     * 3. Dispatch to handler (reuses the open connection)
+     * 4. Close once at the end
+     *
+     * This eliminates the tag-lost problem caused by disconnect+reconnect.
      */
     private fun handleTag(tag: Tag) {
         if (!tag.techList.contains("android.nfc.tech.NfcA")) {
-            dataSource.setScanResult(NfcScanResult.Fail(NfcScanFailure.Incompatible("device has no NfcA support")))
-            return
-        }
-
-        val nfca = NfcA.get(tag)
-        if (nfca == null) {
-            dataSource.setScanResult(NfcScanResult.Fail(NfcScanFailure.Incompatible("NfcA not available")))
+            dataSource.setScanResult(NfcScanResult.Fail(NfcScanFailure.Incompatible("NfcA nicht verfügbar")))
             return
         }
 
         try {
+            // For NTAG chips: connect once, detect, read — all on same connection
+            // For MF0AES: let it handle its own connection (complex crypto needs it)
+            val nfca = NfcA.get(tag)
+            if (nfca == null) {
+                dataSource.setScanResult(NfcScanResult.Fail(NfcScanFailure.Incompatible("NfcA nicht verfügbar")))
+                return
+            }
+
             nfca.connect()
 
-            // Detect chip type via GET_VERSION (single connection, no reconnect needed)
+            // Detect chip type — connection stays OPEN
             var chipType = "unknown"
             try {
                 val version = nfca.transceive(byteArrayOf(0x60))
@@ -82,36 +89,42 @@ class NfcHandler @Inject constructor(
 
             Log.d("NfcHandler", "Detected chip: $chipType")
 
-            // Close the probe connection — handlers create their own NfcA from the Tag
-            nfca.close()
-
-            // Dispatch to the right handler (will reconnect internally)
             when (chipType) {
                 "ntag" -> {
+                    // NTAG: reuse the OPEN connection — no reconnect!
                     val ntag = Ntag213(tag)
+                    // ntag.connect() will skip because nfcaTag.isConnected == true
                     handleNtag213Tag(ntag)
                     ntag.close()
                 }
                 "mf0aes" -> {
+                    // MF0AES needs its own connect for crypto setup
+                    nfca.close()
                     val mfTag = MifareUltralightAES(tag)
                     handleMfUlAesTag(mfTag)
                     mfTag.close()
                 }
                 else -> {
-                    // Unknown — default to NTAG213 (more common/cheaper chips)
+                    // Unknown — try as NTAG (more common), reuse connection
                     try {
                         val ntag = Ntag213(tag)
                         handleNtag213Tag(ntag)
                         ntag.close()
-                    } catch (e: TagIncompatibleException) {
-                        val mfTag = MifareUltralightAES(tag)
-                        handleMfUlAesTag(mfTag)
-                        mfTag.close()
+                    } catch (e: Exception) {
+                        Log.d("NfcHandler", "NTAG failed: ${e.message}, trying MF0AES")
+                        try {
+                            val mfTag = MifareUltralightAES(tag)
+                            handleMfUlAesTag(mfTag)
+                            mfTag.close()
+                        } catch (e2: Exception) {
+                            dataSource.setScanResult(NfcScanResult.Fail(
+                                NfcScanFailure.Incompatible("Chip nicht unterstützt")))
+                        }
                     }
                 }
             }
         } catch (e: TagLostException) {
-            dataSource.setScanResult(NfcScanResult.Fail(NfcScanFailure.Lost(e.message ?: "Band zu kurz gehalten")))
+            dataSource.setScanResult(NfcScanResult.Fail(NfcScanFailure.Lost(e.message ?: "Band zu kurz gehalten — bitte nochmal scannen")))
         } catch (e: TagAuthException) {
             dataSource.setScanResult(NfcScanResult.Fail(NfcScanFailure.Auth(e.message ?: "Authentifizierung fehlgeschlagen")))
         } catch (e: TagIncompatibleException) {
@@ -119,7 +132,7 @@ class NfcHandler @Inject constructor(
         } catch (e: TagConnectionException) {
             dataSource.setScanResult(NfcScanResult.Fail(NfcScanFailure.Lost(e.message ?: "Verbindung verloren")))
         } catch (e: IOException) {
-            dataSource.setScanResult(NfcScanResult.Fail(NfcScanFailure.Lost(e.message ?: "Verbindungsfehler")))
+            dataSource.setScanResult(NfcScanResult.Fail(NfcScanFailure.Lost(e.message ?: "Verbindungsfehler — bitte nochmal scannen")))
         } catch (e: SecurityException) {
             dataSource.setScanResult(NfcScanResult.Fail(NfcScanFailure.Lost(e.message ?: "Sicherheitsfehler")))
         } catch (e: Exception) {
@@ -171,7 +184,7 @@ class NfcHandler @Inject constructor(
         val req = dataSource.getScanRequest() ?: return
         when (req) {
             is NfcScanRequest.Read -> {
-                tag.connect()
+                tag.connect()  // skips if already connected
                 val nfcTag = tag.readTag(req.dataProtKey, req.uidRetrKey)
                 dataSource.setScanResult(NfcScanResult.Read(nfcTag))
             }
