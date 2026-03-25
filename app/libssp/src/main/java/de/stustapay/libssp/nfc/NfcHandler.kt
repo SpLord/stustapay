@@ -39,9 +39,9 @@ class NfcHandler @Inject constructor(
         device.enableReaderMode(
             activity,
             { tag -> handleTag(tag) },
-            NfcAdapter.FLAG_READER_NFC_A or NfcAdapter.FLAG_READER_NO_PLATFORM_SOUNDS,
+            NfcAdapter.FLAG_READER_NFC_A or NfcAdapter.FLAG_READER_NO_PLATFORM_SOUNDS or NfcAdapter.FLAG_READER_SKIP_NDEF_CHECK,
             Bundle().apply {
-                putInt(NfcAdapter.EXTRA_READER_PRESENCE_CHECK_DELAY, 2000)
+                putInt(NfcAdapter.EXTRA_READER_PRESENCE_CHECK_DELAY, 5000)
             }
         )
     }
