@@ -89,6 +89,7 @@ fun SaleSelectionList(
                                 amount = (saleStatus.buttonSelection[button.value.id] as? SaleItemAmount.FixedPrice),
                                 onIncr = { viewModel.incrementButton(button.value.id) },
                                 onDecr = { viewModel.decrementButton(button.value.id) },
+                                depositPrice = button.value.depositPrice,
                             )
                         }
 
@@ -100,6 +101,7 @@ fun SaleSelectionList(
                                 onIncr = { viewModel.incrementButton(button.value.id) },
                                 onDecr = { viewModel.decrementButton(button.value.id) },
                                 incrementText = returnCaption,
+                                depositPrice = button.value.depositPrice,
                             )
                         }
 

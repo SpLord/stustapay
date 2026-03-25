@@ -59,6 +59,7 @@ import {
   UserTagDetail,
   UserTagPageLayout,
   UserTagsCreate,
+  UserTagCreateSingle,
   UserTagSecretCreate,
 } from "./routes/user-tags";
 import {
@@ -420,6 +421,10 @@ const router = createBrowserRouter([
               {
                 index: true,
                 element: <FindUserTags />,
+              },
+              {
+                path: "create-single",
+                element: <UserTagCreateSingle />,
               },
               {
                 path: "create-secret",

@@ -16,7 +16,8 @@ sealed interface SaleSelectionItemType {
         val onIncr: () -> Unit,
         val onDecr: () -> Unit,
         val price: SaleItemPrice.FixedPrice,
-        val amount: SaleItemAmount.FixedPrice?
+        val amount: SaleItemAmount.FixedPrice?,
+        val depositPrice: Double = 0.0,
     ) : SaleSelectionItemType
 
     data class FreePrice(
@@ -37,6 +38,7 @@ sealed interface SaleSelectionItemType {
         val price: SaleItemPrice.Returnable,
         val amount: SaleItemAmount.FixedPrice?,
         val incrementText: String,
+        val depositPrice: Double = 0.0,
     ) : SaleSelectionItemType
 }
 
@@ -102,23 +104,33 @@ fun SaleSelectionItem(
     var leftButtonColors = ButtonDefaults.buttonColors()
     var rightButtonColors = errorButtonColors()
 
+    var depositHint: String? = null
+
     when (type) {
         is SaleSelectionItemType.FixedPrice -> {
             val amount: Int = type.amount?.amount ?: 0
-            itemPrice = "%.02f€".format(type.price.price)
+            val displayPrice = type.price.price - type.depositPrice
+            itemPrice = "%.02f€".format(displayPrice)
             itemAmount = "%2d".format(amount)
             rightButtonText = "‒"
+            if (type.depositPrice > 0) {
+                depositHint = "+ %.02f€ Pfand".format(type.depositPrice)
+            }
         }
 
         is SaleSelectionItemType.Returnable -> {
             sameSizeButtons = true
             val amount: Int = type.amount?.amount ?: 0
-            itemPrice = "%.02f€".format(type.price.price)
+            val displayPrice = (type.price.price ?: 0.0) - type.depositPrice
+            itemPrice = "%.02f€".format(displayPrice)
             itemAmount = "%2d".format(amount)
             rightButtonText = type.incrementText
             rightButtonStyle = ProductButtonStyle
             leftButtonColors = errorButtonColors()
             rightButtonColors = okButtonColors()
+            if (type.depositPrice > 0) {
+                depositHint = "+ %.02f€ Pfand".format(type.depositPrice)
+            }
         }
 
         is SaleSelectionItemType.FreePrice -> {
@@ -142,6 +154,7 @@ fun SaleSelectionItem(
         itemAmountDelimiter = itemAmountDelimiter,
         sameSizeButtons = sameSizeButtons,
         leftButtonText = caption,
+        leftButtonSubText = depositHint,
         leftButtonColors = leftButtonColors,
         rightButtonText = rightButtonText,
         rightButtonStyle = rightButtonStyle,

@@ -117,7 +117,9 @@ export const translations = {
     restriction: "User Tag restriction",
     secret: "Secret these tags use",
     create: "Create new user tags for this event",
-    createButton: "Create new tags",
+    createButton: "Bulk import (CSV)",
+    createSingle: "Create a single user tag",
+    createSingleButton: "Create tag",
     uploadPinCsv: "Upload CSV with tag pins",
     uploadPinCsvDescription:
       'Csv with one column "pin" containing the string encoded pins of all tags which are to be created',

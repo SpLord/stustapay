@@ -69,6 +69,7 @@ fun ProductSelectionItem(
     itemAmount: String? = null,
     itemAmountDelimiter: String = "×",
     leftButtonText: String,
+    leftButtonSubText: String? = null,
     leftButtonStyle: TextStyle = ProductButtonStyle,
     leftButtonColors: ButtonColors = ButtonDefaults.buttonColors(),
     rightButtonText: String = "‒",
@@ -136,11 +137,21 @@ fun ProductSelectionItem(
                         .fillMaxHeight(),
                     colors = leftButtonColors
                 ) {
-                    Text(
-                        text = leftButtonText,
-                        style = leftButtonStyle,
-                        textAlign = TextAlign.Center,
-                    )
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = leftButtonText,
+                            style = leftButtonStyle,
+                            textAlign = TextAlign.Center,
+                        )
+                        if (leftButtonSubText != null) {
+                            Text(
+                                text = leftButtonSubText,
+                                fontSize = 11.sp,
+                                textAlign = TextAlign.Center,
+                                color = androidx.compose.ui.graphics.Color.LightGray,
+                            )
+                        }
+                    }
                 }
                 Spacer(modifier = Modifier.padding(horizontal = 2.dp))
 
