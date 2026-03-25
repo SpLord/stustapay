@@ -67,49 +67,58 @@ class Ntag213 : TagTechnology {
     fun readTag(key0: BitVector?, key1: BitVector?): NfcTag {
         if (!isConnected) { throw TagConnectionException() }
 
-        // Read pages 0-3 (contains UID)
+        // Read pages 0-3 (contains UID) — always readable, no auth needed
         val uidPages = cmdRead(0x00u)
 
         // NTAG213 UID layout in pages 0-1:
         // Page 0: UID0 UID1 UID2 BCC0
         // Page 1: UID3 UID4 UID5 UID6
         var uid = 0uL
-        // bytes 0..2 from page 0
         uid = uid or (uidPages[0].toUByte().toULong() shl 48)
         uid = uid or (uidPages[1].toUByte().toULong() shl 40)
         uid = uid or (uidPages[2].toUByte().toULong() shl 32)
-        // bytes 4..7 from page 1 (byte 3 is BCC0)
         uid = uid or (uidPages[4].toUByte().toULong() shl 24)
         uid = uid or (uidPages[5].toUByte().toULong() shl 16)
         uid = uid or (uidPages[6].toUByte().toULong() shl 8)
         uid = uid or (uidPages[7].toUByte().toULong())
 
+        // Try to read PIN from user memory — skip auth for unprovisioned tags
         var pin: String? = null
-        if (key0 != null) {
-            // Authenticate with password before reading protected pages
-            val pwd = ByteArray(4)
-            for (i in 0 until 4) {
-                pwd[i] = key0.gbe(i.toULong()).toByte()
-            }
-
-            val pack = if (key1 != null) {
-                ByteArray(2) { key1.gbe(it.toULong()).toByte() }
-            } else {
-                null
-            }
-
-            cmdPwdAuth(pwd, pack)
-
-            // Read PIN from user memory pages 4-7 (16 bytes)
+        try {
             val pinPages = cmdRead(PIN_PAGE_START.toUByte())
             val sb = StringBuilder()
             for (i in 0 until PIN_MAX_LENGTH) {
                 val c = pinPages[i].toInt().toChar()
-                if (c != 0.toChar()) {
+                if (c != 0.toChar() && c.isLetterOrDigit()) {
                     sb.append(c)
                 }
             }
-            pin = sb.toString()
+            if (sb.isNotEmpty()) {
+                pin = sb.toString()
+            }
+        } catch (e: Exception) {
+            // Pages might be auth-protected — try with PWD_AUTH if keys provided
+            if (key0 != null) {
+                try {
+                    val pwd = ByteArray(4) { key0.gbe(it.toULong()).toByte() }
+                    val pack = if (key1 != null) ByteArray(2) { key1.gbe(it.toULong()).toByte() } else null
+                    cmdPwdAuth(pwd, pack)
+
+                    val pinPages = cmdRead(PIN_PAGE_START.toUByte())
+                    val sb = StringBuilder()
+                    for (i in 0 until PIN_MAX_LENGTH) {
+                        val c = pinPages[i].toInt().toChar()
+                        if (c != 0.toChar() && c.isLetterOrDigit()) {
+                            sb.append(c)
+                        }
+                    }
+                    if (sb.isNotEmpty()) {
+                        pin = sb.toString()
+                    }
+                } catch (_: Exception) {
+                    // Auth failed — tag not provisioned, PIN stays null
+                }
+            }
         }
 
         return NfcTag(uid.toBigInteger(), pin)
