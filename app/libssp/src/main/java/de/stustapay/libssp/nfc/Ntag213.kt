@@ -28,8 +28,21 @@ import java.io.IOException
  *   PWD_AUTH: 0x1B + 4 bytes password -> returns 2 bytes PACK
  *   GET_VERSION: 0x60 -> returns chip identification
  */
-class Ntag213(private val rawTag: Tag) : TagTechnology {
-    val nfcaTag: NfcA = NfcA.get(rawTag)
+class Ntag213 : TagTechnology {
+    val nfcaTag: NfcA
+    private val rawTag: Tag
+
+    /** Create with a Tag — will get its own NfcA */
+    constructor(tag: Tag) {
+        rawTag = tag
+        nfcaTag = NfcA.get(tag)
+    }
+
+    /** Create with an already-connected NfcA — reuses the connection */
+    constructor(nfca: NfcA) {
+        rawTag = nfca.tag
+        nfcaTag = nfca
+    }
 
     companion object {
         const val NTAG213_PAGE_COUNT = 45

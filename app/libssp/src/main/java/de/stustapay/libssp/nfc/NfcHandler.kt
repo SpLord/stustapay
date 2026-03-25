@@ -91,9 +91,8 @@ class NfcHandler @Inject constructor(
 
             when (chipType) {
                 "ntag" -> {
-                    // NTAG: reuse the OPEN connection — no reconnect!
-                    val ntag = Ntag213(tag)
-                    // ntag.connect() will skip because nfcaTag.isConnected == true
+                    // NTAG: pass the already-connected NfcA directly — zero reconnects
+                    val ntag = Ntag213(nfca)
                     handleNtag213Tag(ntag)
                     ntag.close()
                 }
@@ -105,13 +104,14 @@ class NfcHandler @Inject constructor(
                     mfTag.close()
                 }
                 else -> {
-                    // Unknown — try as NTAG (more common), reuse connection
+                    // Unknown — try as NTAG first (reuse connection)
                     try {
-                        val ntag = Ntag213(tag)
+                        val ntag = Ntag213(nfca)
                         handleNtag213Tag(ntag)
                         ntag.close()
                     } catch (e: Exception) {
                         Log.d("NfcHandler", "NTAG failed: ${e.message}, trying MF0AES")
+                        try { nfca.close() } catch (_: Exception) {}
                         try {
                             val mfTag = MifareUltralightAES(tag)
                             handleMfUlAesTag(mfTag)
