@@ -23,14 +23,15 @@ import kotlinx.serialization.Contextual
 /**
  * 
  *
- * @param id 
- * @param name 
- * @param price 
- * @param isReturnable 
- * @param fixedPrice 
- * @param defaultPrice 
- * @param priceInVouchers 
- * @param pricePerVoucher 
+ * @param id
+ * @param name
+ * @param price
+ * @param depositPrice
+ * @param isReturnable
+ * @param fixedPrice
+ * @param defaultPrice
+ * @param priceInVouchers
+ * @param pricePerVoucher
  */
 @Serializable
 
@@ -44,6 +45,9 @@ data class TerminalButton (
 
     @Contextual @SerialName(value = "price")
     val price: kotlin.Double?,
+
+    @Contextual @SerialName(value = "deposit_price")
+    val depositPrice: kotlin.Double? = null,
 
     @SerialName(value = "is_returnable")
     val isReturnable: kotlin.Boolean,

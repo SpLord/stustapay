@@ -7,6 +7,9 @@ import { useTranslation } from "react-i18next";
 import { Outlet, Link as RouterLink, useLocation, useParams } from "react-router-dom";
 
 const getActiveTab = (location: string) => {
+  if (location.endsWith("create-single")) {
+    return UserTagRoutes.action("create-single");
+  }
   if (location.endsWith("create-tags")) {
     return UserTagRoutes.action("create-tags");
   }
@@ -39,6 +42,12 @@ export const UserTagPageLayout: React.FC = () => {
         aria-label="User Tags"
       >
         <Tab label={t("userTag.find")} component={RouterLink} value={UserTagRoutes.list()} to={UserTagRoutes.list()} />
+        <Tab
+          label={t("userTag.createSingleButton")}
+          component={RouterLink}
+          value={UserTagRoutes.action("create-single")}
+          to={UserTagRoutes.action("create-single")}
+        />
         <Tab
           label={t("userTag.createButton")}
           component={RouterLink}

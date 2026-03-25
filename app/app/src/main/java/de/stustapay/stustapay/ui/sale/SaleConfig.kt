@@ -11,6 +11,7 @@ data class SaleItemConfig(
     val caption: String,
     val price: SaleItemPrice,
     val returnable: Boolean,
+    val depositPrice: Double = 0.0,
 )
 
 

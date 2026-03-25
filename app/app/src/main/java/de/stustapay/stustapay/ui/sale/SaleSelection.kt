@@ -73,6 +73,7 @@ fun SaleSelection(
         },
         bottomBar = {
             var totalPrice = 0.0
+            var totalDeposit = 0.0
             if (config is SaleConfig.Ready) {
                 for (button in config.buttons) {
                     if (saleStatus.buttonSelection[button.value.id] != null) {
@@ -95,6 +96,7 @@ fun SaleSelection(
                                         buttonStatus.amount * (price.price ?: 0.0)
                                     }
                                 }
+                                totalDeposit += buttonStatus.amount * button.value.depositPrice
                             }
                         }
                     }
@@ -158,7 +160,8 @@ fun SaleSelection(
                         viewModel.clearSale()
                     }
                 },
-                price = totalPrice
+                price = totalPrice,
+                depositInfo = if (totalDeposit > 0) "inkl. %.02f€ Pfand".format(totalDeposit) else null,
             )
         }
     )

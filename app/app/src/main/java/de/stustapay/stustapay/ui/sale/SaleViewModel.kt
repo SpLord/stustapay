@@ -340,6 +340,7 @@ class SaleViewModel @Inject constructor(
                                         caption = it.name,
                                         price = SaleItemPrice.fromTerminalButton(it),
                                         returnable = it.isReturnable,
+                                        depositPrice = it.depositPrice ?: 0.0,
                                     )
                                 )
                             } ?: mapOf(),

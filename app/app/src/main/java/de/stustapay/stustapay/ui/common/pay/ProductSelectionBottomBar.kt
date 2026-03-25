@@ -167,6 +167,7 @@ fun ProductSelectionBottomBar(
     abortSize: TextUnit = 24.sp,
     submitSize: TextUnit = 30.sp,
     price: Double? = null,
+    depositInfo: String? = null,
     paymentActions: List<PaymentAction> = listOf(),
 ) {
     val haptic = LocalHapticFeedback.current
@@ -183,6 +184,15 @@ fun ProductSelectionBottomBar(
                 name = stringResource(R.string.sale_history_sum),
                 price = price,
             )
+            if (depositInfo != null) {
+                Text(
+                    text = depositInfo,
+                    fontSize = 13.sp,
+                    color = androidx.compose.ui.graphics.Color.Gray,
+                    textAlign = TextAlign.End,
+                    modifier = Modifier.fillMaxWidth().padding(end = 8.dp),
+                )
+            }
             Divider()
         }
 

@@ -221,6 +221,7 @@ create view till_button_with_products as
         t.name,
         t.node_id,
         coalesce(j_view.price, 0)                        as price, -- sane defaults for buttons without a product
+        coalesce(j_view.deposit_price, 0)                as deposit_price, -- sum of deposit product prices
         coalesce(j_view.price_in_vouchers, 0)            as price_in_vouchers,
         coalesce(j_view.price_per_voucher, 0)            as price_per_voucher,
         coalesce(j_view.fixed_price, true)               as fixed_price,
@@ -232,6 +233,7 @@ create view till_button_with_products as
             select
                 tlb.button_id,
                 sum(coalesce(p.price, 0))             as price,
+                sum(case when p.is_deposit then coalesce(p.price, 0) else 0 end) as deposit_price,
 
                 -- this assumes that only one product can have a voucher value
                 -- because we'd need the products individual voucher prices
