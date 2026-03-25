@@ -4,6 +4,7 @@ import android.app.Activity
 import android.nfc.NfcAdapter
 import android.nfc.Tag
 import android.nfc.TagLostException
+import android.nfc.tech.NfcA
 import android.os.Bundle
 import android.util.Log
 import de.stustapay.libssp.model.NfcScanFailure
@@ -39,15 +40,34 @@ class NfcHandler @Inject constructor(
             activity,
             { tag -> handleTag(tag) },
             NfcAdapter.FLAG_READER_NFC_A or NfcAdapter.FLAG_READER_NO_PLATFORM_SOUNDS,
-            // some devices send presence heartbeats to the nfc tag.
-            // this heartbeat may be sent in non-cmac-mode - and then a cmac-enabled
-            // chip refuses any further communication.
-            // -> adjust the check delay so we don't usually check for presence during
-            //    a nfc transaction.
             Bundle().apply {
                 putInt(NfcAdapter.EXTRA_READER_PRESENCE_CHECK_DELAY, 500)
             }
         )
+    }
+
+    /**
+     * Detect chip type via GET_VERSION command, then dispatch to the right handler.
+     */
+    private fun detectChipType(tag: Tag): String {
+        val nfca = NfcA.get(tag) ?: return "unknown"
+        try {
+            nfca.connect()
+            val version = nfca.transceive(byteArrayOf(0x60))
+            nfca.close()
+            if (version != null && version.size >= 8) {
+                val productType = version[2].toInt() and 0xFF
+                return when (productType) {
+                    0x03 -> "mf0aes"   // MIFARE Ultralight AES
+                    0x04 -> "ntag"     // NTAG family (213/215/216)
+                    else -> "unknown"
+                }
+            }
+        } catch (e: Exception) {
+            try { nfca.close() } catch (_: Exception) {}
+            Log.d("NfcHandler", "Chip detection failed: ${e.message}")
+        }
+        return "unknown"
     }
 
     private fun handleTag(tag: Tag) {
@@ -56,255 +76,116 @@ class NfcHandler @Inject constructor(
             return
         }
 
+        val chipType = detectChipType(tag)
+        Log.d("NfcHandler", "Detected chip: $chipType")
+
         try {
-            val mfUlAesTag = MifareUltralightAES(tag)
-            handleMfUlAesTag(mfUlAesTag)
-            mfUlAesTag.close()
-        } catch (e: TagIncompatibleException) {
-            // MifareUltralightAES chip not detected, fall back to NTAG213
-            Log.d("NfcHandler", "MF0AES incompatible, trying NTAG213: ${e.message}")
-            try {
-                val ntag = Ntag213(tag)
-                handleNtag213Tag(ntag)
-                ntag.close()
-            } catch (e2: TagLostException) {
-                dataSource.setScanResult(
-                    NfcScanResult.Fail(
-                        NfcScanFailure.Lost(
-                            e2.message ?: "unknown reason"
-                        )
-                    )
-                )
-            } catch (e2: TagAuthException) {
-                dataSource.setScanResult(
-                    NfcScanResult.Fail(
-                        NfcScanFailure.Auth(
-                            e2.message ?: "unknown reason"
-                        )
-                    )
-                )
-            } catch (e2: TagIncompatibleException) {
-                dataSource.setScanResult(
-                    NfcScanResult.Fail(
-                        NfcScanFailure.Incompatible(
-                            e2.message ?: "unsupported chip"
-                        )
-                    )
-                )
-            } catch (e2: IOException) {
-                dataSource.setScanResult(
-                    NfcScanResult.Fail(
-                        NfcScanFailure.Lost(
-                            e2.message ?: "io error"
-                        )
-                    )
-                )
-            } catch (e2: Exception) {
-                e2.printStackTrace()
-                dataSource.setScanResult(
-                    NfcScanResult.Fail(
-                        NfcScanFailure.Other(
-                            e2.localizedMessage ?: "unknown exception"
-                        )
-                    )
-                )
+            when (chipType) {
+                "ntag" -> {
+                    val ntag = Ntag213(tag)
+                    handleNtag213Tag(ntag)
+                    ntag.close()
+                }
+                "mf0aes" -> {
+                    val mfTag = MifareUltralightAES(tag)
+                    handleMfUlAesTag(mfTag)
+                    mfTag.close()
+                }
+                else -> {
+                    // Unknown chip — try MF0AES first, fallback to NTAG213
+                    try {
+                        val mfTag = MifareUltralightAES(tag)
+                        handleMfUlAesTag(mfTag)
+                        mfTag.close()
+                    } catch (e: TagIncompatibleException) {
+                        Log.d("NfcHandler", "MF0AES failed, trying NTAG213")
+                        val ntag = Ntag213(tag)
+                        handleNtag213Tag(ntag)
+                        ntag.close()
+                    }
+                }
             }
         } catch (e: TagLostException) {
-            dataSource.setScanResult(
-                NfcScanResult.Fail(
-                    NfcScanFailure.Lost(
-                        e.message ?: "unknown reason"
-                    )
-                )
-            )
+            dataSource.setScanResult(NfcScanResult.Fail(NfcScanFailure.Lost(e.message ?: "Tag lost")))
         } catch (e: TagAuthException) {
-            dataSource.setScanResult(
-                NfcScanResult.Fail(
-                    NfcScanFailure.Auth(
-                        e.message ?: "unknown reason"
-                    )
-                )
-            )
+            dataSource.setScanResult(NfcScanResult.Fail(NfcScanFailure.Auth(e.message ?: "Auth failed")))
+        } catch (e: TagIncompatibleException) {
+            dataSource.setScanResult(NfcScanResult.Fail(NfcScanFailure.Incompatible(e.message ?: "Unsupported chip")))
+        } catch (e: TagConnectionException) {
+            dataSource.setScanResult(NfcScanResult.Fail(NfcScanFailure.Lost(e.message ?: "Connection failed")))
         } catch (e: IOException) {
-            dataSource.setScanResult(
-                NfcScanResult.Fail(
-                    NfcScanFailure.Lost(
-                        e.message ?: "io error"
-                    )
-                )
-            )
+            dataSource.setScanResult(NfcScanResult.Fail(NfcScanFailure.Lost(e.message ?: "IO error")))
         } catch (e: SecurityException) {
-            dataSource.setScanResult(
-                NfcScanResult.Fail(
-                    NfcScanFailure.Lost(
-                        e.message ?: "security error"
-                    )
-                )
-            )
+            dataSource.setScanResult(NfcScanResult.Fail(NfcScanFailure.Lost(e.message ?: "Security error")))
         } catch (e: Exception) {
             e.printStackTrace()
-            dataSource.setScanResult(
-                NfcScanResult.Fail(
-                    NfcScanFailure.Other(
-                        e.localizedMessage ?: "unknown exception"
-                    )
-                )
-            )
+            dataSource.setScanResult(NfcScanResult.Fail(NfcScanFailure.Other(e.localizedMessage ?: "Unknown error")))
         }
     }
 
     private fun handleMfUlAesTag(tag: MifareUltralightAES) {
-        val req = dataSource.getScanRequest()
-        if (req != null) {
-            when (req) {
-                is NfcScanRequest.Read -> {
-                    tag.connect()
-                    dataSource.setScanResult(NfcScanResult.Read(tag.fastRead(req.uidRetrKey, req.dataProtKey)))
+        val req = dataSource.getScanRequest() ?: return
+        when (req) {
+            is NfcScanRequest.Read -> {
+                tag.connect()
+                dataSource.setScanResult(NfcScanResult.Read(tag.fastRead(req.uidRetrKey, req.dataProtKey)))
+            }
+            is NfcScanRequest.Write -> {
+                tag.connect()
+                authenticate(tag, true, true, req.dataProtKey!!)
+                tag.setCMAC(true)
+                tag.setAuth0(0x10u)
+                tag.writeUserMemory("StuStaPay\n".toByteArray(Charset.forName("UTF-8")).asBitVector())
+                tag.writePin("WWWWWWWWWWWW")
+                tag.writeDataProtKey(req.dataProtKey)
+                tag.writeUidRetrKey(req.uidRetrKey)
+                dataSource.setScanResult(NfcScanResult.Write)
+            }
+            is NfcScanRequest.Rewrite -> {
+                tag.connect()
+                tag.authenticate(req.dataProtKey, MifareUltralightAES.KeyType.DATA_PROT_KEY, true)
+                val ser = tag.readSerialNumber()
+                if (uid_map[ser] == null) {
+                    dataSource.setScanResult(NfcScanResult.Fail(NfcScanFailure.Other("UID not found")))
+                    return
                 }
-                is NfcScanRequest.Write -> {
-                    try {
-                        tag.connect()
-                    } catch (e: TagIncompatibleException) {
-                        dataSource.setScanResult(
-                            NfcScanResult.Fail(
-                                NfcScanFailure.Incompatible(
-                                    e.message ?: "unknown reason"
-                                )
-                            )
-                        )
-                        return
-                    }
-
-                    authenticate(tag, true, true, req.dataProtKey!!)
-
-                    tag.setCMAC(true)
-                    tag.setAuth0(0x10u)
-                    tag.writeUserMemory("StuStaPay at StuStaCulum 2024\n".toByteArray(Charset.forName("UTF-8")).asBitVector())
-                    tag.writePin("WWWWWWWWWWWW")
-                    tag.writeDataProtKey(req.dataProtKey)
-                    tag.writeUidRetrKey(req.uidRetrKey)
-                    dataSource.setScanResult(NfcScanResult.Write)
-                }
-                is NfcScanRequest.Rewrite -> {
-                    try {
-                        tag.connect()
-                    } catch (e: TagIncompatibleException) {
-                        dataSource.setScanResult(
-                            NfcScanResult.Fail(
-                                NfcScanFailure.Incompatible(
-                                    e.message ?: "unknown reason"
-                                )
-                            )
-                        )
-                        return
-                    }
-
-                    try {
-                        tag.authenticate(req.dataProtKey, MifareUltralightAES.KeyType.DATA_PROT_KEY, true)
-                    } catch (e: Exception) {
-                        dataSource.setScanResult(
-                            NfcScanResult.Fail(
-                                NfcScanFailure.Auth(
-                                    e.message ?: "unknown auth error"
-                                )
-                            )
-                        )
-                        return
-                    }
-
-                    val ser = tag.readSerialNumber()
-                    if (uid_map[ser] == null) {
-                        dataSource.setScanResult(
-                            NfcScanResult.Fail(
-                                NfcScanFailure.Other(
-                                    "uid not found"
-                                )
-                            )
-                        )
-                        return
-                    }
-
-                    tag.setCMAC(true)
-                    tag.writeDataProtKey(req.dataProtKey)
-                    tag.writeUidRetrKey(req.uidRetrKey)
-                    tag.writePin(uid_map[ser] + "\u0000\u0000\u0000\u0000")
-                    dataSource.setScanResult(NfcScanResult.Write)
-                }
-                is NfcScanRequest.Test -> {
-                    val log = tag.test(req.dataProtKey, req.uidRetrKey)
-                    dataSource.setScanResult(NfcScanResult.Test(log))
-                }
+                tag.setCMAC(true)
+                tag.writeDataProtKey(req.dataProtKey)
+                tag.writeUidRetrKey(req.uidRetrKey)
+                tag.writePin(uid_map[ser] + "\u0000\u0000\u0000\u0000")
+                dataSource.setScanResult(NfcScanResult.Write)
+            }
+            is NfcScanRequest.Test -> {
+                val log = tag.test(req.dataProtKey, req.uidRetrKey)
+                dataSource.setScanResult(NfcScanResult.Test(log))
             }
         }
     }
 
     private fun handleNtag213Tag(tag: Ntag213) {
-        val req = dataSource.getScanRequest()
-        if (req != null) {
-            when (req) {
-                is NfcScanRequest.Read -> {
-                    tag.connect()
-
-                    // For NTAG213: key0 (dataProtKey) first 4 bytes = PWD,
-                    // key1 (uidRetrKey) first 2 bytes = PACK
-                    val nfcTag = tag.readTag(req.dataProtKey, req.uidRetrKey)
-                    dataSource.setScanResult(NfcScanResult.Read(nfcTag))
+        val req = dataSource.getScanRequest() ?: return
+        when (req) {
+            is NfcScanRequest.Read -> {
+                tag.connect()
+                val nfcTag = tag.readTag(req.dataProtKey, req.uidRetrKey)
+                dataSource.setScanResult(NfcScanResult.Read(nfcTag))
+            }
+            is NfcScanRequest.Write -> {
+                tag.connect()
+                if (req.dataProtKey == null) {
+                    dataSource.setScanResult(NfcScanResult.Fail(NfcScanFailure.Auth("Key required for NTAG213 write")))
+                    return
                 }
-                is NfcScanRequest.Write -> {
-                    try {
-                        tag.connect()
-                    } catch (e: TagIncompatibleException) {
-                        dataSource.setScanResult(
-                            NfcScanResult.Fail(
-                                NfcScanFailure.Incompatible(
-                                    e.message ?: "unknown reason"
-                                )
-                            )
-                        )
-                        return
-                    }
-
-                    if (req.dataProtKey == null) {
-                        dataSource.setScanResult(
-                            NfcScanResult.Fail(
-                                NfcScanFailure.Auth("dataProtKey required for NTAG213 write")
-                            )
-                        )
-                        return
-                    }
-
-                    tag.provisionTag("WWWWWWWWWWWWWWWW", req.dataProtKey, req.uidRetrKey)
-                    dataSource.setScanResult(NfcScanResult.Write)
-                }
-                is NfcScanRequest.Rewrite -> {
-                    try {
-                        tag.connect()
-                    } catch (e: TagIncompatibleException) {
-                        dataSource.setScanResult(
-                            NfcScanResult.Fail(
-                                NfcScanFailure.Incompatible(
-                                    e.message ?: "unknown reason"
-                                )
-                            )
-                        )
-                        return
-                    }
-
-                    tag.writeTag(
-                        "WWWWWWWWWWWWWWWW",
-                        req.dataProtKey,
-                        req.uidRetrKey
-                    )
-                    dataSource.setScanResult(NfcScanResult.Write)
-                }
-                is NfcScanRequest.Test -> {
-                    // NTAG213 does not support the extended test mode
-                    dataSource.setScanResult(
-                        NfcScanResult.Fail(
-                            NfcScanFailure.Other("Test mode not supported for NTAG213")
-                        )
-                    )
-                }
+                tag.provisionTag("WWWWWWWWWWWWWWWW", req.dataProtKey, req.uidRetrKey)
+                dataSource.setScanResult(NfcScanResult.Write)
+            }
+            is NfcScanRequest.Rewrite -> {
+                tag.connect()
+                tag.writeTag("WWWWWWWWWWWWWWWW", req.dataProtKey, req.uidRetrKey)
+                dataSource.setScanResult(NfcScanResult.Write)
+            }
+            is NfcScanRequest.Test -> {
+                dataSource.setScanResult(NfcScanResult.Fail(NfcScanFailure.Other("Test not supported for NTAG213")))
             }
         }
     }
@@ -320,16 +201,9 @@ class NfcHandler @Inject constructor(
                 tag.authenticate(key, MifareUltralightAES.KeyType.DATA_PROT_KEY, cmac)
             }
         } catch (e: Exception) {
-            dataSource.setScanResult(
-                NfcScanResult.Fail(
-                    NfcScanFailure.Auth(
-                        e.message ?: "unknown auth error"
-                    )
-                )
-            )
+            dataSource.setScanResult(NfcScanResult.Fail(NfcScanFailure.Auth(e.message ?: "Auth error")))
             return false
         }
-
         return true
     }
 }
