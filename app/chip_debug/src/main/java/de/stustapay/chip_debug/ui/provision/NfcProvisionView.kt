@@ -1,14 +1,16 @@
 package de.stustapay.chip_debug.ui.provision
 
-import android.os.VibrationEffect
 import android.os.Vibrator
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.Button
+import androidx.compose.material.Card
 import androidx.compose.material.Divider
 import androidx.compose.material.OutlinedTextField
 import androidx.compose.material.Text
@@ -16,7 +18,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -30,7 +31,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import de.stustapay.chip_debug.ui.nav.NavScaffold
 import de.stustapay.chip_debug.ui.write.NfcDebugScanResult
 import de.stustapay.libssp.model.NfcScanFailure
-import kotlinx.coroutines.launch
 
 @Composable
 fun NfcProvisionView(
@@ -38,12 +38,12 @@ fun NfcProvisionView(
     viewModel: NfcProvisionViewModel = hiltViewModel()
 ) {
     val result by viewModel.result.collectAsStateWithLifecycle()
+    val scanning by viewModel.scanning.collectAsStateWithLifecycle()
     val vibrator = LocalContext.current.getSystemService(Vibrator::class.java)
     var pinInput by remember { mutableStateOf("") }
-    val scope = rememberCoroutineScope()
 
     NavScaffold(
-        title = { Text("Provision Band") },
+        title = { Text("Band beschreiben") },
         navigateBack = {
             viewModel.stop()
             navigateBack()
@@ -55,43 +55,76 @@ fun NfcProvisionView(
                 .fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(
-                text = "PIN eingeben und Band scannen",
-                fontSize = 20.sp,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(bottom = 16.dp)
-            )
-
-            OutlinedTextField(
-                label = { Text("PIN (max. 16 Zeichen)") },
-                value = pinInput,
-                onValueChange = { if (it.length <= 16) pinInput = it },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Button(
-                onClick = {
-                    scope.launch {
-                        viewModel.provisionWithPin(pinInput, vibrator)
+            if (scanning) {
+                // Scanning state — show big "hold band" prompt
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(20.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Box(Modifier.size(300.dp, 300.dp)) {
+                        Card(modifier = Modifier.padding(20.dp)) {
+                            Box(
+                                modifier = Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text(
+                                        "📡 Band auflegen!",
+                                        textAlign = TextAlign.Center,
+                                        fontSize = 36.sp
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Text(
+                                        "PIN: $pinInput",
+                                        textAlign = TextAlign.Center,
+                                        fontSize = 18.sp,
+                                        color = Color.Gray
+                                    )
+                                }
+                            }
+                        }
                     }
-                },
-                enabled = pinInput.isNotEmpty(),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Band beschreiben", fontSize = 20.sp)
+                }
+            } else {
+                // Input state — PIN entry + button
+                Text(
+                    text = "PIN eingeben und Band beschreiben",
+                    fontSize = 20.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+
+                OutlinedTextField(
+                    label = { Text("PIN (max. 16 Zeichen)") },
+                    value = pinInput,
+                    onValueChange = { if (it.length <= 16) pinInput = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Button(
+                    onClick = {
+                        viewModel.startProvision(pinInput, vibrator)
+                    },
+                    enabled = pinInput.isNotEmpty(),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Band beschreiben", fontSize = 20.sp)
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                    text = "Schreibt PIN + Passwort + Schutz auf den Chip",
+                    fontSize = 12.sp,
+                    color = Color.Gray,
+                    textAlign = TextAlign.Center
+                )
             }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Text(
-                text = "Schreibt PIN + Passwort + Schutz auf NTAG213",
-                fontSize = 12.sp,
-                color = Color.Gray,
-                textAlign = TextAlign.Center
-            )
 
             Spacer(modifier = Modifier.height(24.dp))
             Divider()
@@ -101,9 +134,13 @@ fun NfcProvisionView(
             Spacer(modifier = Modifier.height(8.dp))
 
             when (val r = result) {
-                is NfcDebugScanResult.None -> Text("Noch kein Ergebnis")
+                is NfcDebugScanResult.None -> {
+                    if (!scanning) {
+                        Text("Noch kein Ergebnis")
+                    }
+                }
                 is NfcDebugScanResult.WriteSuccess -> Text(
-                    "✓ Band beschrieben mit PIN: $pinInput",
+                    "Band beschrieben mit PIN: $pinInput",
                     color = Color(0xFF4CAF50),
                     fontSize = 18.sp
                 )
@@ -113,7 +150,7 @@ fun NfcProvisionView(
                         is NfcScanFailure.Other -> Text("Fehler: ${reason.msg}", color = Color.Red)
                         is NfcScanFailure.Incompatible -> Text("Chip nicht kompatibel", color = Color.Red)
                         is NfcScanFailure.Lost -> Text("Band zu kurz gehalten", color = Color.Red)
-                        is NfcScanFailure.Auth -> Text("Authentifizierung fehlgeschlagen", color = Color.Red)
+                        is NfcScanFailure.Auth -> Text("Auth fehlgeschlagen", color = Color.Red)
                     }
                 }
             }
