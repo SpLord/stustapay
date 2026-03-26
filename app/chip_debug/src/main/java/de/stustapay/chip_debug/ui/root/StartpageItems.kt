@@ -17,6 +17,11 @@ val startpageItems = listOf(
         navDestination = RootNavDests.write
     ),
     StartpageItem(
+        icon = Icons.Filled.Nfc,
+        label = R.string.root_item_provision,
+        navDestination = RootNavDests.provision
+    ),
+    StartpageItem(
         icon = Icons.Filled.Search,
         label = R.string.root_item_verify,
         navDestination = RootNavDests.verify

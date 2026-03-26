@@ -6,6 +6,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import de.stustapay.chip_debug.ui.nav.NavChangeHandler
 import de.stustapay.chip_debug.ui.nav.navigateDestination
+import de.stustapay.chip_debug.ui.provision.NfcProvisionView
 import de.stustapay.chip_debug.ui.test.NfcDebugView
 import de.stustapay.chip_debug.ui.verify.NfcVerifyView
 import de.stustapay.chip_debug.ui.write.NfcWriteView
@@ -40,6 +41,13 @@ fun RootView(uictrl: SysUiController? = null) {
         }
         composable(RootNavDests.write.route) {
             NfcWriteView(
+                navigateBack = {
+                    navController.navigateDestination(RootNavDests.startpage)
+                }
+            )
+        }
+        composable(RootNavDests.provision.route) {
+            NfcProvisionView(
                 navigateBack = {
                     navController.navigateDestination(RootNavDests.startpage)
                 }

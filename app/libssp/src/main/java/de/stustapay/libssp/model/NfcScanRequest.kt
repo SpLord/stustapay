@@ -10,7 +10,8 @@ sealed interface NfcScanRequest {
 
     data class Write(
         val uidRetrKey: BitVector,
-        val dataProtKey: BitVector?
+        val dataProtKey: BitVector?,
+        val pin: String? = null
     ) : NfcScanRequest
 
     data class Rewrite(

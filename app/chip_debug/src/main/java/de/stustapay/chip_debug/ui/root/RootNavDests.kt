@@ -9,5 +9,6 @@ object RootNavDests : NavDestinations() {
     val startpage = NavDest("startpage")
     val test = NavDest("test")
     val write = NavDest("write")
+    val provision = NavDest("provision")
     val verify = NavDest("verify")
 }

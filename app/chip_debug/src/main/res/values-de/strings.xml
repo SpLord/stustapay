@@ -2,6 +2,7 @@
 <resources>
     <string name="root_item_test">Test</string>
     <string name="root_item_write">Schreiben</string>
+    <string name="root_item_provision">Band beschreiben</string>
     <string name="root_item_verify">Prüfen</string>
     <string name="root_item_restart_app">App Neustarten</string>
 
