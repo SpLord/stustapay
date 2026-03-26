@@ -9,6 +9,7 @@ import de.stustapay.chip_debug.repository.NfcRepository
 import de.stustapay.chip_debug.ui.write.NfcDebugScanResult
 import de.stustapay.libssp.model.NfcScanResult
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import javax.inject.Inject
