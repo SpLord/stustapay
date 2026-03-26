@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import de.stustapay.stustapay.BuildConfig
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import de.stustapay.libssp.update.VersionWithUpdateCheck
 import de.stustapay.libssp.util.restartApp
 import de.stustapay.stustapay.R
 import de.stustapay.stustapay.model.Access
@@ -49,11 +50,10 @@ fun StartpageView(
             .background(brush = Brush.verticalGradient(colors = gradientColors)),
     ) {
 
-        // Version tag bottom right
-        Text(
-            text = BuildConfig.VERSION_NAME,
-            fontSize = 10.sp,
-            color = MaterialTheme.colors.onBackground.copy(alpha = 0.25f),
+        // Version tag bottom right with auto-update check
+        VersionWithUpdateCheck(
+            currentVersion = BuildConfig.VERSION_NAME,
+            apkName = "app-release.apk",
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(8.dp)

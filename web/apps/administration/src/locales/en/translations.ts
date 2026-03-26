@@ -120,6 +120,9 @@ export const translations = {
     createButton: "Bulk import (CSV)",
     createSingle: "Create a single user tag",
     createSingleButton: "Create tag",
+    singlePinLabel: "Tag PIN (written on the NFC chip)",
+    singleSecretLabel: "NFC Secret (encryption key pair)",
+    singleRestrictionLabel: "Product restriction (optional)",
     uploadPinCsv: "Upload CSV with tag pins",
     uploadPinCsvDescription:
       'Csv with one column "pin" containing the string encoded pins of all tags which are to be created',
