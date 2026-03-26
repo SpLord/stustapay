@@ -1,97 +1,101 @@
 import * as React from "react";
 import { UserTagSecret, useCreateUserTagsMutation, useListUserTagSecretsQuery } from "@/api";
 import { UserTagRoutes } from "@/app/routes";
-import { CreateLayout } from "@/components";
 import { useCurrentNode } from "@/hooks";
-import { ProductRestrictionSchema } from "@stustapay/models";
 import { useTranslation } from "react-i18next";
-import { z } from "zod";
 import { RestrictionSelect } from "@/components/features";
-import { FormikProps } from "formik";
 import { Select } from "@stustapay/components";
-import { Alert, TextField } from "@mui/material";
+import { Alert, Button, LinearProgress, Paper, Stack, TextField, Typography } from "@mui/material";
+import { useNavigate } from "react-router-dom";
+import { toast } from "react-toastify";
 
-const NewSingleUserTagSchema = z.object({
-  pin: z.string().min(1),
-  secret_id: z.number().int(),
-  restriction: ProductRestrictionSchema.nullable(),
-});
-
-type NewSingleUserTag = z.infer<typeof NewSingleUserTagSchema>;
-
-const initialValues: NewSingleUserTag = {
-  pin: "",
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  secret_id: null as any,
-  restriction: null,
-};
-
-const SingleTagForm: React.FC<FormikProps<NewSingleUserTag>> = (props) => {
-  const { currentNode } = useCurrentNode();
+export const UserTagCreateSingle: React.FC = () => {
   const { t } = useTranslation();
-  const { values, setFieldValue, handleChange, handleBlur } = props;
-  const { data: userTagsSecrets, error } = useListUserTagSecretsQuery({ nodeId: currentNode.id });
+  const { currentNode } = useCurrentNode();
+  const navigate = useNavigate();
+  const [createUserTags, { isLoading }] = useCreateUserTagsMutation();
+  const { data: userTagsSecrets, error: secretsError } = useListUserTagSecretsQuery({ nodeId: currentNode.id });
 
-  if (error) {
-    return <Alert severity="error">{`Error loading user tag secrets: ${error}`}</Alert>;
+  const [pin, setPin] = React.useState("");
+  const [secretId, setSecretId] = React.useState<number | null>(null);
+  const [restriction, setRestriction] = React.useState<string | null>(null);
+
+  if (secretsError) {
+    return <Alert severity="error">{`Error loading user tag secrets: ${secretsError}`}</Alert>;
   }
 
   if (!userTagsSecrets) {
     return null;
   }
 
-  return (
-    <>
-      <TextField
-        label={t("userTag.pin")}
-        name="pin"
-        value={values.pin}
-        onChange={handleChange}
-        onBlur={handleBlur}
-        variant="outlined"
-      />
-      <RestrictionSelect
-        label={t("userTag.restriction")}
-        value={values.restriction}
-        onChange={(val) => setFieldValue("restriction", val)}
-        multiple={false}
-      />
-      <Select
-        label={t("userTag.secret")}
-        multiple={false}
-        value={userTagsSecrets.find((v) => v.id === values.secret_id) ?? null}
-        options={userTagsSecrets}
-        formatOption={(secret: UserTagSecret) => secret.description}
-        onChange={(secret) => secret && setFieldValue("secret_id", secret.id)}
-      />
-    </>
-  );
-};
+  const handleSubmit = async () => {
+    if (!pin.trim()) {
+      toast.error("PIN is required");
+      return;
+    }
+    if (secretId == null) {
+      toast.error("Secret is required");
+      return;
+    }
 
-export const UserTagCreateSingle: React.FC = () => {
-  const { t } = useTranslation();
-  const { currentNode } = useCurrentNode();
-  const [createUserTags] = useCreateUserTagsMutation();
+    try {
+      await createUserTags({
+        nodeId: currentNode.id,
+        newUserTags: [
+          {
+            pin: pin.trim(),
+            secret_id: secretId,
+            restriction: restriction,
+          },
+        ],
+      }).unwrap();
+      toast.success(`Tag "${pin.trim()}" created`);
+      navigate(UserTagRoutes.list());
+    } catch (err) {
+      toast.error(`Error creating tag: ${err}`);
+    }
+  };
 
   return (
-    <CreateLayout
-      title={t("userTag.createSingle")}
-      successRoute={UserTagRoutes.list()}
-      initialValues={initialValues}
-      validationSchema={NewSingleUserTagSchema}
-      onSubmit={(tag) =>
-        createUserTags({
-          nodeId: currentNode.id,
-          newUserTags: [
-            {
-              pin: tag.pin,
-              secret_id: tag.secret_id,
-              restriction: tag.restriction,
-            },
-          ],
-        })
-      }
-      form={SingleTagForm}
-    />
+    <Stack spacing={2}>
+      <Typography component="div" variant="h5">
+        {t("userTag.createSingle")}
+      </Typography>
+      <Paper sx={{ p: 3 }}>
+        <Stack spacing={2}>
+          <TextField
+            label={t("userTag.singlePinLabel")}
+            value={pin}
+            onChange={(e) => setPin(e.target.value)}
+            variant="outlined"
+            fullWidth
+          />
+          <Select
+            label={t("userTag.singleSecretLabel")}
+            multiple={false}
+            value={userTagsSecrets.find((v) => v.id === secretId) ?? null}
+            options={userTagsSecrets}
+            formatOption={(secret: UserTagSecret) => secret.description}
+            onChange={(secret) => secret && setSecretId(secret.id)}
+          />
+          <RestrictionSelect
+            label={t("userTag.singleRestrictionLabel")}
+            value={restriction}
+            onChange={(val) => setRestriction(val)}
+            multiple={false}
+          />
+          {isLoading && <LinearProgress />}
+        </Stack>
+      </Paper>
+      <Button
+        variant="contained"
+        color="primary"
+        onClick={handleSubmit}
+        disabled={isLoading || !pin.trim() || secretId == null}
+        fullWidth
+      >
+        {t("userTag.createSingleButton")}
+      </Button>
+    </Stack>
   );
 };
