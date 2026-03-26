@@ -106,7 +106,7 @@ class NfcHandler @Inject constructor(
                 tag.setCMAC(true)
                 tag.setAuth0(0x10u)
                 tag.writeUserMemory("StuStaPay\n".toByteArray(Charset.forName("UTF-8")).asBitVector())
-                tag.writePin("WWWWWWWWWWWW")
+                tag.writePin(req.pin ?: "WWWWWWWWWWWW")
                 tag.writeDataProtKey(req.dataProtKey)
                 tag.writeUidRetrKey(req.uidRetrKey)
                 dataSource.setScanResult(NfcScanResult.Write)
@@ -146,7 +146,7 @@ class NfcHandler @Inject constructor(
                     dataSource.setScanResult(NfcScanResult.Fail(NfcScanFailure.Auth("Key required for write")))
                     return
                 }
-                tag.provisionTag("WWWWWWWWWWWWWWWW", req.dataProtKey, req.uidRetrKey)
+                tag.provisionTag(req.pin ?: "WWWWWWWWWWWWWWWW", req.dataProtKey, req.uidRetrKey)
                 dataSource.setScanResult(NfcScanResult.Write)
             }
             is NfcScanRequest.Rewrite -> {

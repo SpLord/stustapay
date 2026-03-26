@@ -41,6 +41,16 @@ class NfcRepository @Inject constructor(
         )
     }
 
+    suspend fun writeWithPin(pin: String): NfcScanResult {
+        return nfcDataSource.scan(
+            NfcScanRequest.Write(
+                uidRetrKey.value ?: return NfcScanResult.Fail(NfcScanFailure.NoKey),
+                dataProtKey.value,
+                pin = pin
+            )
+        )
+    }
+
     suspend fun rewrite(): NfcScanResult {
         return nfcDataSource.scan(
             NfcScanRequest.Rewrite(
