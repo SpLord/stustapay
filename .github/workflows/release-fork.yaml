@@ -92,14 +92,16 @@ jobs:
           echo "ANDROID_KEY_STORE_PASSWORD=${KEYSTORE_PASSWORD}" >> ~/.gradle/gradle.properties
           echo "ANDROID_KEY_ALIAS=${KEY_ALIAS}" >> ~/.gradle/gradle.properties
           echo "ANDROID_KEY_PASSWORD=${KEY_PASSWORD}" >> ~/.gradle/gradle.properties
-      - name: Build release APK
+      - name: Build release APKs
         working-directory: ./app
-        run: ./gradlew app:assembleRelease
-      - name: Upload APK artifact
+        run: ./gradlew app:assembleRelease chip_debug:assembleDebug
+      - name: Upload APK artifacts
         uses: actions/upload-artifact@v4
         with:
           name: apk-release
-          path: ./app/app/build/outputs/apk/release/app-release.apk
+          path: |
+            ./app/app/build/outputs/apk/release/app-release.apk
+            ./app/chip_debug/build/outputs/apk/debug/chip_debug-debug.apk
 
   create-release:
     name: "Create GitHub Release"
