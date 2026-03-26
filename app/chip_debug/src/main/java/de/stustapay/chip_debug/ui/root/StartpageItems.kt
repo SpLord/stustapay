@@ -17,7 +17,7 @@ val startpageItems = listOf(
         navDestination = RootNavDests.write
     ),
     StartpageItem(
-        icon = Icons.Filled.Nfc,
+        icon = Icons.Filled.PhoneAndroid,
         label = R.string.root_item_provision,
         navDestination = RootNavDests.provision
     ),
