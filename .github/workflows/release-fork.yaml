@@ -116,7 +116,7 @@ jobs:
           merge-multiple: true
 
       - name: List artifacts
-        run: ls -lh artifacts/
+        run: find artifacts/ -type f -ls
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
@@ -124,7 +124,7 @@ jobs:
           files: |
             artifacts/*.deb
             artifacts/*.patch
-            artifacts/*.apk
+            artifacts/**/*.apk
           body: |
             ## StuStaPay Fork — Improved Pretix Integration
 
