@@ -32,7 +32,7 @@ class NfcProvisionViewModel @Inject constructor(
         _scanning.value = false
     }
 
-    fun startProvision(pin: String, vibrator: Vibrator) {
+    fun startProvision(pin: String, vibrator: Vibrator?) {
         job?.cancel()
         _result.value = NfcDebugScanResult.None
         _scanning.value = true
@@ -40,7 +40,7 @@ class NfcProvisionViewModel @Inject constructor(
         job = viewModelScope.launch {
             when (val res = nfcRepository.writeWithPin(pin)) {
                 is NfcScanResult.Write -> {
-                    vibrator.vibrate(VibrationEffect.createOneShot(300, 200))
+                    vibrator?.vibrate(VibrationEffect.createOneShot(300, 200))
                     _result.value = NfcDebugScanResult.WriteSuccess
                     _scanning.value = false
                 }
