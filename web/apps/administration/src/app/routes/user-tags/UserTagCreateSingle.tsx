@@ -1,5 +1,5 @@
 import * as React from "react";
-import { UserTagSecret, useCreateUserTagsMutation, useListUserTagSecretsQuery } from "@/api";
+import { ProductRestriction, UserTagSecret, useCreateUserTagsMutation, useListUserTagSecretsQuery } from "@/api";
 import { UserTagRoutes } from "@/app/routes";
 import { useCurrentNode } from "@/hooks";
 import { useTranslation } from "react-i18next";
@@ -18,7 +18,7 @@ export const UserTagCreateSingle: React.FC = () => {
 
   const [pin, setPin] = React.useState("");
   const [secretId, setSecretId] = React.useState<number | null>(null);
-  const [restriction, setRestriction] = React.useState<string | null>(null);
+  const [restriction, setRestriction] = React.useState<ProductRestriction | null>(null);
 
   if (secretsError) {
     return <Alert severity="error">{`Error loading user tag secrets: ${secretsError}`}</Alert>;
