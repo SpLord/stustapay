@@ -66,8 +66,10 @@ dependencies {
     ksp "androidx.hilt:hilt-compiler:$hilt_android_version"
     annotationProcessor "androidx.hilt:hilt-compiler:$hilt_android_version"
     implementation "androidx.hilt:hilt-navigation-compose:$hilt_android_version"
+    implementation "androidx.lifecycle:lifecycle-viewmodel-ktx:$lifecycle_version"
     implementation "androidx.lifecycle:lifecycle-viewmodel-compose:$lifecycle_version"
     implementation "androidx.lifecycle:lifecycle-runtime-compose:$lifecycle_version"
+    implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1"
     implementation "com.ionspin.kotlin:bignum:$bignum_version"
     implementation "com.ionspin.kotlin:bignum-serialization-kotlinx:$bignum_version"
 }
