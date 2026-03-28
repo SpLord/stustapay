@@ -82,6 +82,13 @@ fun NfcProvisionView(
                                         fontSize = 18.sp,
                                         color = Color.Gray
                                     )
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Text(
+                                        "3 Sekunden stillhalten!",
+                                        textAlign = TextAlign.Center,
+                                        fontSize = 14.sp,
+                                        color = Color.Red
+                                    )
                                 }
                             }
                         }

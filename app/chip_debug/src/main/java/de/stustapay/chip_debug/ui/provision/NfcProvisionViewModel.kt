@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import de.stustapay.chip_debug.repository.NfcRepository
 import de.stustapay.chip_debug.ui.write.NfcDebugScanResult
+import de.stustapay.libssp.model.NfcScanFailure
 import de.stustapay.libssp.model.NfcScanResult
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -38,18 +39,33 @@ class NfcProvisionViewModel @Inject constructor(
         _scanning.value = true
 
         job = viewModelScope.launch {
-            when (val res = nfcRepository.writeWithPin(pin)) {
-                is NfcScanResult.Write -> {
-                    vibrator?.vibrate(VibrationEffect.createOneShot(300, 200))
-                    _result.value = NfcDebugScanResult.WriteSuccess
-                    _scanning.value = false
-                }
-                is NfcScanResult.Fail -> {
-                    _result.value = NfcDebugScanResult.Failure(res.reason)
-                    _scanning.value = false
-                }
-                else -> {
-                    _scanning.value = false
+            // Retry loop — keep scanning until success or non-recoverable error
+            while (true) {
+                when (val res = nfcRepository.writeWithPin(pin)) {
+                    is NfcScanResult.Write -> {
+                        vibrator?.vibrate(VibrationEffect.createOneShot(300, 200))
+                        _result.value = NfcDebugScanResult.WriteSuccess
+                        _scanning.value = false
+                        return@launch
+                    }
+                    is NfcScanResult.Fail -> {
+                        when (res.reason) {
+                            is NfcScanFailure.Lost -> {
+                                // Tag lost — show hint but keep scanning
+                                _result.value = NfcDebugScanResult.Failure(res.reason)
+                            }
+                            else -> {
+                                // Other error — stop
+                                _result.value = NfcDebugScanResult.Failure(res.reason)
+                                _scanning.value = false
+                                return@launch
+                            }
+                        }
+                    }
+                    else -> {
+                        _scanning.value = false
+                        return@launch
+                    }
                 }
             }
         }
