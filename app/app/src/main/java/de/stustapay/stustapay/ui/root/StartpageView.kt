@@ -20,7 +20,8 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import de.stustapay.stustapay.BuildConfig
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import de.stustapay.libssp.update.VersionWithUpdateCheck
+import de.stustapay.libssp.update.UpdateBanner
+import de.stustapay.libssp.update.VersionLabel
 import de.stustapay.libssp.util.restartApp
 import de.stustapay.stustapay.R
 import de.stustapay.stustapay.model.Access
@@ -50,10 +51,9 @@ fun StartpageView(
             .background(brush = Brush.verticalGradient(colors = gradientColors)),
     ) {
 
-        // Version tag bottom right with auto-update check
-        VersionWithUpdateCheck(
+        // Version tag bottom right
+        VersionLabel(
             currentVersion = BuildConfig.VERSION_NAME,
-            apkName = "app-release.apk",
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(8.dp)
@@ -128,6 +128,11 @@ fun StartpageView(
                         navDestination = RootNavDests.guide,
                     ),
                     navigateTo = navigateToHook
+                )
+
+                UpdateBanner(
+                    currentVersion = BuildConfig.VERSION_NAME,
+                    apkName = "app-release.apk",
                 )
 
                 val activity = LocalActivity.current

@@ -26,7 +26,8 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import de.stustapay.chip_debug.BuildConfig
 import de.stustapay.chip_debug.R
 import de.stustapay.chip_debug.ui.nav.NavDest
-import de.stustapay.libssp.update.VersionWithUpdateCheck
+import de.stustapay.libssp.update.UpdateBanner
+import de.stustapay.libssp.update.VersionLabel
 import de.stustapay.libssp.util.restartApp
 
 @Preview
@@ -52,10 +53,9 @@ fun StartpageView(
             .fillMaxSize()
             .background(brush = Brush.verticalGradient(colors = gradientColors)),
     ) {
-        // Version tag bottom right with auto-update check
-        VersionWithUpdateCheck(
+        // Version tag bottom right
+        VersionLabel(
             currentVersion = BuildConfig.VERSION_NAME,
-            apkName = "chip_debug-debug.apk",
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(8.dp)
@@ -96,6 +96,11 @@ fun StartpageView(
                 }
 
                 Divider()
+
+                UpdateBanner(
+                    currentVersion = BuildConfig.VERSION_NAME,
+                    apkName = "chip_debug-debug.apk",
+                )
 
                 StartpageEntry(item = StartpageItem(
                     icon = Icons.Filled.Refresh,
