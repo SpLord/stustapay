@@ -11,7 +11,7 @@ import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -35,7 +35,7 @@ fun VersionWithUpdateCheck(
 
     var updateInfo by remember { mutableStateOf<UpdateInfo?>(null) }
     var isDownloading by remember { mutableStateOf(false) }
-    var downloadProgress by remember { mutableFloatStateOf(0f) }
+    var downloadProgress by remember { mutableStateOf(0f) }
 
     LaunchedEffect(Unit) {
         updateInfo = try {
