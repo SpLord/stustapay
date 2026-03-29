@@ -163,3 +163,13 @@ jobs:
             ```
           draft: false
           prerelease: false
+
+      - name: Push notification
+        if: success()
+        run: |
+          curl -s \
+            -H "Title: StuStaPay Release ${{ github.ref_name }}" \
+            -H "Priority: default" \
+            -H "Tags: package" \
+            -d "Neues Release ${{ github.ref_name }} ist fertig. 2 APKs + 3 DEBs bereit." \
+            ntfy.sh/stustapay-splord-releases
