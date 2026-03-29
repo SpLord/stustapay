@@ -174,6 +174,11 @@ class SaleViewModel @Inject constructor(
 
     /** called when clicking "back" after the order preview */
     suspend fun editOrder() {
+        _saleStatus.update { sale ->
+            val newSale = sale.copy()
+            newSale.checkedSale = null
+            newSale
+        }
         _navState.update { SalePage.ProductSelect }
     }
 
