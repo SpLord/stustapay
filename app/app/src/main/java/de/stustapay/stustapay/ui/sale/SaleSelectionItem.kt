@@ -109,7 +109,7 @@ fun SaleSelectionItem(
     when (type) {
         is SaleSelectionItemType.FixedPrice -> {
             val amount: Int = type.amount?.amount ?: 0
-            val displayPrice = type.price.price - type.depositPrice
+            val displayPrice = maxOf(0.0, type.price.price - type.depositPrice)
             itemPrice = "%.02f€".format(displayPrice)
             itemAmount = "%2d".format(amount)
             rightButtonText = "‒"
@@ -121,7 +121,7 @@ fun SaleSelectionItem(
         is SaleSelectionItemType.Returnable -> {
             sameSizeButtons = true
             val amount: Int = type.amount?.amount ?: 0
-            val displayPrice = (type.price.price ?: 0.0) - type.depositPrice
+            val displayPrice = maxOf(0.0, (type.price.price ?: 0.0) - type.depositPrice)
             itemPrice = "%.02f€".format(displayPrice)
             itemAmount = "%2d".format(amount)
             rightButtonText = type.incrementText

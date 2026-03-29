@@ -29,40 +29,19 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 
 /**
- * Small version label for bottom-right corner. Shows current + available version.
+ * Small version label for bottom-right corner.
  */
 @Composable
 fun VersionLabel(
     currentVersion: String,
-    apkName: String,
     modifier: Modifier = Modifier
 ) {
-    var updateInfo by remember { mutableStateOf<UpdateInfo?>(null) }
-
-    LaunchedEffect(Unit) {
-        updateInfo = try {
-            checkForUpdate(currentVersion, apkName)
-        } catch (_: Exception) {
-            null
-        }
-    }
-
-    val info = updateInfo
-    if (info != null && info.isUpdateAvailable) {
-        Text(
-            text = "${info.currentVersion} \u2192 ${info.latestVersion}",
-            fontSize = 10.sp,
-            color = Color(0xFF4CAF50).copy(alpha = 0.5f),
-            modifier = modifier
-        )
-    } else {
-        Text(
-            text = currentVersion,
-            fontSize = 10.sp,
-            color = MaterialTheme.colors.onBackground.copy(alpha = 0.25f),
-            modifier = modifier
-        )
-    }
+    Text(
+        text = currentVersion,
+        fontSize = 10.sp,
+        color = MaterialTheme.colors.onBackground.copy(alpha = 0.25f),
+        modifier = modifier
+    )
 }
 
 /**

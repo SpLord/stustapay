@@ -190,6 +190,12 @@ class SaleViewModel @Inject constructor(
     }
 
     suspend fun tagScanned(tag: NfcTag) {
+        // Ignore scans during tip flow
+        if (_navState.value == SalePage.TipSelect) {
+            _enableScan.update { false }
+            return
+        }
+
         // remember the user tag
         _saleStatus.update { sale ->
             val newSale = sale.copy()
@@ -201,7 +207,7 @@ class SaleViewModel @Inject constructor(
 
         when (scanTarget.value) {
             ScanTarget.CheckSale -> {
-                checkSale(paymentMethod = PaymentMethod.tag)
+                checkSaleDirect(paymentMethod = PaymentMethod.tag)
             }
 
             ScanTarget.None -> {
@@ -240,14 +246,31 @@ class SaleViewModel @Inject constructor(
             return
         }
 
-        // If a tip button exists, show tip screen first
+        // If a tip button exists and total > 0, show tip screen first
         val tipButtonId = findTipButtonId()
         if (tipButtonId != null) {
-            // Clear any previous tip
-            setTipAmount(0u)
-            _pendingPaymentMethod.update { paymentMethod }
-            _navState.update { SalePage.TipSelect }
-            return
+            // Calculate total to skip tip for free orders
+            var total = 0.0
+            val cfg = saleConfig.value
+            if (cfg is SaleConfig.Ready) {
+                for ((id, amount) in _saleStatus.value.buttonSelection) {
+                    val button = cfg.buttons[id] ?: continue
+                    total += when (amount) {
+                        is SaleItemAmount.FreePrice -> amount.price.toDouble() / 100.0
+                        is SaleItemAmount.FixedPrice -> when (val p = button.price) {
+                            is SaleItemPrice.FixedPrice -> amount.amount * p.price
+                            is SaleItemPrice.FreePrice -> amount.amount * (p.defaultPrice ?: 0.0)
+                            is SaleItemPrice.Returnable -> amount.amount * (p.price ?: 0.0)
+                        }
+                    }
+                }
+            }
+            if (total > 0) {
+                setTipAmount(0u)
+                _pendingPaymentMethod.update { paymentMethod }
+                _navState.update { SalePage.TipSelect }
+                return
+            }
         }
 
         checkSaleDirect(paymentMethod)

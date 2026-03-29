@@ -161,7 +161,7 @@ fun SaleSelection(
                     }
                 },
                 price = totalPrice,
-                depositInfo = if (totalDeposit > 0) "inkl. %.02f€ Pfand".format(totalDeposit) else null,
+                depositInfo = if (totalDeposit > 0.001) "inkl. %.2f€ Pfand".format(totalDeposit) else null,
             )
         }
     )
