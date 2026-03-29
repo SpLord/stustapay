@@ -96,40 +96,44 @@ class NfcHandler @Inject constructor(
 
     private fun handleMfUlAesTag(tag: MifareUltralightAES) {
         val req = dataSource.getScanRequest() ?: return
-        when (req) {
-            is NfcScanRequest.Read -> {
-                tag.connect()
-                dataSource.setScanResult(NfcScanResult.Read(tag.fastRead(req.uidRetrKey, req.dataProtKey)))
-            }
-            is NfcScanRequest.Write -> {
-                tag.connect()
-                authenticate(tag, true, true, req.dataProtKey!!)
-                tag.setCMAC(true)
-                tag.setAuth0(0x10u)
-                tag.writeUserMemory("StuStaPay\n".toByteArray(Charset.forName("UTF-8")).asBitVector())
-                tag.writePin(req.pin ?: "WWWWWWWWWWWWWWWW")
-                tag.writeDataProtKey(req.dataProtKey)
-                tag.writeUidRetrKey(req.uidRetrKey)
-                dataSource.setScanResult(NfcScanResult.Write)
-            }
-            is NfcScanRequest.Rewrite -> {
-                tag.connect()
-                tag.authenticate(req.dataProtKey, MifareUltralightAES.KeyType.DATA_PROT_KEY, true)
-                val ser = tag.readSerialNumber()
-                if (uid_map[ser] == null) {
-                    dataSource.setScanResult(NfcScanResult.Fail(NfcScanFailure.Other("UID not found")))
-                    return
+        try {
+            when (req) {
+                is NfcScanRequest.Read -> {
+                    tag.connect()
+                    dataSource.setScanResult(NfcScanResult.Read(tag.fastRead(req.uidRetrKey, req.dataProtKey)))
                 }
-                tag.setCMAC(true)
-                tag.writeDataProtKey(req.dataProtKey)
-                tag.writeUidRetrKey(req.uidRetrKey)
-                tag.writePin(uid_map[ser] + "\u0000\u0000\u0000\u0000")
-                dataSource.setScanResult(NfcScanResult.Write)
+                is NfcScanRequest.Write -> {
+                    tag.connect()
+                    authenticate(tag, true, true, req.dataProtKey!!)
+                    tag.setCMAC(true)
+                    tag.setAuth0(0x10u)
+                    tag.writeUserMemory("StuStaPay\n".toByteArray(Charset.forName("UTF-8")).asBitVector())
+                    tag.writePin(req.pin ?: "WWWWWWWWWWWWWWWW")
+                    tag.writeDataProtKey(req.dataProtKey)
+                    tag.writeUidRetrKey(req.uidRetrKey)
+                    dataSource.setScanResult(NfcScanResult.Write)
+                }
+                is NfcScanRequest.Rewrite -> {
+                    tag.connect()
+                    tag.authenticate(req.dataProtKey, MifareUltralightAES.KeyType.DATA_PROT_KEY, true)
+                    val ser = tag.readSerialNumber()
+                    if (uid_map[ser] == null) {
+                        dataSource.setScanResult(NfcScanResult.Fail(NfcScanFailure.Other("UID not found")))
+                        return
+                    }
+                    tag.setCMAC(true)
+                    tag.writeDataProtKey(req.dataProtKey)
+                    tag.writeUidRetrKey(req.uidRetrKey)
+                    tag.writePin(uid_map[ser] + "\u0000\u0000\u0000\u0000")
+                    dataSource.setScanResult(NfcScanResult.Write)
+                }
+                is NfcScanRequest.Test -> {
+                    val log = tag.test(req.dataProtKey, req.uidRetrKey)
+                    dataSource.setScanResult(NfcScanResult.Test(log))
+                }
             }
-            is NfcScanRequest.Test -> {
-                val log = tag.test(req.dataProtKey, req.uidRetrKey)
-                dataSource.setScanResult(NfcScanResult.Test(log))
-            }
+        } finally {
+            try { tag.close() } catch (_: Exception) {}
         }
     }
 
