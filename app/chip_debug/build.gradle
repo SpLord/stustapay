@@ -26,6 +26,17 @@ android {
         }
     }
 
+    signingConfigs {
+        release {
+            if (project.hasProperty('ANDROID_KEY_STORE_FILE')) {
+                storeFile file(ANDROID_KEY_STORE_FILE)
+                storePassword ANDROID_KEY_STORE_PASSWORD
+                keyAlias ANDROID_KEY_ALIAS
+                keyPassword ANDROID_KEY_PASSWORD
+            }
+        }
+    }
+
     buildFeatures {
         compose true
         buildConfig true
@@ -35,6 +46,9 @@ android {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            if (project.hasProperty('ANDROID_KEY_STORE_FILE')) {
+                signingConfig signingConfigs.release
+            }
         }
     }
     compileOptions {

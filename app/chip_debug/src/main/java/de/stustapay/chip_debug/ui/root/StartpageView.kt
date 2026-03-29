@@ -56,7 +56,7 @@ fun StartpageView(
         // Version tag bottom right
         VersionLabel(
             currentVersion = BuildConfig.VERSION_NAME,
-            apkName = "chip_debug-debug.apk",
+            apkName = "chip_debug-release.apk",
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(8.dp)
@@ -100,7 +100,7 @@ fun StartpageView(
 
                 UpdateBanner(
                     currentVersion = BuildConfig.VERSION_NAME,
-                    apkName = "chip_debug-debug.apk",
+                    apkName = "chip_debug-release.apk",
                 )
 
                 StartpageEntry(item = StartpageItem(

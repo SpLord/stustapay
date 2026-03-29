@@ -97,14 +97,14 @@ jobs:
         run: ./gradlew app:assembleRelease
       - name: Build chip_debug APK
         working-directory: ./app
-        run: ./gradlew chip_debug:assembleDebug
+        run: ./gradlew chip_debug:assembleRelease
       - name: Upload APK artifacts
         uses: actions/upload-artifact@v4
         with:
           name: apk-release
           path: |
             ./app/app/build/outputs/apk/release/app-release.apk
-            ./app/chip_debug/build/outputs/apk/debug/chip_debug-debug.apk
+            ./app/chip_debug/build/outputs/apk/release/chip_debug-release.apk
 
   create-release:
     name: "Create GitHub Release"
