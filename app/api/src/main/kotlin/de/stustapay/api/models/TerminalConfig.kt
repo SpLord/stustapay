@@ -74,7 +74,10 @@ data class TerminalConfig (
     val testMode: kotlin.Boolean,
 
     @SerialName(value = "test_mode_message")
-    val testModeMessage: kotlin.String
+    val testModeMessage: kotlin.String,
+
+    @SerialName(value = "app_logo_url")
+    val appLogoUrl: kotlin.String? = null
 
 ) {
 

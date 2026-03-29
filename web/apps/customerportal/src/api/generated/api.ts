@@ -353,6 +353,9 @@ export type PayoutTransaction = {
 };
 export type EventDesign = {
   bon_logo_blob_id: string | null;
+  app_logo_blob_id: string | null;
+  customer_logo_blob_id: string | null;
+  wristband_guide_blob_id: string | null;
 };
 export type CustomerPortalApiConfig = {
   test_mode: boolean;

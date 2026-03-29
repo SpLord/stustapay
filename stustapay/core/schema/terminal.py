@@ -87,6 +87,8 @@ class TerminalConfig(BaseModel):
     test_mode: bool
     test_mode_message: str
 
+    app_logo_url: str | None = None
+
 
 class TerminalRegistrationSuccess(BaseModel):
     terminal: Terminal

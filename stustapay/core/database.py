@@ -8,7 +8,10 @@ from sftkit.database import Connection, Database, DatabaseConfig
 
 from stustapay.core.schema.tree import NewEvent
 from stustapay.core.schema.tse import NewTse
-from stustapay.core.service.tree.common import fetch_node, fetch_restricted_event_settings_for_node
+from stustapay.core.service.tree.common import (
+    fetch_node,
+    fetch_restricted_event_settings_for_node,
+)
 from stustapay.core.service.tree.service import update_event
 from stustapay.core.service.tse import create_tse
 
@@ -16,7 +19,7 @@ from .schema import DB_CODE_PATH, MIGRATION_PATH
 
 logger = logging.getLogger(__name__)
 
-CURRENT_REVISION = "d4e5f6a7"
+CURRENT_REVISION = "e5f6a7b8"
 DB_FUNCTION_BLACKLIST = [
     "get_default_till_dsfinvk_brand",
     "get_default_till_dsfinvk_model",
@@ -37,7 +40,9 @@ def get_database(config: DatabaseConfig) -> Database:
 def list_revisions(db: Database):
     revisions = db.list_migrations()
     for revision in revisions:
-        print(f"Revision: {revision.version}, requires revision: {revision.requires}, filename: {revision.file_name}")
+        print(
+            f"Revision: {revision.version}, requires revision: {revision.requires}, filename: {revision.file_name}"
+        )
 
 
 async def check_revision_version(db: Database):
@@ -81,7 +86,9 @@ class DatabaseRestoreConfig(BaseModel):
     event_configs: dict[int, EventTemplate] = {}
 
 
-async def _apply_restore_config(conn: Connection, restore_config: DatabaseRestoreConfig):
+async def _apply_restore_config(
+    conn: Connection, restore_config: DatabaseRestoreConfig
+):
     event_nodes = await conn.fetch("select id from node where event_id is not null")
     await conn.execute(
         "update tse_signature set tse_id = null, signature_status = 'new', "
@@ -94,7 +101,9 @@ async def _apply_restore_config(conn: Connection, restore_config: DatabaseRestor
     for event_node in event_nodes:
         node = await fetch_node(conn=conn, node_id=event_node["id"])
         assert node is not None
-        event = await fetch_restricted_event_settings_for_node(conn=conn, node_id=node.id)
+        event = await fetch_restricted_event_settings_for_node(
+            conn=conn, node_id=node.id
+        )
         event_dump = event.model_dump()
         del event_dump["id"]
         update = NewEvent(
@@ -125,14 +134,18 @@ async def _apply_restore_config(conn: Connection, restore_config: DatabaseRestor
 
         await update_event(conn=conn, node=node, event=update)
         await conn.execute(
-            "update event set sumup_oauth_refresh_token = $1 where id = $2", cfg.sumup_oauth_refresh_token, event.id
+            "update event set sumup_oauth_refresh_token = $1 where id = $2",
+            cfg.sumup_oauth_refresh_token,
+            event.id,
         )
 
         for tse in cfg.tses:
             await create_tse(conn=conn, node=node, new_tse=tse)
 
 
-async def load_test_dump(db: Database, dump_file: Path, restore_config: DatabaseRestoreConfig):
+async def load_test_dump(
+    db: Database, dump_file: Path, restore_config: DatabaseRestoreConfig
+):
     ret = subprocess.run(
         [
             "pg_restore",

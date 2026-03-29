@@ -1163,6 +1163,30 @@ const injectedRtkApi = api
         }),
         invalidatesTags: ["tree"],
       }),
+      updateAppLogo: build.mutation<UpdateAppLogoApiResponse, UpdateAppLogoApiArg>({
+        query: (queryArg) => ({
+          url: `/tree/events/${queryArg.nodeId}/event-design/app-logo`,
+          method: "POST",
+          body: queryArg.newBlob,
+        }),
+        invalidatesTags: ["tree"],
+      }),
+      updateCustomerLogo: build.mutation<UpdateCustomerLogoApiResponse, UpdateCustomerLogoApiArg>({
+        query: (queryArg) => ({
+          url: `/tree/events/${queryArg.nodeId}/event-design/customer-logo`,
+          method: "POST",
+          body: queryArg.newBlob,
+        }),
+        invalidatesTags: ["tree"],
+      }),
+      updateWristbandGuide: build.mutation<UpdateWristbandGuideApiResponse, UpdateWristbandGuideApiArg>({
+        query: (queryArg) => ({
+          url: `/tree/events/${queryArg.nodeId}/event-design/wristband-guide`,
+          method: "POST",
+          body: queryArg.newBlob,
+        }),
+        invalidatesTags: ["tree"],
+      }),
       getEventDesign: build.query<GetEventDesignApiResponse, GetEventDesignApiArg>({
         query: (queryArg) => ({ url: `/tree/events/${queryArg.nodeId}/event-design` }),
         providesTags: ["tree"],
@@ -2025,6 +2049,21 @@ export type UpdateEventApiArg = {
 };
 export type UpdateBonLogoApiResponse = /** status 200 Successful Response */ any;
 export type UpdateBonLogoApiArg = {
+  nodeId: number;
+  newBlob: NewBlob;
+};
+export type UpdateAppLogoApiResponse = /** status 200 Successful Response */ any;
+export type UpdateAppLogoApiArg = {
+  nodeId: number;
+  newBlob: NewBlob;
+};
+export type UpdateCustomerLogoApiResponse = /** status 200 Successful Response */ any;
+export type UpdateCustomerLogoApiArg = {
+  nodeId: number;
+  newBlob: NewBlob;
+};
+export type UpdateWristbandGuideApiResponse = /** status 200 Successful Response */ any;
+export type UpdateWristbandGuideApiArg = {
   nodeId: number;
   newBlob: NewBlob;
 };
@@ -3426,6 +3465,9 @@ export type NewBlob = {
 };
 export type EventDesign = {
   bon_logo_blob_id: string | null;
+  app_logo_blob_id: string | null;
+  customer_logo_blob_id: string | null;
+  wristband_guide_blob_id: string | null;
 };
 export type RestrictedEventSettings = {
   sumup_api_key?: string;
@@ -3797,6 +3839,9 @@ export const {
   useCreateEventMutation,
   useUpdateEventMutation,
   useUpdateBonLogoMutation,
+  useUpdateAppLogoMutation,
+  useUpdateCustomerLogoMutation,
+  useUpdateWristbandGuideMutation,
   useGetEventDesignQuery,
   useLazyGetEventDesignQuery,
   useGetRestrictedEventSettingsQuery,

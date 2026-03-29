@@ -1,6 +1,7 @@
 import { useLoginMutation } from "@/api";
 import { config } from "@/api/common";
 import PinUidHowToImg from "@/assets/img/pin_uid_howto.svg";
+import { usePublicConfig } from "@/hooks";
 import { selectIsAuthenticated, useAppSelector } from "@/store";
 import { LockOutlined as LockOutlinedIcon } from "@mui/icons-material";
 import { Avatar, Box, Button, Container, CssBaseline, LinearProgress, Stack, Typography } from "@mui/material";
@@ -23,11 +24,21 @@ const initialValues: FormSchema = {
   userTagPin: "",
 };
 
+const getBlobUrl = (blobId?: string | null) => {
+  if (!blobId) {
+    return undefined;
+  }
+  return `${config.customerApiBaseUrl}/blob/${blobId}`;
+};
+
 export const Login: React.FC = () => {
   const { t } = useTranslation();
   const isLoggedIn = useAppSelector(selectIsAuthenticated);
   const [query] = useSearchParams();
   const [login] = useLoginMutation();
+  const publicConfig = usePublicConfig();
+  const customerLogoUrl = getBlobUrl(publicConfig.event_design?.customer_logo_blob_id);
+  const wristbandGuideUrl = getBlobUrl(publicConfig.event_design?.wristband_guide_blob_id);
 
   const ticketVoucher = query.get("ticketVoucher");
   React.useEffect(() => {
@@ -66,9 +77,17 @@ export const Login: React.FC = () => {
     <Container component="main" maxWidth="xs">
       <CssBaseline />
       <Stack alignItems="center" justifyContent="center">
-        <Avatar sx={{ margin: 1, backgroundColor: "primary.main" }}>
-          <LockOutlinedIcon />
-        </Avatar>
+        {customerLogoUrl ? (
+          <img
+            src={customerLogoUrl}
+            alt="Event Logo"
+            style={{ maxWidth: 200, maxHeight: 100, objectFit: "contain", margin: "8px 0" }}
+          />
+        ) : (
+          <Avatar sx={{ margin: 1, backgroundColor: "primary.main" }}>
+            <LockOutlinedIcon />
+          </Avatar>
+        )}
         <Typography component="h1" variant="h5">
           Sign in
         </Typography>
@@ -113,7 +132,7 @@ export const Login: React.FC = () => {
         </Typography>
         <img
           title={t("wristbandTagExampleTitle")}
-          src={PinUidHowToImg}
+          src={wristbandGuideUrl ?? PinUidHowToImg}
           style={{
             width: "100%",
             height: "auto",

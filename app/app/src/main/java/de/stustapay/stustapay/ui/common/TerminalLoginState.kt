@@ -57,4 +57,12 @@ class TerminalLoginState(
         }
         return terminal.config.till?.allowTicketVouchers == true
     }
+
+    fun appLogoUrl(): String? {
+        return if (terminal is TerminalConfigState.Success) {
+            terminal.config.appLogoUrl
+        } else {
+            null
+        }
+    }
 }
