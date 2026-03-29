@@ -18,7 +18,11 @@ from stustapay.core.schema.tree import (
 )
 from stustapay.core.schema.user import CurrentUser, Privilege
 from stustapay.core.service.auth import AuthService
-from stustapay.core.service.common.audit_logs import create_audit_log, fetch_audit_log, fetch_audit_logs
+from stustapay.core.service.common.audit_logs import (
+    create_audit_log,
+    fetch_audit_log,
+    fetch_audit_logs,
+)
 from stustapay.core.service.common.decorators import requires_node, requires_user
 from stustapay.core.service.common.error import InvalidArgument, NotFound
 from stustapay.core.service.media import delete_blob, store_blob
@@ -30,13 +34,21 @@ from stustapay.core.service.tree.common import (
     get_tree_for_current_user,
 )
 from stustapay.payment.sumup.api import fetch_refresh_token_from_auth_code
-from stustapay.reports.daily_reports import generate_daily_report, generate_dummy_daily_report
+from stustapay.reports.daily_reports import (
+    generate_daily_report,
+    generate_dummy_daily_report,
+)
 from stustapay.reports.payout_report import generate_payout_report
-from stustapay.reports.revenue_report import generate_dummy_report, generate_revenue_report
+from stustapay.reports.revenue_report import (
+    generate_dummy_report,
+    generate_revenue_report,
+)
 from stustapay.ticket_shop import pretix
 
 
-async def _check_if_object_exists(conn: Connection, node: Node, object_type: ObjectType, in_subtree: bool):
+async def _check_if_object_exists(
+    conn: Connection, node: Node, object_type: ObjectType, in_subtree: bool
+):
     if in_subtree:
         query_string = "select exists(select from {} t join node n on t.node_id = n.id where $1 = any(n.parent_ids))"
     else:
@@ -74,7 +86,9 @@ async def _check_if_object_exists(conn: Connection, node: Node, object_type: Obj
     return False
 
 
-async def _update_forbidden_objects_in_subtree(conn: Connection, node: Node, forbidden: set[ObjectType]):
+async def _update_forbidden_objects_in_subtree(
+    conn: Connection, node: Node, forbidden: set[ObjectType]
+):
     current = set(node.forbidden_objects_in_subtree)
 
     to_add = forbidden.difference(current)
@@ -82,19 +96,29 @@ async def _update_forbidden_objects_in_subtree(conn: Connection, node: Node, for
 
     for t in to_remove:
         await conn.execute(
-            "delete from forbidden_objects_in_subtree_at_node where node_id = $1 and object_name = $2", node.id, t.name
+            "delete from forbidden_objects_in_subtree_at_node where node_id = $1 and object_name = $2",
+            node.id,
+            t.name,
         )
 
     for t in to_add:
-        object_exists = await _check_if_object_exists(conn=conn, node=node, object_type=t, in_subtree=True)
+        object_exists = await _check_if_object_exists(
+            conn=conn, node=node, object_type=t, in_subtree=True
+        )
         if object_exists:
-            raise InvalidArgument(f"Cannot forbid {t.name} at this node as objects already exist")
+            raise InvalidArgument(
+                f"Cannot forbid {t.name} at this node as objects already exist"
+            )
         await conn.execute(
-            "insert into forbidden_objects_in_subtree_at_node (object_name, node_id) values ($1, $2)", t.value, node.id
+            "insert into forbidden_objects_in_subtree_at_node (object_name, node_id) values ($1, $2)",
+            t.value,
+            node.id,
         )
 
 
-async def _update_forbidden_objects_at_node(conn: Connection, node: Node, forbidden: set[ObjectType]):
+async def _update_forbidden_objects_at_node(
+    conn: Connection, node: Node, forbidden: set[ObjectType]
+):
     current = set(node.forbidden_objects_at_node)
 
     to_add = forbidden.difference(current)
@@ -102,19 +126,29 @@ async def _update_forbidden_objects_at_node(conn: Connection, node: Node, forbid
 
     for t in to_remove:
         await conn.execute(
-            "delete from forbidden_objects_at_node where node_id = $1 and object_name = $2", node.id, t.name
+            "delete from forbidden_objects_at_node where node_id = $1 and object_name = $2",
+            node.id,
+            t.name,
         )
 
     for t in to_add:
-        object_exists = await _check_if_object_exists(conn=conn, node=node, object_type=t, in_subtree=False)
+        object_exists = await _check_if_object_exists(
+            conn=conn, node=node, object_type=t, in_subtree=False
+        )
         if object_exists:
-            raise InvalidArgument(f"Cannot forbid {t.name} at this node as objects already exist")
+            raise InvalidArgument(
+                f"Cannot forbid {t.name} at this node as objects already exist"
+            )
         await conn.execute(
-            "insert into forbidden_objects_at_node (object_name, node_id) values ($1, $2)", t.value, node.id
+            "insert into forbidden_objects_at_node (object_name, node_id) values ($1, $2)",
+            t.value,
+            node.id,
         )
 
 
-async def create_node(conn: Connection, parent_id: int, new_node: NewNode, event_id: int | None = None) -> Node:
+async def create_node(
+    conn: Connection, parent_id: int, new_node: NewNode, event_id: int | None = None
+) -> Node:
     new_node_id = await conn.fetchval(
         "insert into node (parent, name, description, event_id) values ($1, $2, $3, $4) returning id",
         parent_id,
@@ -124,7 +158,9 @@ async def create_node(conn: Connection, parent_id: int, new_node: NewNode, event
     )
     result = await fetch_node(conn=conn, node_id=new_node_id)
     assert result is not None
-    await _update_forbidden_objects_at_node(conn=conn, node=result, forbidden=set(new_node.forbidden_objects_at_node))
+    await _update_forbidden_objects_at_node(
+        conn=conn, node=result, forbidden=set(new_node.forbidden_objects_at_node)
+    )
     await _update_forbidden_objects_in_subtree(
         conn=conn, node=result, forbidden=set(new_node.forbidden_objects_in_subtree)
     )
@@ -178,7 +214,9 @@ async def _create_system_tills(conn: Connection, node_id: int):
 
 
 async def _create_system_products(conn: Connection, node_id: int):
-    tax_rate_none_id = await conn.fetchval("select id from tax_rate where node_id = $1", node_id)
+    tax_rate_none_id = await conn.fetchval(
+        "select id from tax_rate where node_id = $1", node_id
+    )
     await conn.execute(
         "insert into product (type, name, price, fixed_price, is_locked, tax_rate_id, node_id) values "
         "('discount', 'Rabatt', null, false, true, $1, $2), "
@@ -191,7 +229,9 @@ async def _create_system_products(conn: Connection, node_id: int):
     )
 
 
-async def _sync_optional_event_metadata(conn: Connection, event_id: int, event: NewEvent):
+async def _sync_optional_event_metadata(
+    conn: Connection, event_id: int, event: NewEvent
+):
     for lang_code, translation in event.translation_texts.items():
         for text_type, content in translation.items():
             await conn.execute(
@@ -203,19 +243,27 @@ async def _sync_optional_event_metadata(conn: Connection, event_id: int, event: 
             )
     if event.payout_done_subject is not None:
         await conn.execute(
-            "update event set payout_done_subject = $1 where id = $2", event.payout_done_subject, event_id
+            "update event set payout_done_subject = $1 where id = $2",
+            event.payout_done_subject,
+            event_id,
         )
     if event.payout_done_message is not None:
         await conn.execute(
-            "update event set payout_done_message = $1 where id = $2", event.payout_done_message, event_id
+            "update event set payout_done_message = $1 where id = $2",
+            event.payout_done_message,
+            event_id,
         )
     if event.payout_registered_subject is not None:
         await conn.execute(
-            "update event set payout_registered_subject = $1 where id = $2", event.payout_registered_subject, event_id
+            "update event set payout_registered_subject = $1 where id = $2",
+            event.payout_registered_subject,
+            event_id,
         )
     if event.payout_registered_message is not None:
         await conn.execute(
-            "update event set payout_registered_message = $1 where id = $2", event.payout_registered_subject, event_id
+            "update event set payout_registered_message = $1 where id = $2",
+            event.payout_registered_subject,
+            event_id,
         )
 
 
@@ -275,7 +323,9 @@ async def create_event(conn: Connection, parent_id: int, event: NewEvent) -> Nod
     )
     await _sync_optional_event_metadata(conn, event_id, event)
 
-    node = await create_node(conn=conn, parent_id=parent_id, new_node=event, event_id=event_id)
+    node = await create_node(
+        conn=conn, parent_id=parent_id, new_node=event, event_id=event_id
+    )
     await _create_system_accounts(conn=conn, node_id=node.id)
     await _create_system_tax_rates(conn=conn, node_id=node.id)
     await _create_system_products(conn=conn, node_id=node.id)
@@ -348,15 +398,21 @@ async def update_event(conn: Connection, node: Node, event: NewEvent) -> Node:
 
 
 class TreeService(Service[Config]):
-    def __init__(self, db_pool: asyncpg.Pool, config: Config, auth_service: AuthService):
+    def __init__(
+        self, db_pool: asyncpg.Pool, config: Config, auth_service: AuthService
+    ):
         super().__init__(db_pool, config)
         self.auth_service = auth_service
 
     @with_db_transaction
     @requires_node()
     @requires_user(privileges=[Privilege.node_administration])
-    async def create_node(self, conn: Connection, node: Node, current_user: CurrentUser, new_node: NewNode) -> Node:
-        created_node = await create_node(conn=conn, parent_id=node.id, new_node=new_node)
+    async def create_node(
+        self, conn: Connection, node: Node, current_user: CurrentUser, new_node: NewNode
+    ) -> Node:
+        created_node = await create_node(
+            conn=conn, parent_id=node.id, new_node=new_node
+        )
         await create_audit_log(
             conn=conn,
             log_type=AuditType.node_created,
@@ -369,7 +425,13 @@ class TreeService(Service[Config]):
     @with_db_transaction
     @requires_node()
     @requires_user(privileges=[Privilege.node_administration])
-    async def update_node(self, conn: Connection, node: Node, current_user: CurrentUser, updated_node: NewNode) -> Node:
+    async def update_node(
+        self,
+        conn: Connection,
+        node: Node,
+        current_user: CurrentUser,
+        updated_node: NewNode,
+    ) -> Node:
         await conn.execute(
             "update node set name = $2, description = $3 where id = $1",
             node.id,
@@ -380,7 +442,9 @@ class TreeService(Service[Config]):
             conn=conn, node=node, forbidden=set(updated_node.forbidden_objects_at_node)
         )
         await _update_forbidden_objects_in_subtree(
-            conn=conn, node=node, forbidden=set(updated_node.forbidden_objects_in_subtree)
+            conn=conn,
+            node=node,
+            forbidden=set(updated_node.forbidden_objects_in_subtree),
         )
         result = await fetch_node(conn=conn, node_id=node.id)
         assert result is not None
@@ -396,7 +460,9 @@ class TreeService(Service[Config]):
     @with_db_transaction
     @requires_node()
     @requires_user(privileges=[Privilege.node_administration])
-    async def create_event(self, conn: Connection, node: Node, current_user: CurrentUser, event: NewEvent) -> Node:
+    async def create_event(
+        self, conn: Connection, node: Node, current_user: CurrentUser, event: NewEvent
+    ) -> Node:
         new_node = await create_event(conn=conn, parent_id=node.id, event=event)
         await create_audit_log(
             conn=conn,
@@ -410,7 +476,9 @@ class TreeService(Service[Config]):
     @with_db_transaction
     @requires_node(event_only=True)
     @requires_user(privileges=[Privilege.node_administration])
-    async def update_event(self, conn: Connection, node: Node, current_user: CurrentUser, event: NewEvent) -> Node:
+    async def update_event(
+        self, conn: Connection, node: Node, current_user: CurrentUser, event: NewEvent
+    ) -> Node:
         updated_node = await update_event(conn=conn, node=node, event=event)
         await create_audit_log(
             conn=conn,
@@ -427,24 +495,114 @@ class TreeService(Service[Config]):
     async def update_bon_logo(self, conn: Connection, node: Node, image: NewBlob):
         if image.mime_type != MimeType.svg.value:
             raise InvalidArgument("Only svg logos are supported")
-        await conn.execute("insert into event_design (node_id) values ($1) on conflict do nothing", node.id)
-        existing_blob_id = await conn.fetchval("select bon_logo_blob_id from event_design where node_id = $1", node.id)
+        await conn.execute(
+            "insert into event_design (node_id) values ($1) on conflict do nothing",
+            node.id,
+        )
+        existing_blob_id = await conn.fetchval(
+            "select bon_logo_blob_id from event_design where node_id = $1", node.id
+        )
 
         blob_id = await store_blob(conn=conn, blob=image)
-        await conn.execute("update event_design set bon_logo_blob_id = $2 where node_id = $1", node.id, blob_id)
+        await conn.execute(
+            "update event_design set bon_logo_blob_id = $2 where node_id = $1",
+            node.id,
+            blob_id,
+        )
+        if existing_blob_id is not None:
+            await delete_blob(conn=conn, blob_id=existing_blob_id)
+
+    @staticmethod
+    def _validate_image_mime_type(mime_type: str):
+        allowed = {MimeType.svg.value, MimeType.png.value, MimeType.jpeg.value}
+        if mime_type not in allowed:
+            raise InvalidArgument("Only PNG, JPEG and SVG images are supported")
+
+    @with_db_transaction
+    @requires_node(event_only=True)
+    @requires_user(privileges=[Privilege.node_administration])
+    async def update_app_logo(self, conn: Connection, node: Node, image: NewBlob):
+        self._validate_image_mime_type(image.mime_type)
+        await conn.execute(
+            "insert into event_design (node_id) values ($1) on conflict do nothing",
+            node.id,
+        )
+        existing_blob_id = await conn.fetchval(
+            "select app_logo_blob_id from event_design where node_id = $1", node.id
+        )
+
+        blob_id = await store_blob(conn=conn, blob=image)
+        await conn.execute(
+            "update event_design set app_logo_blob_id = $2 where node_id = $1",
+            node.id,
+            blob_id,
+        )
+        if existing_blob_id is not None:
+            await delete_blob(conn=conn, blob_id=existing_blob_id)
+
+    @with_db_transaction
+    @requires_node(event_only=True)
+    @requires_user(privileges=[Privilege.node_administration])
+    async def update_customer_logo(self, conn: Connection, node: Node, image: NewBlob):
+        self._validate_image_mime_type(image.mime_type)
+        await conn.execute(
+            "insert into event_design (node_id) values ($1) on conflict do nothing",
+            node.id,
+        )
+        existing_blob_id = await conn.fetchval(
+            "select customer_logo_blob_id from event_design where node_id = $1", node.id
+        )
+
+        blob_id = await store_blob(conn=conn, blob=image)
+        await conn.execute(
+            "update event_design set customer_logo_blob_id = $2 where node_id = $1",
+            node.id,
+            blob_id,
+        )
+        if existing_blob_id is not None:
+            await delete_blob(conn=conn, blob_id=existing_blob_id)
+
+    @with_db_transaction
+    @requires_node(event_only=True)
+    @requires_user(privileges=[Privilege.node_administration])
+    async def update_wristband_guide(
+        self, conn: Connection, node: Node, image: NewBlob
+    ):
+        self._validate_image_mime_type(image.mime_type)
+        await conn.execute(
+            "insert into event_design (node_id) values ($1) on conflict do nothing",
+            node.id,
+        )
+        existing_blob_id = await conn.fetchval(
+            "select wristband_guide_blob_id from event_design where node_id = $1",
+            node.id,
+        )
+
+        blob_id = await store_blob(conn=conn, blob=image)
+        await conn.execute(
+            "update event_design set wristband_guide_blob_id = $2 where node_id = $1",
+            node.id,
+            blob_id,
+        )
         if existing_blob_id is not None:
             await delete_blob(conn=conn, blob_id=existing_blob_id)
 
     @with_db_transaction(read_only=True)
     @requires_user(node_required=False)
-    async def get_tree_for_current_user(self, *, conn: Connection, current_user: CurrentUser) -> NodeSeenByUser:
+    async def get_tree_for_current_user(
+        self, *, conn: Connection, current_user: CurrentUser
+    ) -> NodeSeenByUser:
         return await get_tree_for_current_user(conn=conn, current_user=current_user)
 
     @with_db_transaction(read_only=True)
     @requires_node(event_only=True)
     @requires_user(privileges=[Privilege.node_administration])
-    async def get_restricted_event_settings(self, *, conn: Connection, node: Node) -> RestrictedEventSettings:
-        return await fetch_restricted_event_settings_for_node(conn=conn, node_id=node.id)
+    async def get_restricted_event_settings(
+        self, *, conn: Connection, node: Node
+    ) -> RestrictedEventSettings:
+        return await fetch_restricted_event_settings_for_node(
+            conn=conn, node_id=node.id
+        )
 
     @with_db_transaction(read_only=True)
     @requires_node(event_only=True)
@@ -457,21 +615,29 @@ class TreeService(Service[Config]):
     @requires_user(privileges=[Privilege.node_administration])
     async def generate_test_bon(self, *, conn: Connection, node: Node) -> BonJson:
         assert node.event_node_id is not None
-        event = await fetch_restricted_event_settings_for_node(conn=conn, node_id=node.id)
+        event = await fetch_restricted_event_settings_for_node(
+            conn=conn, node_id=node.id
+        )
         return await generate_dummy_bon_json(node_id=node.event_node_id, event=event)
 
     @with_db_transaction(read_only=True)
     @requires_node(event_only=True)
     @requires_user(privileges=[Privilege.node_administration])
     async def check_pretix_connection(self, *, conn: Connection, node: Node) -> BonJson:
-        event = await fetch_restricted_event_settings_for_node(conn=conn, node_id=node.id)
+        event = await fetch_restricted_event_settings_for_node(
+            conn=conn, node_id=node.id
+        )
         return await pretix.check_connection(event)
 
     @with_db_transaction(read_only=True)
     @requires_node(event_only=True)
     @requires_user(privileges=[Privilege.node_administration])
-    async def generate_test_revenue_report(self, *, conn: Connection, node: Node) -> bytes:
-        event = await fetch_restricted_event_settings_for_node(conn=conn, node_id=node.id)
+    async def generate_test_revenue_report(
+        self, *, conn: Connection, node: Node
+    ) -> bytes:
+        event = await fetch_restricted_event_settings_for_node(
+            conn=conn, node_id=node.id
+        )
         logo = await fetch_event_logo(conn=conn, node_id=node.id)
         return await generate_dummy_report(node=node, event=event, logo=logo)
 
@@ -484,8 +650,12 @@ class TreeService(Service[Config]):
     @with_db_transaction(read_only=True)
     @requires_node(event_only=True)
     @requires_user(privileges=[Privilege.node_administration])
-    async def generate_test_daily_report(self, *, conn: Connection, node: Node) -> bytes:
-        event = await fetch_restricted_event_settings_for_node(conn=conn, node_id=node.id)
+    async def generate_test_daily_report(
+        self, *, conn: Connection, node: Node
+    ) -> bytes:
+        event = await fetch_restricted_event_settings_for_node(
+            conn=conn, node_id=node.id
+        )
         logo = await fetch_event_logo(conn=conn, node_id=node.id)
         return await generate_dummy_daily_report(event=event, logo=logo)
 
@@ -493,7 +663,12 @@ class TreeService(Service[Config]):
     @requires_node(event_only=True)
     @requires_user(privileges=[Privilege.node_administration])
     async def generate_daily_report(
-        self, *, conn: Connection, node: Node, relevant_node_ids: list[int], report_date: date
+        self,
+        *,
+        conn: Connection,
+        node: Node,
+        relevant_node_ids: list[int],
+        report_date: date,
     ) -> bytes:
         relevant_nodes: list[Node] = []
         for relevant_node_id in relevant_node_ids:
@@ -503,7 +678,9 @@ class TreeService(Service[Config]):
             if node.id not in rel_node.ids_to_root:
                 raise InvalidArgument("Invalid node id")
             relevant_nodes.append(rel_node)
-        return await generate_daily_report(conn=conn, node=node, relevant_nodes=relevant_nodes, report_date=report_date)
+        return await generate_daily_report(
+            conn=conn, node=node, relevant_nodes=relevant_nodes, report_date=report_date
+        )
 
     @with_db_transaction(read_only=True)
     @requires_node(event_only=True)
@@ -514,11 +691,16 @@ class TreeService(Service[Config]):
     @with_db_transaction
     @requires_node(event_only=True)
     @requires_user(privileges=[Privilege.node_administration])
-    async def archive_node(self, *, conn: Connection, node: Node, current_user: CurrentUser):
+    async def archive_node(
+        self, *, conn: Connection, node: Node, current_user: CurrentUser
+    ):
         if node.read_only:
             raise InvalidArgument("Node is already read only")
 
-        await conn.execute("update node set read_only = true where id = $1 or $1 = any(parent_ids)", node.id)
+        await conn.execute(
+            "update node set read_only = true where id = $1 or $1 = any(parent_ids)",
+            node.id,
+        )
         await conn.execute(
             "update event set customer_portal_url = '' "
             "where id in ("
@@ -537,7 +719,9 @@ class TreeService(Service[Config]):
     @with_db_transaction
     @requires_node()
     @requires_user(privileges=[Privilege.node_administration])
-    async def delete_node(self, *, conn: Connection, node: Node, current_user: CurrentUser):
+    async def delete_node(
+        self, *, conn: Connection, node: Node, current_user: CurrentUser
+    ):
         await conn.execute("delete from node where id = $1", node.id)
         # TODO: AUDIT_DELETE
         await create_audit_log(
@@ -551,8 +735,12 @@ class TreeService(Service[Config]):
     @with_db_transaction
     @requires_node(event_only=True)
     @requires_user(privileges=[Privilege.node_administration])
-    async def sumup_auth_code_flow(self, *, conn: Connection, node: Node, authorization_code: str):
-        event_settings = await fetch_restricted_event_settings_for_node(conn=conn, node_id=node.id)
+    async def sumup_auth_code_flow(
+        self, *, conn: Connection, node: Node, authorization_code: str
+    ):
+        event_settings = await fetch_restricted_event_settings_for_node(
+            conn=conn, node_id=node.id
+        )
 
         token = await fetch_refresh_token_from_auth_code(
             client_id=event_settings.sumup_oauth_client_id,
@@ -561,7 +749,9 @@ class TreeService(Service[Config]):
         )
         assert node.event is not None
         await conn.execute(
-            "update event set sumup_oauth_refresh_token = $1 where id = $2", token.refresh_token, node.event.id
+            "update event set sumup_oauth_refresh_token = $1 where id = $2",
+            token.refresh_token,
+            node.event.id,
         )
 
     @with_db_transaction(read_only=True)
@@ -573,5 +763,7 @@ class TreeService(Service[Config]):
     @with_db_transaction(read_only=True)
     @requires_node()
     @requires_user(privileges=[Privilege.node_administration])
-    async def get_audit_log(self, *, conn: Connection, node: Node, audit_log_id: int) -> AuditLogDetail:
+    async def get_audit_log(
+        self, *, conn: Connection, node: Node, audit_log_id: int
+    ) -> AuditLogDetail:
         return await fetch_audit_log(conn=conn, node=node, audit_log_id=audit_log_id)

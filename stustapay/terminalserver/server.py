@@ -16,6 +16,7 @@ from stustapay.core.healthcheck import run_healthcheck
 from stustapay.core.http.context import Context
 from stustapay.core.service.account import AccountService
 from stustapay.core.service.auth import AuthService
+from stustapay.core.service.media import MediaService
 from stustapay.core.service.order import OrderService
 from stustapay.core.service.terminal import TerminalService
 from stustapay.core.service.till.till import TillService
@@ -26,6 +27,7 @@ from stustapay.terminalserver.router import (
     cashier,
     customer,
     management,
+    media,
     order,
     user,
 )
@@ -48,6 +50,7 @@ def get_server(config: Config):
     server.add_router(customer.router)
     server.add_router(cashier.router)
     server.add_router(management.router)
+    server.add_router(media.router)
     return server
 
 
@@ -74,18 +77,33 @@ class Api:
         await database.check_revision_version(db)
 
         auth_service = AuthService(db_pool=db_pool, config=self.cfg)
-        order_service = OrderService(db_pool=db_pool, config=self.cfg, auth_service=auth_service)
+        order_service = OrderService(
+            db_pool=db_pool, config=self.cfg, auth_service=auth_service
+        )
 
         context = Context(
             config=self.cfg,
             order_service=order_service,
-            user_service=UserService(db_pool=db_pool, config=self.cfg, auth_service=auth_service),
-            till_service=TillService(db_pool=db_pool, config=self.cfg, auth_service=auth_service),
-            account_service=AccountService(db_pool=db_pool, config=self.cfg, auth_service=auth_service),
-            terminal_service=TerminalService(db_pool=db_pool, config=self.cfg, auth_service=auth_service),
+            user_service=UserService(
+                db_pool=db_pool, config=self.cfg, auth_service=auth_service
+            ),
+            till_service=TillService(
+                db_pool=db_pool, config=self.cfg, auth_service=auth_service
+            ),
+            account_service=AccountService(
+                db_pool=db_pool, config=self.cfg, auth_service=auth_service
+            ),
+            terminal_service=TerminalService(
+                db_pool=db_pool, config=self.cfg, auth_service=auth_service
+            ),
+            media_service=MediaService(
+                db_pool=db_pool, config=self.cfg, auth_service=auth_service
+            ),
         )
         try:
-            self.server.add_task(asyncio.create_task(run_healthcheck(db, service_name="terminalserver")))
+            self.server.add_task(
+                asyncio.create_task(run_healthcheck(db, service_name="terminalserver"))
+            )
             await self.server.run(context)
         finally:
             await db_pool.close()

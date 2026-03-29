@@ -9,6 +9,8 @@ from pydantic import AfterValidator, BaseModel
 
 class MimeType(enum.Enum):
     svg = "image/svg+xml"
+    png = "image/png"
+    jpeg = "image/jpeg"
 
 
 def is_valid_base64(data: str) -> str:
@@ -38,3 +40,6 @@ class Blob(BaseModel):
 
 class EventDesign(BaseModel):
     bon_logo_blob_id: UUID | None
+    app_logo_blob_id: UUID | None = None
+    customer_logo_blob_id: UUID | None = None
+    wristband_guide_blob_id: UUID | None = None
