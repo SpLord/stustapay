@@ -58,8 +58,8 @@ class NfcHandler @Inject constructor(
 
         try {
             // Try NTAG213 first — single connect, no probe
+            val nfca = NfcA.get(tag)
             try {
-                val nfca = NfcA.get(tag)
                 nfca.connect()
                 val ntag = Ntag213(nfca)
                 handleNtag213Tag(ntag)
@@ -67,8 +67,9 @@ class NfcHandler @Inject constructor(
                 return
             } catch (e: TagIncompatibleException) {
                 Log.d("NfcHandler", "Not NTAG, trying MF0AES: ${e.message}")
+                try { nfca.close() } catch (_: Exception) {}
             } catch (e: TagAuthException) {
-                // Auth failed on NTAG — still an NTAG, just wrong key
+                try { nfca.close() } catch (_: Exception) {}
                 throw e
             }
 
@@ -106,7 +107,7 @@ class NfcHandler @Inject constructor(
                 tag.setCMAC(true)
                 tag.setAuth0(0x10u)
                 tag.writeUserMemory("StuStaPay\n".toByteArray(Charset.forName("UTF-8")).asBitVector())
-                tag.writePin(req.pin ?: "WWWWWWWWWWWW")
+                tag.writePin(req.pin ?: "WWWWWWWWWWWWWWWW")
                 tag.writeDataProtKey(req.dataProtKey)
                 tag.writeUidRetrKey(req.uidRetrKey)
                 dataSource.setScanResult(NfcScanResult.Write)

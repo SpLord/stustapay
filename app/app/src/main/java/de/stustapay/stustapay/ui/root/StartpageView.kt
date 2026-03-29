@@ -54,7 +54,6 @@ fun StartpageView(
         // Version tag bottom right
         VersionLabel(
             currentVersion = BuildConfig.VERSION_NAME,
-            apkName = "app-release.apk",
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(8.dp)
