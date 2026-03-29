@@ -73,13 +73,30 @@ fun SaleTipSelect(
         TipOption(5, totalPrice),
     )
 
-    // Entire screen rotated 180° so customer can read it
     Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .rotate(180f),
-        contentAlignment = Alignment.Center
+        modifier = Modifier.fillMaxSize()
     ) {
+        // Back button for cashier (not rotated, bottom-left from cashier perspective)
+        TextButton(
+            onClick = onSkip,
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(8.dp)
+        ) {
+            Text(
+                text = "\u2190 Zurück",
+                fontSize = 14.sp,
+                color = MaterialTheme.colors.onBackground.copy(alpha = 0.5f),
+            )
+        }
+
+        // Entire tip area rotated 180° so customer can read it
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .rotate(180f),
+            contentAlignment = Alignment.Center
+        ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -159,6 +176,7 @@ fun SaleTipSelect(
                     }
                 }
             }
+        }
         }
     }
 }
