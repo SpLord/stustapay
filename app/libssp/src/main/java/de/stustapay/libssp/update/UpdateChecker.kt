@@ -47,7 +47,9 @@ suspend fun checkForUpdate(currentVersion: String, apkName: String): UpdateInfo 
                 }
             }
 
-            val isUpdateAvailable = tagName != currentVersion && downloadUrl != null
+            // Compare: update available if latest tag is not contained in current version
+            // Handles git describe formats like "v2026.2.1-pretix23-2-gabcdef"
+            val isUpdateAvailable = !currentVersion.startsWith(tagName) && downloadUrl != null
 
             UpdateInfo(
                 currentVersion = currentVersion,
