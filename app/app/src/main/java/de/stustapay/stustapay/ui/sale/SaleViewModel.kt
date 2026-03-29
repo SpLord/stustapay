@@ -29,6 +29,7 @@ import javax.inject.Inject
 
 enum class SalePage(val route: String) {
     ProductSelect("product"),
+    TipSelect("tip"),
     Confirm("confirm"),
     ConfirmCash("confirm_cash"),
     ConfirmCard("confirm_card"),
@@ -78,6 +79,9 @@ class SaleViewModel @Inject constructor(
     val saleConfig: StateFlow<SaleConfig> = mapSaleConfig(
         terminalConfigRepository.terminalConfigState
     )
+
+    // tip flow: remember payment method while tip screen is shown
+    private val _pendingPaymentMethod = MutableStateFlow(PaymentMethod.tag)
 
     // so only one order can be submitted
     private val _bookingActive = MutableStateFlow(false)
@@ -129,6 +133,35 @@ class SaleViewModel @Inject constructor(
             )
             newSale
         }
+    }
+
+    /** Find the tip button in the current config (free-price, name contains "trinkgeld" or "tip") */
+    fun findTipButtonId(): Int? {
+        val config = saleConfig.value
+        if (config !is SaleConfig.Ready) return null
+        return config.buttons.values.firstOrNull { button ->
+            button.price is SaleItemPrice.FreePrice &&
+                (button.caption.lowercase().contains("trinkgeld") ||
+                 button.caption.lowercase().contains("tip"))
+        }?.id
+    }
+
+    /** Set tip amount on the tip button */
+    fun setTipAmount(tipCents: UInt) {
+        val tipButtonId = findTipButtonId() ?: return
+        adjustPrice(tipButtonId, if (tipCents > 0u) FreePrice.Set(tipCents) else FreePrice.Unset)
+    }
+
+    /** Called from tip screen when customer selects a tip or skips */
+    suspend fun tipSelected(tipCents: UInt) {
+        setTipAmount(tipCents)
+        checkSaleDirect(_pendingPaymentMethod.value)
+    }
+
+    /** Skip tip and proceed to checkout */
+    suspend fun tipSkipped() {
+        setTipAmount(0u)
+        checkSaleDirect(_pendingPaymentMethod.value)
     }
 
     /** called when clicking "back" after the order preview */
@@ -199,6 +232,20 @@ class SaleViewModel @Inject constructor(
             return
         }
 
+        // If a tip button exists, show tip screen first
+        val tipButtonId = findTipButtonId()
+        if (tipButtonId != null) {
+            // Clear any previous tip
+            setTipAmount(0u)
+            _pendingPaymentMethod.update { paymentMethod }
+            _navState.update { SalePage.TipSelect }
+            return
+        }
+
+        checkSaleDirect(paymentMethod)
+    }
+
+    private suspend fun checkSaleDirect(paymentMethod: PaymentMethod) {
         val tag = _saleStatus.value.tag
         if (paymentMethod == PaymentMethod.tag && tag == null) {
             // open tag scanner, this updates the sale status with a tag.

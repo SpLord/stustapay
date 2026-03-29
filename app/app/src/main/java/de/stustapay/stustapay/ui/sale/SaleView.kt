@@ -90,6 +90,23 @@ fun SaleView(
             )
         }
 
+        // tip selection (customer-facing, rotated 180°)
+        composable(SalePage.TipSelect.route) {
+            SaleTipSelect(
+                viewModel = viewModel,
+                onTipSelected = { tipCents ->
+                    scope.launch {
+                        viewModel.tipSelected(tipCents)
+                    }
+                },
+                onSkip = {
+                    scope.launch {
+                        viewModel.tipSkipped()
+                    }
+                },
+            )
+        }
+
         // what would be booked, from there one can get back to edit-mode
         composable(SalePage.Confirm.route) {
             SaleConfirm(
