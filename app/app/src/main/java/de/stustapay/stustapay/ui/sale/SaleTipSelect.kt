@@ -24,6 +24,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.activity.compose.BackHandler
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlin.math.ceil
 
@@ -73,6 +74,9 @@ fun SaleTipSelect(
         TipOption(10, totalPrice),
         TipOption(5, totalPrice),
     )
+
+    // Hardware back button also goes back
+    BackHandler { onBack() }
 
     Box(
         modifier = Modifier.fillMaxSize()
