@@ -43,7 +43,7 @@ class TerminalButton(BaseModel):
     id: int
     name: str
     price: Optional[float]
-    deposit_price: Optional[float] = None
+    deposit_price: float | None = None
     default_price: Optional[float] = None  # for variably priced products a default price might be interesting?
     price_in_vouchers: Optional[int] = None
     price_per_voucher: Optional[float] = None

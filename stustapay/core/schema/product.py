@@ -28,6 +28,7 @@ class NewProduct(BaseModel):
     restrictions: list[ProductRestriction] = []
     is_locked: bool = False
     is_returnable: bool = False
+    is_deposit: bool = False
 
     target_account_id: Optional[int] = None
 
