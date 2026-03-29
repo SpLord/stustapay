@@ -164,6 +164,14 @@ class SaleViewModel @Inject constructor(
         checkSaleDirect(_pendingPaymentMethod.value)
     }
 
+    /** called when clicking "back" on tip screen */
+    fun tipBack() {
+        setTipAmount(0u)
+        _enableScan.update { false }
+        scanTarget.update { ScanTarget.None }
+        _navState.update { SalePage.ProductSelect }
+    }
+
     /** called when clicking "back" after the order preview */
     suspend fun editOrder() {
         _navState.update { SalePage.ProductSelect }

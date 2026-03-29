@@ -105,9 +105,7 @@ fun SaleView(
                     }
                 },
                 onBack = {
-                    scope.launch {
-                        viewModel.editOrder()
-                    }
+                    viewModel.tipBack()
                 },
             )
         }
