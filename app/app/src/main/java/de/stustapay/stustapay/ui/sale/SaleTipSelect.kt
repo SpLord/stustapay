@@ -36,6 +36,7 @@ fun SaleTipSelect(
     viewModel: SaleViewModel,
     onTipSelected: (tipCents: UInt) -> Unit,
     onSkip: () -> Unit,
+    onBack: () -> Unit,
 ) {
     val saleConfig by viewModel.saleConfig.collectAsStateWithLifecycle()
     val saleStatus by viewModel.saleStatus.collectAsStateWithLifecycle()
@@ -78,7 +79,7 @@ fun SaleTipSelect(
     ) {
         // Back button for cashier (not rotated, bottom-left from cashier perspective)
         TextButton(
-            onClick = onSkip,
+            onClick = onBack,
             modifier = Modifier
                 .align(Alignment.BottomStart)
                 .padding(8.dp)
