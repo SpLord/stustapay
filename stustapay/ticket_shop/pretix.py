@@ -108,11 +108,11 @@ class PretixApi:
                     if not response.ok:
                         resp = await response.json()
                         err = _PretixErrorFormat.model_validate(resp)
-                        raise PretixError(f"Pretix API returned an error: {err.code} - {err.message}")
+                        raise PretixError(f"Pretix API returned an error: {err.code} - {err.message or 'Unknown error'}")
                     return await response.json(content_type=None)
             except asyncio.TimeoutError as e:
                 raise PretixError("Pretix API timeout") from e
-            except Exception as e:  # pylint: disable=bare-except
+            except Exception as e:  # pylint: disable=broad-except
                 if isinstance(e, PretixError):
                     raise e
                 raise PretixError("Pretix API returned an unknown error") from e
@@ -216,7 +216,7 @@ class PretixTicketProvider(TicketProvider):
             return order.invoice_address.name
         return None
 
-    async def _synchronizie_pretix_order(
+    async def _synchronize_pretix_order(
         self,
         conn: Connection,
         node: Node,
@@ -282,7 +282,7 @@ class PretixTicketProvider(TicketProvider):
 
         orders = await api.fetch_orders()
         for order in orders:
-            await self._synchronizie_pretix_order(
+            await self._synchronize_pretix_order(
                 conn=conn,
                 node=node,
                 api=api,
@@ -377,7 +377,7 @@ class PretixTicketProvider(TicketProvider):
             order = await api.fetch_order(order_code=payload.code)
             products = await api.fetch_products()
             product_names = {p.id: next(iter(p.name.values()), "") for p in products}
-            await self._synchronizie_pretix_order(
+            await self._synchronize_pretix_order(
                 conn=conn,
                 node=node,
                 api=api,
@@ -424,7 +424,7 @@ class PretixTicketProvider(TicketProvider):
 
             if order.status == PretixOrderStatus.paid:
                 # Re-sync: import any new positions, update top-up amounts
-                await self._synchronizie_pretix_order(
+                await self._synchronize_pretix_order(
                     conn=conn, node=node, api=api, event_settings=settings, order=order
                 )
                 self.logger.info(f"Re-synced changed pretix order {payload.code}")
