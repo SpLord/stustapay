@@ -160,6 +160,7 @@ class Ntag213 : TagTechnology {
 
     /**
      * Provision a new NTAG213 tag: write password, PACK, set AUTH0 protection, then write PIN.
+     * Handles both fresh tags (no auth) and already-provisioned tags (auth required).
      */
     fun provisionTag(pin: String, key0: BitVector, key1: BitVector) {
         if (!isConnected) { throw TagConnectionException() }
@@ -169,6 +170,13 @@ class Ntag213 : TagTechnology {
             pwd[i] = key0.gbe(i.toULong()).toByte()
         }
         val pack = ByteArray(2) { key1.gbe(it.toULong()).toByte() }
+
+        // Try PWD_AUTH first — tag might already be provisioned from a previous attempt
+        try {
+            cmdPwdAuth(pwd, pack)
+        } catch (_: Exception) {
+            // Auth failed or not needed (fresh tag) — continue without auth
+        }
 
         // Write PWD (page 43)
         cmdWrite(
@@ -183,17 +191,12 @@ class Ntag213 : TagTechnology {
         )
 
         // Set AUTH0 in CFG0 (page 41): protect from page 4 onwards
-        // CFG0 byte 3 = AUTH0 value
-        // Read current CFG0 first
         val cfg0 = cmdRead(AUTH0_PAGE.toUByte())
         cmdWrite(
             AUTH0_PAGE.toUByte(),
             cfg0[0].toUByte(), cfg0[1].toUByte(), cfg0[2].toUByte(),
-            PIN_PAGE_START.toUByte() // AUTH0 = page 4, protect user memory
+            PIN_PAGE_START.toUByte() // AUTH0 = page 4
         )
-
-        // Now authenticate with the new password
-        cmdPwdAuth(pwd, pack)
 
         // Write PIN to pages 4-7
         val pinBytes = ByteArray(PIN_MAX_LENGTH)
