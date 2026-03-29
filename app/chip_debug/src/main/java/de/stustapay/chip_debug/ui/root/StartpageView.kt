@@ -56,6 +56,7 @@ fun StartpageView(
         // Version tag bottom right
         VersionLabel(
             currentVersion = BuildConfig.VERSION_NAME,
+            apkName = "chip_debug-debug.apk",
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(8.dp)
