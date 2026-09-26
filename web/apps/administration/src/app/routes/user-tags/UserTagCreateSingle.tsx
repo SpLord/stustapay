@@ -10,6 +10,14 @@ import { UserTagRoutes } from "@/app/routes";
 import { UserTagVariantSelect } from "@/components/features";
 import { useCurrentNode } from "@/hooks";
 
+type MutationError = { data?: { detail?: unknown }; error?: unknown };
+
+const formatError = (err: unknown): string => {
+  const e = err as MutationError | null | undefined;
+  const reason = e?.data?.detail ?? e?.error ?? err;
+  return typeof reason === "string" ? reason : String(reason);
+};
+
 export const UserTagCreateSingle: React.FC = () => {
   const { t } = useTranslation();
   const { currentNode } = useCurrentNode();
@@ -22,20 +30,24 @@ export const UserTagCreateSingle: React.FC = () => {
   const [variantId, setVariantId] = React.useState<number | null>(null);
 
   if (secretsError) {
-    return <Alert severity="error">{`Error loading user tag secrets: ${secretsError}`}</Alert>;
+    return (
+      <Alert severity="error">{t("userTag.single.secretsLoadError", { reason: formatError(secretsError) })}</Alert>
+    );
   }
 
   if (!userTagsSecrets) {
     return null;
   }
 
-  const handleSubmit = async () => {
-    if (!pin.trim()) {
-      toast.error("PIN is required");
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const trimmedPin = pin.trim();
+    if (!trimmedPin) {
+      toast.error(t("userTag.single.pinRequired"));
       return;
     }
     if (secretId == null) {
-      toast.error("Secret is required");
+      toast.error(t("userTag.single.secretRequired"));
       return;
     }
 
@@ -44,59 +56,61 @@ export const UserTagCreateSingle: React.FC = () => {
         nodeId: currentNode.id,
         newUserTags: [
           {
-            pin: pin.trim(),
+            pin: trimmedPin,
             secret_id: secretId,
             variant_ids: variantId != null ? [variantId] : [],
           },
         ],
       }).unwrap();
-      toast.success(`Tag "${pin.trim()}" created`);
+      toast.success(t("userTag.single.succeeded", { pin: trimmedPin }));
       navigate(UserTagRoutes.list());
     } catch (err) {
-      toast.error(`Error creating tag: ${err}`);
+      toast.error(t("userTag.single.failed", { reason: formatError(err) }));
     }
   };
 
   return (
-    <Stack spacing={2}>
-      <Typography component="div" variant="h5">
-        {t("userTag.createSingle")}
-      </Typography>
-      <Paper sx={{ p: 3 }}>
-        <Stack spacing={2}>
-          <TextField
-            label={t("userTag.singlePinLabel")}
-            value={pin}
-            onChange={(e) => setPin(e.target.value)}
-            variant="outlined"
-            fullWidth
-          />
-          <Select
-            label={t("userTag.singleSecretLabel")}
-            multiple={false}
-            value={userTagsSecrets.find((v) => v.id === secretId) ?? null}
-            options={userTagsSecrets}
-            formatOption={(secret: UserTagSecret) => secret.description}
-            onChange={(secret) => secret && setSecretId(secret.id)}
-          />
-          <UserTagVariantSelect
-            label={t("userTag.variants")}
-            value={variantId}
-            onChange={(val) => setVariantId(val)}
-            multiple={false}
-          />
-          {isLoading && <LinearProgress />}
-        </Stack>
-      </Paper>
-      <Button
-        variant="contained"
-        color="primary"
-        onClick={handleSubmit}
-        disabled={isLoading || !pin.trim() || secretId == null}
-        fullWidth
-      >
-        {t("userTag.createSingleButton")}
-      </Button>
-    </Stack>
+    <form onSubmit={handleSubmit}>
+      <Stack spacing={2}>
+        <Typography component="div" variant="h5">
+          {t("userTag.createSingle")}
+        </Typography>
+        <Paper sx={{ p: 3 }}>
+          <Stack spacing={2}>
+            <TextField
+              label={t("userTag.singlePinLabel")}
+              value={pin}
+              onChange={(e) => setPin(e.target.value)}
+              variant="outlined"
+              fullWidth
+            />
+            <Select
+              label={t("userTag.singleSecretLabel")}
+              multiple={false}
+              value={userTagsSecrets.find((v) => v.id === secretId) ?? null}
+              options={userTagsSecrets}
+              formatOption={(secret: UserTagSecret) => secret.description}
+              onChange={(secret) => secret && setSecretId(secret.id)}
+            />
+            <UserTagVariantSelect
+              label={t("userTag.variants")}
+              value={variantId}
+              onChange={(val) => setVariantId(val)}
+              multiple={false}
+            />
+            {isLoading && <LinearProgress />}
+          </Stack>
+        </Paper>
+        <Button
+          type="submit"
+          variant="contained"
+          color="primary"
+          disabled={isLoading || !pin.trim() || secretId == null}
+          fullWidth
+        >
+          {t("userTag.createSingleButton")}
+        </Button>
+      </Stack>
+    </form>
   );
 };

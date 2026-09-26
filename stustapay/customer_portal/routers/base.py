@@ -20,7 +20,7 @@ from stustapay.core.schema.customer import (
     PayoutInfo,
     PayoutTransaction,
 )
-from stustapay.core.schema.media import EventDesign
+from stustapay.core.schema.media import BLOB_RESPONSE_HEADERS, EventDesign
 from stustapay.core.service.customer.customer import (
     CustomerBank,
     CustomerPortalApiConfig,
@@ -146,4 +146,4 @@ async def get_bon(order_service: ContextOrderService, order_uuid: str):
 async def get_blob(media_service: ContextMediaService, blob_id: UUID):
     blob = await media_service.get_blob(blob_id=blob_id)
 
-    return Response(content=blob.data, media_type=blob.mime_type)
+    return Response(content=blob.data, media_type=blob.mime_type, headers=BLOB_RESPONSE_HEADERS)

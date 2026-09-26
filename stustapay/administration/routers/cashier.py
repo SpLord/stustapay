@@ -5,7 +5,7 @@ from fastapi import APIRouter
 from stustapay.core.http.auth_user import CurrentAuthToken
 from stustapay.core.http.context import ContextCashierService
 from stustapay.core.schema.cashier import CashierShift, CashierShiftStats
-from stustapay.core.service.cashier import CloseOut, CloseOutResult
+from stustapay.core.service.cashier import CashierRevenueRow, CloseOut, CloseOutResult
 
 router = APIRouter(
     prefix="/cashiers",
@@ -45,7 +45,7 @@ async def get_cashier_shift_stats(
     )
 
 
-@router.get("/revenue-report", response_model=list[dict])
+@router.get("/revenue-report", response_model=list[CashierRevenueRow])
 async def get_cashier_revenue_report(token: CurrentAuthToken, cashier_service: ContextCashierService, node_id: int):
     return await cashier_service.get_cashier_revenue_report(token=token, node_id=node_id)
 

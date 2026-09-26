@@ -58,6 +58,36 @@ async def test_basic_product_workflow(
     assert deleted
 
 
+async def test_product_deposit_flag_is_persisted(
+    product_service: ProductService,
+    event_node: Node,
+    tax_rate_none: TaxRate,
+    event_admin_token: str,
+):
+    product = await product_service.create_product(
+        token=event_admin_token,
+        node_id=event_node.id,
+        product=NewProduct(name="Pfand Becher", price=2, tax_rate_id=tax_rate_none.id, is_deposit=True),
+    )
+    assert product.is_deposit is True
+
+    fetched = await product_service.get_product(token=event_admin_token, node_id=event_node.id, product_id=product.id)
+    assert fetched is not None
+    assert fetched.is_deposit is True
+
+    updated = await product_service.update_product(
+        token=event_admin_token,
+        node_id=event_node.id,
+        product_id=product.id,
+        product=NewProduct(name="Pfand Becher", price=2, tax_rate_id=tax_rate_none.id, is_deposit=False),
+    )
+    assert updated.is_deposit is False
+
+    fetched = await product_service.get_product(token=event_admin_token, node_id=event_node.id, product_id=product.id)
+    assert fetched is not None
+    assert fetched.is_deposit is False
+
+
 async def test_product_name_is_unique_in_tree(
     product_service: ProductService,
     db_connection: Connection,

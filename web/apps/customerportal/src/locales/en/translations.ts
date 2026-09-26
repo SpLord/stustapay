@@ -19,6 +19,7 @@ export const translations = {
     "To get your payout after the festival, please <1>enter your bank account details here</1>. Your payout will happen approximately within one month.",
   about: "About",
   contact: "Contact",
+  eventLogoAlt: "Event logo",
   wristbandTagExample: "Wristband Tag Example",
   wristbandTagExampleTitle: "Wristband Tag Example with PIN",
   wristbandTagExampleDescription:

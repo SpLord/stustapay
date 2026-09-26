@@ -61,9 +61,10 @@ fun UpdateBanner(
     var isDownloading by remember { mutableStateOf(false) }
     var downloadProgress by remember { mutableStateOf(0f) }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(currentVersion, apkName) {
         updateInfo = try {
-            checkForUpdate(currentVersion, apkName)
+            // cached process-wide, at most one GitHub request per 30 min
+            UpdateCheckCache.get(currentVersion, apkName)
         } catch (e: Exception) {
             Log.w("UpdateCheck", "Failed to check for updates", e)
             null

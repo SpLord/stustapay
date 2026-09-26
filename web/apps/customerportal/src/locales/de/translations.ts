@@ -17,6 +17,7 @@ export const translations: NestedPartialAsStrings<Translations> = {
     "Um dein Restguthaben nach dem Festival zu erhalten, <1>trage bitte deine Bankdaten hier ein</1>. Deine Auszahlung findet voraussichtlich innerhalb eines Monats statt.",
   about: "Impressum",
   contact: "Kontakt",
+  eventLogoAlt: "Event-Logo",
   wristbandTagExample: "Beispiel eines Bändchen-Chips",
   wristbandTagExampleTitle: "Bändchen-Chip Beispiel mit PIN",
   wristbandTagExampleDescription:

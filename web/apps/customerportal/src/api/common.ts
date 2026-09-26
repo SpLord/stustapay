@@ -1,29 +1,4 @@
-type EventDesign = {
-  bon_logo_blob_id: string | null;
-  customer_logo_blob_id?: string | null;
-  wristband_guide_blob_id?: string | null;
-};
-
-type CustomerPortalApiConfig = {
-  test_mode: boolean;
-  test_mode_message: string;
-  event_name: string;
-  data_privacy_url: string;
-  contact_email: string;
-  about_page_url: string;
-  payout_enabled: boolean;
-  currency_identifier: string;
-  sumup_topup_enabled: boolean;
-  allowed_country_codes: string[] | null;
-  translation_texts: {
-    [key: string]: {
-      [key: string]: string;
-    };
-  };
-  event_design: EventDesign;
-  node_id: number;
-  feedback_url?: string | null;
-};
+import type { CustomerPortalApiConfig } from "./generated/api";
 
 const siteHost = window.location.host;
 const siteProtocol = window.location.protocol;

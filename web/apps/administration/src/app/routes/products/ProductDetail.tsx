@@ -121,6 +121,7 @@ export const ProductDetail: React.FC = () => {
         <DetailField label={t("product.name")} value={product.name} />
         <DetailBoolField label={t("product.isLocked")} value={product.is_locked} />
         <DetailBoolField label={t("product.isReturnable")} value={product.is_returnable} />
+        <DetailBoolField label={t("product.isDeposit")} value={product.is_deposit} />
         <DetailBoolField label={t("product.isFixedPrice")} value={product.fixed_price} />
         <DetailListField
           label={t("product.userTagVariants")}

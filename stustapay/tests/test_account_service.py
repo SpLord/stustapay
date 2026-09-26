@@ -5,6 +5,7 @@ from sftkit.database import Connection
 
 from stustapay.core.schema.tree import Node
 from stustapay.core.service.account import AccountService
+from stustapay.core.service.cashier import CashierService
 from stustapay.core.service.common.error import InvalidArgument, NotFound
 
 from .conftest import CreateRandomUserTag
@@ -252,6 +253,20 @@ async def test_get_money_overview(
 
     assert overview.total_customer_account_balance >= 25
     assert len(overview.system_accounts) > 0
+    assert overview.deposit_overview is not None
+    assert overview.deposit_overview.deposit_balance == pytest.approx(
+        overview.deposit_overview.total_deposit_charged - overview.deposit_overview.total_deposit_returned
+    )
+
+
+async def test_cashier_revenue_report_is_scoped_to_node(
+    cashier_service: CashierService,
+    event_admin_token: str,
+    event_node: Node,
+):
+    # no sales booked yet, the report must still be a well-formed (empty) list
+    report = await cashier_service.get_cashier_revenue_report(token=event_admin_token, node_id=event_node.id)
+    assert report == []
 
 
 async def test_disable_account(

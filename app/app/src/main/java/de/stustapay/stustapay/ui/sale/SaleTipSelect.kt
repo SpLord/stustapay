@@ -26,7 +26,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.activity.compose.BackHandler
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import kotlin.math.ceil
 
 /**
  * Tip selection screen shown between product selection and checkout.
@@ -41,6 +40,7 @@ fun SaleTipSelect(
 ) {
     val saleConfig by viewModel.saleConfig.collectAsStateWithLifecycle()
     val saleStatus by viewModel.saleStatus.collectAsStateWithLifecycle()
+    val transactionActive by viewModel.transactionActive.collectAsStateWithLifecycle()
 
     // Calculate total price from selected items (same logic as SaleSelection bottom bar)
     var totalPrice = 0.0
@@ -69,10 +69,12 @@ fun SaleTipSelect(
         }
     }
 
+    // Work in integer cents from here on: the same cent value is shown and booked.
+    val baseCents = Math.round(totalPrice * 100.0)
     val tipOptions = listOf(
-        TipOption(15, totalPrice),
-        TipOption(10, totalPrice),
-        TipOption(5, totalPrice),
+        TipOption(15, baseCents),
+        TipOption(10, baseCents),
+        TipOption(5, baseCents),
     )
 
     // Hardware back button also goes back
@@ -142,11 +144,13 @@ fun SaleTipSelect(
                 TipButton(
                     option = tipOptions[0],
                     modifier = Modifier.weight(1f),
+                    enabled = !transactionActive,
                     onClick = { onTipSelected(tipOptions[0].amountCents) }
                 )
                 TipButton(
                     option = tipOptions[1],
                     modifier = Modifier.weight(1f),
+                    enabled = !transactionActive,
                     onClick = { onTipSelected(tipOptions[1].amountCents) }
                 )
             }
@@ -161,6 +165,7 @@ fun SaleTipSelect(
                 TipButton(
                     option = tipOptions[2],
                     modifier = Modifier.weight(1f),
+                    enabled = !transactionActive,
                     onClick = { onTipSelected(tipOptions[2].amountCents) }
                 )
                 Box(
@@ -171,6 +176,7 @@ fun SaleTipSelect(
                 ) {
                     TextButton(
                         onClick = onSkip,
+                        enabled = !transactionActive,
                         modifier = Modifier.fillMaxSize()
                     ) {
                         Text(
@@ -188,21 +194,24 @@ fun SaleTipSelect(
 
 data class TipOption(
     val percent: Int,
-    val baseAmount: Double,
+    val baseCents: Long,
 ) {
-    // Round up to nearest 10 cents
-    val amount: Double = ceil(baseAmount * percent / 100.0 * 10.0) / 10.0
-    val amountCents: UInt = (amount * 100).toUInt()
+    // Tip in cents, rounded half-up ("kaufmännisch") to the nearest 10 cents.
+    // Integer arithmetic only, so display and booking always use the same value.
+    val amountCents: UInt = (Math.round(baseCents * percent / 1000.0) * 10L).coerceAtLeast(0L).toUInt()
+    val amount: Double = amountCents.toLong() / 100.0
 }
 
 @Composable
 fun TipButton(
     option: TipOption,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
     onClick: () -> Unit,
 ) {
     Button(
         onClick = onClick,
+        enabled = enabled,
         modifier = modifier.height(90.dp),
         colors = ButtonDefaults.buttonColors(
             backgroundColor = MaterialTheme.colors.primary,

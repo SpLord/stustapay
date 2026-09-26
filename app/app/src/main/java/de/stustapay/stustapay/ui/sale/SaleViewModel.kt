@@ -150,14 +150,24 @@ class SaleViewModel @Inject constructor(
 
     /** Called from tip screen when customer selects a tip or skips */
     suspend fun tipSelected(tipCents: UInt) {
-        setTipAmount(tipCents)
-        checkSaleDirect(_pendingPaymentMethod.value)
+        if (_transactionActive.isLockedOutsideContext()) {
+            return
+        }
+        _transactionActive.withLock {
+            setTipAmount(tipCents)
+            checkSaleDirect(_pendingPaymentMethod.value)
+        }
     }
 
     /** Skip tip and proceed to checkout */
     suspend fun tipSkipped() {
-        setTipAmount(0u)
-        checkSaleDirect(_pendingPaymentMethod.value)
+        if (_transactionActive.isLockedOutsideContext()) {
+            return
+        }
+        _transactionActive.withLock {
+            setTipAmount(0u)
+            checkSaleDirect(_pendingPaymentMethod.value)
+        }
     }
 
     /** called when clicking "back" on tip screen */
@@ -194,8 +204,9 @@ class SaleViewModel @Inject constructor(
     }
 
     suspend fun tagScanned(tag: NfcTag) {
-        // Ignore scans during tip flow
-        if (_navState.value == SalePage.TipSelect) {
+        // Only accept scans we actually asked for (checkSaleDirect sets the target).
+        // Gating on the nav page would drop the scan the tip screen itself requested.
+        if (scanTarget.value != ScanTarget.CheckSale) {
             _enableScan.update { false }
             return
         }

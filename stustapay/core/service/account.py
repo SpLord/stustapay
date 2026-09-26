@@ -165,19 +165,29 @@ class AccountService(Service[Config]):
             "select coalesce(sum(a.balance), 0.0) from account a where type = 'cash_register' and node_id = any($1)",
             node.ids_to_event_node,
         )
-        # Deposit (Pfand) stats: sum of all booked line items for deposit products
-        deposit_charged = await conn.fetchval(
-            "select coalesce(sum(li.total_price), 0.0) "
-            "from line_item li join product p on li.product_id = p.id "
-            "where p.is_deposit = true and li.total_price > 0 and p.node_id = any($1)",
-            node.ids_to_event_node,
+        # Deposit (Pfand) stats over all sales booked at this node or its children.
+        # Quantity-based: positive quantities are deposits handed out, negative quantities are deposits taken back.
+        # A cancel_sale mirrors the original line items with negated quantities and therefore reverses the
+        # respective bucket instead of being counted as the opposite movement.
+        deposit_row = await conn.fetchrow(
+            "select "
+            "   coalesce(sum(case "
+            "       when o.order_type = 'sale' and li.quantity > 0 then li.quantity * li.product_price "
+            "       when o.order_type = 'cancel_sale' and li.quantity < 0 then li.quantity * li.product_price "
+            "       else 0 end), 0.0) as charged, "
+            "   coalesce(sum(case "
+            "       when o.order_type = 'sale' and li.quantity < 0 then -li.quantity * li.product_price "
+            "       when o.order_type = 'cancel_sale' and li.quantity > 0 then -li.quantity * li.product_price "
+            "       else 0 end), 0.0) as returned "
+            "from orders_at_node_and_children($1) o "
+            "join line_item li on li.order_id = o.id "
+            "join product p on li.product_id = p.id "
+            "where p.is_deposit and o.order_type in ('sale', 'cancel_sale')",
+            node.id,
         )
-        deposit_returned = await conn.fetchval(
-            "select coalesce(abs(sum(li.total_price)), 0.0) "
-            "from line_item li join product p on li.product_id = p.id "
-            "where p.is_deposit = true and li.total_price < 0 and p.node_id = any($1)",
-            node.ids_to_event_node,
-        )
+        assert deposit_row is not None
+        deposit_charged = float(deposit_row["charged"])
+        deposit_returned = float(deposit_row["returned"])
         deposit_overview = DepositOverview(
             total_deposit_charged=deposit_charged,
             total_deposit_returned=deposit_returned,

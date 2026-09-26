@@ -41,14 +41,22 @@ class NfcHandler @Inject constructor(
             { tag -> handleTag(tag) },
             NfcAdapter.FLAG_READER_NFC_A or NfcAdapter.FLAG_READER_NO_PLATFORM_SOUNDS or NfcAdapter.FLAG_READER_SKIP_NDEF_CHECK,
             Bundle().apply {
-                putInt(NfcAdapter.EXTRA_READER_PRESENCE_CHECK_DELAY, 5000)
+                putInt(NfcAdapter.EXTRA_READER_PRESENCE_CHECK_DELAY, 1500)
             }
         )
     }
 
     /**
-     * No-probe approach: try NTAG213 first (most common), fall back to MF0AES.
-     * NTAG213 uses the same NfcA object — connect once, read once, done.
+     * Single-connection dispatch:
+     * 1. Connect NfcA once.
+     * 2. GET_VERSION (0x60) on that connection to identify the chip.
+     * 3. NTAG213 -> reuse the already open NfcA (no second connect, that caused tag-lost).
+     *    MF0AES  -> close our NfcA and hand the tag to MifareUltralightAES, which needs its
+     *               own connection for the crypto session (and re-validates GET_VERSION).
+     *    Anything else -> TagIncompatibleException.
+     *
+     * Dispatching on GET_VERSION is what enforces AES auth for MF0AES bands: without it an
+     * MF0AES band would be read via the plain NTAG path and bypass authentication.
      */
     private fun handleTag(tag: Tag) {
         if (!tag.techList.contains("android.nfc.tech.NfcA")) {
@@ -56,28 +64,39 @@ class NfcHandler @Inject constructor(
             return
         }
 
+        val nfca: NfcA? = NfcA.get(tag)
+        if (nfca == null) {
+            dataSource.setScanResult(NfcScanResult.Fail(NfcScanFailure.Incompatible("NfcA nicht verfügbar")))
+            return
+        }
+
+        // set once the NfcA connection has been closed and ownership passed to MF0AES
+        var handedOver = false
+
         try {
-            // Try NTAG213 first — single connect, no probe
-            val nfca = NfcA.get(tag)
-            try {
-                nfca.connect()
-                val ntag = Ntag213(nfca)
-                handleNtag213Tag(ntag)
-                ntag.close()
-                return
-            } catch (e: TagIncompatibleException) {
-                Log.d("NfcHandler", "Not NTAG, trying MF0AES: ${e.message}")
-                try { nfca.close() } catch (_: Exception) {}
-            } catch (e: TagAuthException) {
-                try { nfca.close() } catch (_: Exception) {}
-                throw e
+            nfca.connect()
+
+            val version = nfca.transceive(byteArrayOf(0x60))
+            Log.d("NfcHandler", "GET_VERSION: ${version?.joinToString(" ") { "%02X".format(it) }}")
+
+            when {
+                Ntag213.matchesVersion(version) -> {
+                    val ntag = Ntag213(nfca)
+                    handleNtag213Tag(ntag)
+                }
+
+                version != null && version.size >= 8 && version[2] == 0x03.toByte() -> {
+                    // MF0AES: needs its own NfcA instance -> release ours first
+                    nfca.close()
+                    handedOver = true
+                    val mfTag = MifareUltralightAES(tag)
+                    handleMfUlAesTag(mfTag)
+                }
+
+                else -> {
+                    throw TagIncompatibleException("unknown GET_VERSION response")
+                }
             }
-
-            // Fallback: MF0AES
-            val mfTag = MifareUltralightAES(tag)
-            handleMfUlAesTag(mfTag)
-            mfTag.close()
-
         } catch (e: TagLostException) {
             dataSource.setScanResult(NfcScanResult.Fail(NfcScanFailure.Lost("Band zu kurz gehalten")))
         } catch (e: TagAuthException) {
@@ -91,6 +110,11 @@ class NfcHandler @Inject constructor(
         } catch (e: Exception) {
             e.printStackTrace()
             dataSource.setScanResult(NfcScanResult.Fail(NfcScanFailure.Other(e.localizedMessage ?: "Fehler")))
+        } finally {
+            // always release the NfcA we opened (unless MF0AES took it over and closes itself)
+            if (!handedOver) {
+                try { nfca.close() } catch (_: Exception) {}
+            }
         }
     }
 
@@ -156,7 +180,13 @@ class NfcHandler @Inject constructor(
             }
             is NfcScanRequest.Rewrite -> {
                 tag.connect()
-                tag.writeTag("WWWWWWWWWWWWWWWW", req.dataProtKey, req.uidRetrKey)
+                val ser = tag.readUid()
+                val pin = uid_map[ser]
+                if (pin == null) {
+                    dataSource.setScanResult(NfcScanResult.Fail(NfcScanFailure.Other("UID not found")))
+                    return
+                }
+                tag.writeTag(pin, req.dataProtKey, req.uidRetrKey)
                 dataSource.setScanResult(NfcScanResult.Write)
             }
             is NfcScanRequest.Test -> {

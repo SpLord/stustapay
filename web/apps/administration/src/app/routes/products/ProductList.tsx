@@ -105,7 +105,7 @@ export const ProductList: React.FC = () => {
     },
     {
       field: "is_deposit",
-      headerName: t("product.isDeposit", "Deposit"),
+      headerName: t("product.isDeposit"),
       type: "boolean",
     },
     {

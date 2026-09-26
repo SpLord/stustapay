@@ -3987,8 +3987,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "type": "object",
-                    "additionalProperties": true
+                    "$ref": "#/components/schemas/CashierRevenueRow"
                   },
                   "title": "Response Get Cashier Revenue Report Cashiers Revenue Report Get"
                 }
@@ -9745,6 +9744,54 @@
           "quantity"
         ],
         "title": "CashierProductStats"
+      },
+      "CashierRevenueRow": {
+        "properties": {
+          "cashier_id": {
+            "type": "integer",
+            "title": "Cashier Id"
+          },
+          "login": {
+            "type": "string",
+            "title": "Login"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name"
+          },
+          "product_id": {
+            "type": "integer",
+            "title": "Product Id"
+          },
+          "product_name": {
+            "type": "string",
+            "title": "Product Name"
+          },
+          "is_deposit": {
+            "type": "boolean",
+            "title": "Is Deposit"
+          },
+          "quantity": {
+            "type": "number",
+            "title": "Quantity"
+          },
+          "revenue": {
+            "type": "number",
+            "title": "Revenue"
+          }
+        },
+        "type": "object",
+        "required": [
+          "cashier_id",
+          "login",
+          "display_name",
+          "product_id",
+          "product_name",
+          "is_deposit",
+          "quantity",
+          "revenue"
+        ],
+        "title": "CashierRevenueRow"
       },
       "CashierShift": {
         "properties": {

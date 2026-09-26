@@ -23,16 +23,26 @@ const toBase64 = (file: File): Promise<string> => {
   });
 };
 
-const ACCEPTED_IMAGE_TYPES = ["image/png", "image/jpeg", "image/svg+xml"];
+const RASTER_IMAGE_TYPES = ["image/png", "image/jpeg"];
+const RASTER_OR_SVG_IMAGE_TYPES = [...RASTER_IMAGE_TYPES, "image/svg+xml"];
+const SVG_IMAGE_TYPES = ["image/svg+xml"];
+
+type UploadError = { data?: { detail?: unknown }; error?: unknown };
+
+const formatUploadError = (err: unknown): string => {
+  const e = err as UploadError | null | undefined;
+  const reason = e?.data?.detail ?? e?.error ?? err;
+  return typeof reason === "string" ? reason : String(reason);
+};
 
 interface LogoUploadSectionProps {
   title: string;
   hint: string;
   description?: string;
   blobId?: string | null;
-  accept: string;
   allowedTypes: string[];
   inputId: string;
+  isUploading: boolean;
   uploadFn: (blob: { data: string; mime_type: string }) => Promise<unknown>;
   buttonLabel: string;
 }
@@ -42,29 +52,35 @@ const LogoUploadSection: React.FC<LogoUploadSectionProps> = ({
   hint,
   description,
   blobId,
-  accept,
   allowedTypes,
   inputId,
+  isUploading,
   uploadFn,
   buttonLabel,
 }) => {
+  const { t } = useTranslation();
+
   const selectFile: React.ChangeEventHandler<HTMLInputElement> = async (event) => {
     const file = event.target.files?.[0];
-    if (!file) {
-      return;
-    }
-    if (!allowedTypes.includes(file.type)) {
-      toast.error(`Erlaubte Formate: ${allowedTypes.join(", ")}`);
-      return;
-    }
     try {
+      if (!file) {
+        return;
+      }
+      if (!allowedTypes.includes(file.type)) {
+        toast.error(t("settings.design.allowedFormats", { formats: allowedTypes.join(", ") }));
+        return;
+      }
       const imageAsBase64 = await toBase64(file);
       await uploadFn({
         data: imageAsBase64.split(",")[1],
         mime_type: file.type,
       });
-    } catch (e) {
-      toast.error(`Error uploading logo: ${e}`);
+      toast.success(t("settings.design.uploadSucceeded"));
+    } catch (err) {
+      toast.error(t("settings.design.uploadFailed", { reason: formatUploadError(err) }));
+    } finally {
+      // reset the input so selecting the same file again triggers onChange
+      event.target.value = "";
     }
   };
 
@@ -90,10 +106,13 @@ const LogoUploadSection: React.FC<LogoUploadSectionProps> = ({
           name={inputId}
           style={{ display: "none" }}
           type="file"
-          accept={accept}
+          accept={allowedTypes.join(",")}
+          disabled={isUploading}
           onChange={selectFile}
         />
-        <Button component="span">{buttonLabel}</Button>
+        <Button component="span" disabled={isUploading}>
+          {buttonLabel}
+        </Button>
       </label>
     </Card>
   );
@@ -106,89 +125,57 @@ export const TabDesign: React.FC<{ nodeId: number; eventSettings: RestrictedEven
   const { t } = useTranslation();
   const { currentNode } = useCurrentNode();
   const { data: eventDesign } = useGetEventDesignQuery({ nodeId: currentNode.id });
-  const [updateBonLogo] = useUpdateBonLogoMutation();
-  const [updateAppLogo] = useUpdateAppLogoMutation();
-  const [updateCustomerLogo] = useUpdateCustomerLogoMutation();
-  const [updateWristbandGuide] = useUpdateWristbandGuideMutation();
-
-  const selectBonLogoFile: React.ChangeEventHandler<HTMLInputElement> = async (event) => {
-    const file = event.target.files?.[0];
-    if (!file) {
-      return;
-    }
-    if (file.type !== "image/svg+xml") {
-      toast.error("Only SVG images are allowed");
-      return;
-    }
-    try {
-      const imageAsBase64 = await toBase64(file);
-      await updateBonLogo({
-        nodeId: currentNode.id,
-        newBlob: { data: imageAsBase64.split(",")[1], mime_type: file.type }, // TODO: remove the ugly hack
-      });
-    } catch (e) {
-      toast.error(`Error uploading logo: ${e}`);
-    }
-  };
+  const [updateBonLogo, { isLoading: isBonLogoUploading }] = useUpdateBonLogoMutation();
+  const [updateAppLogo, { isLoading: isAppLogoUploading }] = useUpdateAppLogoMutation();
+  const [updateCustomerLogo, { isLoading: isCustomerLogoUploading }] = useUpdateCustomerLogoMutation();
+  const [updateWristbandGuide, { isLoading: isWristbandGuideUploading }] = useUpdateWristbandGuideMutation();
 
   return (
     <Stack spacing={2}>
       <LogoUploadSection
-        title="App-Logo (Terminal-App)"
-        hint="Empfohlen: 512 x 512 px, PNG/JPG"
+        title={t("settings.design.appLogo")}
+        hint={t("settings.design.appLogoHint")}
         blobId={eventDesign?.app_logo_blob_id}
-        accept="image/png,image/jpeg,image/svg+xml"
-        allowedTypes={ACCEPTED_IMAGE_TYPES}
+        allowedTypes={RASTER_IMAGE_TYPES}
         inputId="btn-upload-app-logo"
+        isUploading={isAppLogoUploading}
         uploadFn={(blob) => updateAppLogo({ nodeId: currentNode.id, newBlob: blob }).unwrap()}
-        buttonLabel={t("settings.design.changeBonLogo")}
+        buttonLabel={t("settings.design.changeLogo")}
       />
 
       <LogoUploadSection
-        title="Customer Portal Logo"
-        hint="Empfohlen: 300 x 100 px, PNG/JPG"
+        title={t("settings.design.customerLogo")}
+        hint={t("settings.design.customerLogoHint")}
         blobId={eventDesign?.customer_logo_blob_id}
-        accept="image/png,image/jpeg,image/svg+xml"
-        allowedTypes={ACCEPTED_IMAGE_TYPES}
+        allowedTypes={RASTER_OR_SVG_IMAGE_TYPES}
         inputId="btn-upload-customer-logo"
+        isUploading={isCustomerLogoUploading}
         uploadFn={(blob) => updateCustomerLogo({ nodeId: currentNode.id, newBlob: blob }).unwrap()}
-        buttonLabel={t("settings.design.changeBonLogo")}
+        buttonLabel={t("settings.design.changeLogo")}
       />
 
       <LogoUploadSection
-        title="Wristband Guide (Band-Anleitung)"
-        hint="Empfohlen: 600 x 400 px, PNG/JPG"
-        description="Zeigt G\u00e4sten wo die PIN auf dem Band steht"
+        title={t("settings.design.wristbandGuide")}
+        hint={t("settings.design.wristbandGuideHint")}
+        description={t("settings.design.wristbandGuideDescription")}
         blobId={eventDesign?.wristband_guide_blob_id}
-        accept="image/png,image/jpeg,image/svg+xml"
-        allowedTypes={ACCEPTED_IMAGE_TYPES}
+        allowedTypes={RASTER_OR_SVG_IMAGE_TYPES}
         inputId="btn-upload-wristband-guide"
+        isUploading={isWristbandGuideUploading}
         uploadFn={(blob) => updateWristbandGuide({ nodeId: currentNode.id, newBlob: blob }).unwrap()}
-        buttonLabel={t("settings.design.changeBonLogo")}
+        buttonLabel={t("settings.design.changeLogo")}
       />
 
-      <Card sx={{ p: 2 }}>
-        <Typography>{t("settings.design.bonLogo")}</Typography>
-        <Typography variant="body2" sx={{ color: "text.secondary", mb: 1 }}>
-          Nur SVG, schwarz-wei\u00df
-        </Typography>
-        {eventDesign?.bon_logo_blob_id && (
-          <Grid>
-            <img width="100%" src={getBlobUrl(eventDesign?.bon_logo_blob_id)} alt="" />
-          </Grid>
-        )}
-        <label htmlFor="btn-upload">
-          <input
-            id="btn-upload"
-            name="btn-upload"
-            style={{ display: "none" }}
-            type="file"
-            accept="image/svg+xml"
-            onChange={selectBonLogoFile}
-          />
-          <Button component="span">{t("settings.design.changeBonLogo")}</Button>
-        </label>
-      </Card>
+      <LogoUploadSection
+        title={t("settings.design.bonLogo")}
+        hint={t("settings.design.bonLogoHint")}
+        blobId={eventDesign?.bon_logo_blob_id}
+        allowedTypes={SVG_IMAGE_TYPES}
+        inputId="btn-upload-bon-logo"
+        isUploading={isBonLogoUploading}
+        uploadFn={(blob) => updateBonLogo({ nodeId: currentNode.id, newBlob: blob }).unwrap()}
+        buttonLabel={t("settings.design.changeBonLogo")}
+      />
     </Stack>
   );
 };

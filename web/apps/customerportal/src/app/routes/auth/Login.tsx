@@ -99,7 +99,7 @@ export const Login: React.FC = () => {
         {customerLogoUrl ? (
           <img
             src={customerLogoUrl}
-            alt="Event Logo"
+            alt={t("eventLogoAlt")}
             style={{ maxWidth: 200, maxHeight: 100, objectFit: "contain", margin: "8px 0" }}
           />
         ) : (

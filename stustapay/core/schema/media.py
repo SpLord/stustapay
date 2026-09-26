@@ -13,12 +13,27 @@ class MimeType(enum.Enum):
     jpeg = "image/jpeg"
 
 
+MAX_BLOB_SIZE_BYTES = 2 * 1024 * 1024
+
+# headers for publicly served, user-uploaded blobs (no sniffing, no active content, cacheable)
+BLOB_RESPONSE_HEADERS = {
+    "X-Content-Type-Options": "nosniff",
+    "Content-Security-Policy": "sandbox",
+    "Cache-Control": "public, max-age=3600",
+}
+
+
 def is_valid_base64(data: str) -> str:
+    # base64 inflates the payload by 4/3, reject obviously oversized input before decoding it
+    if len(data) > MAX_BLOB_SIZE_BYTES * 4 // 3 + 4:
+        raise ValueError(f"Uploaded file exceeds the maximum size of {MAX_BLOB_SIZE_BYTES // (1024 * 1024)} MB")
     try:
-        base64.b64decode(data)
-        return data
+        decoded = base64.b64decode(data)
     except binascii.Error as e:
         raise ValueError("Invalid base64 string") from e
+    if len(decoded) > MAX_BLOB_SIZE_BYTES:
+        raise ValueError(f"Uploaded file exceeds the maximum size of {MAX_BLOB_SIZE_BYTES // (1024 * 1024)} MB")
+    return data
 
 
 class NewBlob(BaseModel):

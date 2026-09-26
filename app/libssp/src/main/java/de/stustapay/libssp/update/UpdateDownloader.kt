@@ -6,6 +6,7 @@ import androidx.core.content.FileProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
 
@@ -24,21 +25,39 @@ suspend fun downloadAndInstallUpdate(
         connection.connectTimeout = 30_000
         connection.readTimeout = 30_000
 
-        val totalBytes = connection.contentLength.toLong()
+        if (connection.responseCode != HttpURLConnection.HTTP_OK) {
+            connection.disconnect()
+            throw IOException("Update download failed: HTTP ${connection.responseCode}")
+        }
+
+        val totalBytes = connection.contentLengthLong
         var downloadedBytes = 0L
 
-        connection.inputStream.use { input ->
-            apkFile.outputStream().use { output ->
-                val buffer = ByteArray(8192)
-                var bytesRead: Int
-                while (input.read(buffer).also { bytesRead = it } != -1) {
-                    output.write(buffer, 0, bytesRead)
-                    downloadedBytes += bytesRead
-                    if (totalBytes > 0) {
-                        onProgress(downloadedBytes.toFloat() / totalBytes.toFloat())
+        try {
+            connection.inputStream.use { input ->
+                apkFile.outputStream().use { output ->
+                    val buffer = ByteArray(8192)
+                    var bytesRead: Int
+                    while (input.read(buffer).also { bytesRead = it } != -1) {
+                        output.write(buffer, 0, bytesRead)
+                        downloadedBytes += bytesRead
+                        if (totalBytes > 0) {
+                            onProgress(downloadedBytes.toFloat() / totalBytes.toFloat())
+                        }
                     }
                 }
             }
+
+            // Integrity: refuse a truncated download instead of handing it to the installer.
+            if (totalBytes > 0 && downloadedBytes != totalBytes) {
+                throw IOException("Update download incomplete: $downloadedBytes of $totalBytes bytes")
+            }
+            if (downloadedBytes == 0L) {
+                throw IOException("Update download empty")
+            }
+        } catch (e: Exception) {
+            apkFile.delete()
+            throw e
         }
         apkFile
     }

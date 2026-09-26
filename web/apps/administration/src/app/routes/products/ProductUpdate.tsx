@@ -56,6 +56,7 @@ export const ProductUpdate: React.FC = withPrivilegeGuard("node_administration",
           draft.user_tag_variant_ids = p.user_tag_variant_ids ?? [];
           draft.is_locked = p.is_locked ?? false;
           draft.is_returnable = p.is_returnable ?? false;
+          draft.is_deposit = p.is_deposit ?? false;
           draft.price_in_vouchers = p.price_in_vouchers ?? null;
         })
       }

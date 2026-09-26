@@ -39,6 +39,17 @@ class CloseOut(BaseModel):
     closing_out_user_id: int
 
 
+class CashierRevenueRow(BaseModel):
+    cashier_id: int
+    login: str
+    display_name: str
+    product_id: int
+    product_name: str
+    is_deposit: bool
+    quantity: float
+    revenue: float
+
+
 class CloseOutResult(BaseModel):
     cashier_id: int
     imbalance: float
@@ -190,22 +201,22 @@ class CashierService(Service[Config]):
     @with_db_transaction(read_only=True)
     @requires_node(event_only=True)
     @requires_user(node_privileges=[NodePrivilege.node_administration])
-    async def get_cashier_revenue_report(self, *, conn: Connection, node: Node) -> list[dict]:
-        """Get revenue per cashier per product for the entire event."""
-        rows = await conn.fetch(
+    async def get_cashier_revenue_report(self, *, conn: Connection, node: Node) -> list[CashierRevenueRow]:
+        """Get revenue per cashier per product for all sales booked at this node or its children."""
+        return await conn.fetch_many(
+            CashierRevenueRow,
             "select u.id as cashier_id, u.login, u.display_name, "
             "   p.id as product_id, p.name as product_name, p.is_deposit, "
             "   sum(li.quantity) as quantity, sum(li.total_price) as revenue "
-            "from line_item li "
-            "join ordr o on li.order_id = o.id "
+            "from orders_at_node_and_children($1) o "
+            "join line_item li on li.order_id = o.id "
             "join usr u on o.cashier_id = u.id "
             "join product p on li.product_id = p.id "
-            "where p.node_id = any($1) "
+            "where o.order_type in ('sale', 'cancel_sale') "
             "group by u.id, u.login, u.display_name, p.id, p.name, p.is_deposit "
             "order by u.display_name, revenue desc",
-            node.ids_to_event_node,
+            node.id,
         )
-        return [dict(r) for r in rows]
 
     @with_db_transaction
     @requires_node(event_only=True, object_types=[ObjectType.user])

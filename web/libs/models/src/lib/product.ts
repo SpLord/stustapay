@@ -8,6 +8,7 @@ export const NewProductSchema = z.object({
   user_tag_variant_ids: z.array(z.number().int()),
   is_locked: z.boolean(),
   is_returnable: z.boolean(),
+  is_deposit: z.boolean(),
   tax_rate_id: z.number().int(),
 });
 export type NewProduct = z.infer<typeof NewProductSchema>;

@@ -21,6 +21,8 @@ from stustapay.ticket_shop.ticket_provider import (
     TicketProvider,
 )
 
+logger = logging.getLogger(__name__)
+
 
 class PretixError(ServiceException):
     id = "PretixError"
@@ -50,6 +52,12 @@ class PretixOrderPosition(BaseModel):
     attendee_name: str | None = None
     addon_to: int | None = None
     price: str | None = None
+
+
+class PretixCheckinResult(enum.Enum):
+    success = "success"
+    already_redeemed = "already_redeemed"
+    failed = "failed"
 
 
 class PretixOrderStatus(enum.Enum):
@@ -158,16 +166,35 @@ class PretixApi:
         validated_resp = PretixListApiResponse.model_validate(resp)
         return validated_resp.results
 
-    async def redeem_checkin(self, checkin_list_id: int, secret: str) -> bool:
-        """Mark a ticket as checked in via the Pretix checkin API."""
-        try:
-            await self._post(
-                f"{self.api_base_url}/checkinlists/{checkin_list_id}/positions/{secret}/redeem/",
-                json_data={"force": False, "nonce": None},
-            )
-            return True
-        except PretixError:
-            return False
+    async def redeem_checkin(self, checkin_list_id: int, secret: str) -> PretixCheckinResult:
+        """
+        Mark a ticket as checked in via the Pretix checkin API.
+
+        Pretix answers a repeated redeem with HTTP 400 and ``{"status": "error", "reason": "already_redeemed"}``.
+        That is not a failure from our point of view, so the response body is inspected instead of relying on the
+        generic error handling of ``_request``.
+        """
+        url = f"{self.api_base_url}/checkinlists/{checkin_list_id}/positions/{secret}/redeem/"
+        async with aiohttp.ClientSession(trust_env=True, headers=self._get_pretix_auth_headers()) as session:
+            try:
+                async with session.post(url, json={"force": False, "nonce": None}, timeout=self.timeout) as response:
+                    if response.ok:
+                        return PretixCheckinResult.success
+                    body = await response.json(content_type=None)
+                    reason = body.get("reason") if isinstance(body, dict) else None
+                    if reason == "already_redeemed":
+                        return PretixCheckinResult.already_redeemed
+                    logger.warning(
+                        f"Pretix checkin for token {secret[:8]}... failed with status {response.status} "
+                        f"(reason={reason})"
+                    )
+                    return PretixCheckinResult.failed
+            except asyncio.TimeoutError:
+                logger.warning(f"Pretix checkin for token {secret[:8]}... timed out")
+                return PretixCheckinResult.failed
+            except Exception:  # pylint: disable=broad-except
+                logger.exception(f"Pretix checkin for token {secret[:8]}... raised an unexpected error")
+                return PretixCheckinResult.failed
 
     def get_link_to_order(self, order_code: str) -> str:
         return f"{self.base_url}/control/event/{self.organizer}/{self.event}/orders/{order_code}"
@@ -292,6 +319,42 @@ class PretixTicketProvider(TicketProvider):
                                 f"(item={position.item}, topup={topup_amount:.2f})"
                             )
 
+                await self._cancel_removed_positions(
+                    conn=conn,
+                    node=node,
+                    order=order,
+                    current_secrets=[p.secret for p in order.positions if p.item in pretix_ticket_product_ids],
+                )
+
+    async def _cancel_removed_positions(
+        self, conn: Connection, node: Node, order: PretixOrder, current_secrets: list[str]
+    ):
+        """
+        Vouchers of this order whose position no longer exists in Pretix (position removed / order changed)
+        are cancelled, unless the customer has already checked in with them.
+        """
+        stale = await conn.fetch(
+            "select tv.id, tv.token, a.user_tag_id is not null as has_checked_in "
+            "from ticket_voucher tv "
+            "join account a on tv.customer_account_id = a.id "
+            "where tv.node_id = $1 and tv.external_reference = $2 and not tv.cancelled and tv.token != all($3)",
+            node.event_node_id,
+            order.code,
+            current_secrets,
+        )
+        for row in stale:
+            if row["has_checked_in"]:
+                self.logger.warning(
+                    f"Position {row['token'][:8]}... of pretix order {order.code} was removed in the ticket shop "
+                    f"but the ticket is already checked in; not cancelling voucher {row['id']}"
+                )
+                continue
+            await conn.execute("update ticket_voucher set cancelled = true where id = $1", row["id"])
+            self.logger.info(
+                f"Cancelled voucher {row['id']} (token {row['token'][:8]}...) as its position was removed "
+                f"from pretix order {order.code}"
+            )
+
     async def _synchronize_tickets_for_node(
         self, conn: Connection, node: Node, event_settings: RestrictedEventSettings
     ):
@@ -306,14 +369,17 @@ class PretixTicketProvider(TicketProvider):
 
         orders = await api.fetch_orders()
         for order in orders:
-            await self._synchronizie_pretix_order(
-                conn=conn,
-                node=node,
-                api=api,
-                event_settings=event_settings,
-                order=order,
-                product_names=product_names,
-            )
+            try:
+                await self._synchronizie_pretix_order(
+                    conn=conn,
+                    node=node,
+                    api=api,
+                    event_settings=event_settings,
+                    order=order,
+                    product_names=product_names,
+                )
+            except Exception:  # pylint: disable=broad-except
+                self.logger.exception(f"Failed to synchronize pretix order {order.code} for event {node.name}")
 
     async def synchronize_tickets(self):
         pretix_enabled = self.config.core.pretix_enabled
@@ -326,28 +392,31 @@ class PretixTicketProvider(TicketProvider):
         self.logger.info("Staring periodic job to synchronize pretix tickets")
         while True:
             try:
-                async with self.db_pool.acquire() as conn:
-                    relevant_node_ids: list[int] | None = await conn.fetchval(
-                        "select array_agg(n.id) from node n join event e on n.event_id = e.id where e.pretix_presale_enabled"
-                    )
-                    relevant_node_ids = relevant_node_ids or []
-
-                    if not relevant_node_ids:
-                        self.logger.debug("No pretix-enabled events found, skipping sync")
-                        await asyncio.sleep(self.config.core.pretix_synchronization_interval.seconds)
-                        continue
-
-                    for relevant_node_id in relevant_node_ids:
-                        node = await fetch_node(conn=conn, node_id=relevant_node_id)
-                        assert node is not None
-                        settings = await fetch_restricted_event_settings_for_node(conn=conn, node_id=node.id)
-                        self.logger.debug(f"Synchronizing pretix tickets for event {node.name}")
-                        await self._synchronize_tickets_for_node(conn=conn, node=node, event_settings=settings)
-                        await self._sync_pending_checkins(conn=conn, node=node, event_settings=settings)
-            except Exception:
+                await self._run_synchronization_cycle()
+            except Exception:  # pylint: disable=broad-except
                 self.logger.exception("process pending orders threw an error")
 
+            # sleep without holding a pool connection
             await asyncio.sleep(self.config.core.pretix_synchronization_interval.seconds)
+
+    async def _run_synchronization_cycle(self):
+        async with self.db_pool.acquire() as conn:
+            relevant_node_ids: list[int] | None = await conn.fetchval(
+                "select array_agg(n.id) from node n join event e on n.event_id = e.id where e.pretix_presale_enabled"
+            )
+            relevant_node_ids = relevant_node_ids or []
+
+            if not relevant_node_ids:
+                self.logger.debug("No pretix-enabled events found, skipping sync")
+                return
+
+            for relevant_node_id in relevant_node_ids:
+                node = await fetch_node(conn=conn, node_id=relevant_node_id)
+                assert node is not None
+                settings = await fetch_restricted_event_settings_for_node(conn=conn, node_id=node.id)
+                self.logger.debug(f"Synchronizing pretix tickets for event {node.name}")
+                await self._synchronize_tickets_for_node(conn=conn, node=node, event_settings=settings)
+                await self._sync_pending_checkins(conn=conn, node=node, event_settings=settings)
 
     async def _sync_pending_checkins(self, conn: Connection, node: Node, event_settings: RestrictedEventSettings):
         """Sync pending checkins to Pretix (NFC band was assigned in StuStaPay)."""
@@ -367,15 +436,19 @@ class PretixTicketProvider(TicketProvider):
         checkin_list_id = checkin_lists[0]["id"]
 
         for row in pending:
-            success = await api.redeem_checkin(checkin_list_id, row["token"])
-            if success:
-                await conn.execute(
-                    "update ticket_voucher set needs_pretix_checkin = false where id = $1",
-                    row["id"],
-                )
-                self.logger.info(f"Synced checkin to Pretix for voucher {row['id']}")
-            else:
+            result = await api.redeem_checkin(checkin_list_id, row["token"])
+            if result == PretixCheckinResult.failed:
                 self.logger.warning(f"Failed to sync checkin to Pretix for voucher {row['id']}")
+                continue
+            # success or already redeemed on the pretix side: either way there is nothing left to sync
+            await conn.execute(
+                "update ticket_voucher set needs_pretix_checkin = false where id = $1",
+                row["id"],
+            )
+            if result == PretixCheckinResult.already_redeemed:
+                self.logger.info(f"Voucher {row['id']} was already checked in on the Pretix side, marking as synced")
+            else:
+                self.logger.info(f"Synced checkin to Pretix for voucher {row['id']}")
 
     async def _handle_pretix_order_changed_webhook(self, node_id: int, payload: PretixOrderWebhookPayload):
         async with self.db_pool.acquire() as conn:
@@ -443,9 +516,11 @@ class PretixTicketProvider(TicketProvider):
                 return
 
             checkin_list_id = checkin_lists[0]["id"]
-            success = await api.redeem_checkin(checkin_list_id, voucher_token)
-            if success:
+            result = await api.redeem_checkin(checkin_list_id, voucher_token)
+            if result == PretixCheckinResult.success:
                 self.logger.info(f"Successfully synced checkin to Pretix for token {voucher_token[:8]}...")
+            elif result == PretixCheckinResult.already_redeemed:
+                self.logger.info(f"Token {voucher_token[:8]}... was already checked in on the Pretix side")
             else:
                 self.logger.warning(f"Failed to sync checkin to Pretix for token {voucher_token[:8]}...")
 

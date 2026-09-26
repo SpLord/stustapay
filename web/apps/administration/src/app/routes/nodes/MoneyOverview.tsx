@@ -1,4 +1,4 @@
-import { Box, Card, CardActions, CardContent, Grid, Stack, Typography, useTheme } from "@mui/material";
+import { Alert, Box, Card, CardActions, CardContent, Grid, Stack, Typography, useTheme } from "@mui/material";
 import { Loading } from "@stustapay/components";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
@@ -75,9 +75,17 @@ export const MoneyOverview: React.FC = () => {
   const { t } = useTranslation();
   const formatCurrency = useCurrencyFormatter();
   const { currentNode } = useCurrentNode();
-  const { data: moneyOverviewData, isLoading: isAccountsLoading } = useGetMoneyOverviewQuery({
+  const {
+    data: moneyOverviewData,
+    isLoading: isAccountsLoading,
+    isError,
+  } = useGetMoneyOverviewQuery({
     nodeId: currentNode.id,
   });
+
+  if (isError) {
+    return <Alert severity="error">{t("overview.statsLoadError")}</Alert>;
+  }
 
   if (!moneyOverviewData || isAccountsLoading) {
     return <Loading />;
@@ -95,26 +103,26 @@ export const MoneyOverview: React.FC = () => {
         <Card>
           <CardContent>
             <Typography variant="h6" gutterBottom>
-              {t("overview.deposit", "Deposit / Pfand")}
+              {t("overview.deposit")}
             </Typography>
             <Grid container spacing={2}>
               <Grid size={4}>
                 <Typography variant="body2" color="text.secondary">
-                  {t("overview.depositCharged", "Charged")}
+                  {t("overview.depositCharged")}
                 </Typography>
                 <Typography variant="h5">{formatCurrency(deposit.total_deposit_charged)}</Typography>
               </Grid>
               <Grid size={4}>
                 <Typography variant="body2" color="text.secondary">
-                  {t("overview.depositReturned", "Returned")}
+                  {t("overview.depositReturned")}
                 </Typography>
                 <Typography variant="h5">{formatCurrency(deposit.total_deposit_returned)}</Typography>
               </Grid>
               <Grid size={4}>
                 <Typography variant="body2" color="text.secondary">
-                  {t("overview.depositOutstanding", "Outstanding")}
+                  {t("overview.depositOutstanding")}
                 </Typography>
-                <Typography variant="h5" color={deposit.deposit_balance > 0 ? "success.main" : "error.main"}>
+                <Typography variant="h5" color={deposit.deposit_balance < 0 ? "error.main" : "success.main"}>
                   {formatCurrency(deposit.deposit_balance)}
                 </Typography>
               </Grid>

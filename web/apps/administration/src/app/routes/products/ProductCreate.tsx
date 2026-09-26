@@ -20,6 +20,7 @@ const initialValues: NewProduct = {
   user_tag_variant_ids: [],
   is_locked: false,
   is_returnable: false,
+  is_deposit: false,
 };
 
 export const ProductCreate: React.FC = withPrivilegeGuard("node_administration", () => {

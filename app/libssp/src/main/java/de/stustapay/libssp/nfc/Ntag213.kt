@@ -58,17 +58,28 @@ class Ntag213 : TagTechnology {
         // NTAG213 GET_VERSION response: 00 04 04 02 01 00 0F 03
         // vendor=04(NXP), product type=04(NTAG), subtype=02, major=01, minor=00, size=0F, protocol=03
         val NTAG213_VERSION = byteArrayOf(0x00, 0x04, 0x04, 0x02, 0x01, 0x00, 0x0F, 0x03)
+
+        /**
+         * True if a GET_VERSION response identifies an NTAG213 (the only NTAG variant whose
+         * memory layout — config pages 41-44 — this class knows).
+         * Checks vendor (NXP), product type (NTAG) and storage size (0x0F = 144 bytes) so that
+         * NTAG213 sub-variants (F/TT) still match, while NTAG215/216 and MF0AES do not.
+         */
+        fun matchesVersion(version: ByteArray?): Boolean {
+            if (version == null || version.size < 8) return false
+            return version[1] == 0x04.toByte() &&
+                version[2] == 0x04.toByte() &&
+                version[6] == 0x0F.toByte()
+        }
     }
 
-    /**
-     * Read UID from pages 0-1 and PIN from user memory pages 4-7.
-     * If [authenticate] is true, performs PWD_AUTH before reading protected pages.
-     */
-    fun readTag(key0: BitVector?, key1: BitVector?): NfcTag {
+    /** Read the 7-byte UID from pages 0-1 (always readable, no auth needed). */
+    fun readUid(): ULong {
         if (!isConnected) { throw TagConnectionException() }
-
-        // Read pages 0-3 (contains UID) — always readable, no auth needed
         val uidPages = cmdRead(0x00u)
+        if (uidPages.size < 8) {
+            throw TagIncompatibleException("short read of UID pages")
+        }
 
         // NTAG213 UID layout in pages 0-1:
         // Page 0: UID0 UID1 UID2 BCC0
@@ -81,6 +92,17 @@ class Ntag213 : TagTechnology {
         uid = uid or (uidPages[5].toUByte().toULong() shl 16)
         uid = uid or (uidPages[6].toUByte().toULong() shl 8)
         uid = uid or (uidPages[7].toUByte().toULong())
+        return uid
+    }
+
+    /**
+     * Read UID from pages 0-1 and PIN from user memory pages 4-7.
+     * If [authenticate] is true, performs PWD_AUTH before reading protected pages.
+     */
+    fun readTag(key0: BitVector?, key1: BitVector?): NfcTag {
+        if (!isConnected) { throw TagConnectionException() }
+
+        val uid = readUid()
 
         // Try to read PIN from user memory — skip auth for unprovisioned tags
         var pin: String? = null
@@ -235,7 +257,13 @@ class Ntag213 : TagTechnology {
         val cmd = byteArrayOf(0x1B, pwd[0], pwd[1], pwd[2], pwd[3])
         val resp = nfcaTag.transceive(cmd)
 
-        if (expectedPack != null && resp.size >= 2) {
+        // A successful PWD_AUTH answers with exactly the 2-byte PACK.
+        // Anything else (NAK, empty, garbage) means the password was rejected.
+        if (resp == null || resp.size != 2) {
+            throw TagAuthException("PWD_AUTH rejected (response ${resp?.size ?: 0} bytes)")
+        }
+        if (expectedPack != null) {
+            if (expectedPack.size != 2) throw IllegalArgumentException("PACK must be 2 bytes")
             if (resp[0] != expectedPack[0] || resp[1] != expectedPack[1]) {
                 throw TagAuthException("PACK mismatch")
             }

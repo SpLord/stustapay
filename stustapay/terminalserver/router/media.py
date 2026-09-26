@@ -3,6 +3,7 @@ from uuid import UUID
 from fastapi import APIRouter, Response
 
 from stustapay.core.http.context import ContextMediaService
+from stustapay.core.schema.media import BLOB_RESPONSE_HEADERS
 
 router = APIRouter(
     prefix="/media",
@@ -18,4 +19,4 @@ router = APIRouter(
 async def get_blob(media_service: ContextMediaService, blob_id: UUID):
     blob = await media_service.get_blob(blob_id=blob_id)
 
-    return Response(content=blob.data, media_type=blob.mime_type)
+    return Response(content=blob.data, media_type=blob.mime_type, headers=BLOB_RESPONSE_HEADERS)

@@ -1,4 +1,5 @@
 import enum
+import logging
 from abc import abstractmethod
 from datetime import datetime
 
@@ -8,6 +9,8 @@ from sftkit.database import Connection
 
 from stustapay.core.config import Config
 from stustapay.core.schema.tree import Node
+
+logger = logging.getLogger(__name__)
 
 
 class ExternalTicketType(enum.Enum):
@@ -70,8 +73,15 @@ class TicketProvider:
         pass
 
     async def store_external_ticket(self, conn: Connection, node: Node, ticket: CreateExternalTicket) -> bool:
+        """
+        Insert a new external ticket voucher or update an existing one (matched by token).
+        Returns True if a new voucher was created.
+        """
         existing = await conn.fetchrow(
-            "select id, customer_account_id from ticket_voucher where node_id = $1 and token = $2",
+            "select tv.id, tv.customer_account_id, tv.initial_top_up_amount, a.user_tag_id "
+            "from ticket_voucher tv "
+            "join account a on tv.customer_account_id = a.id "
+            "where tv.node_id = $1 and tv.token = $2",
             node.event_node_id,
             ticket.token,
         )
@@ -105,26 +115,49 @@ class TicketProvider:
                 )
             return True
         else:
-            # Update existing voucher with latest data from Pretix
+            # Update existing voucher with latest data from Pretix.
+            # All updates are guarded with "is distinct from" so unchanged data does not produce a write.
+            voucher_id = existing["id"]
+            customer_account_id = existing["customer_account_id"]
+            has_checked_in = existing["user_tag_id"] is not None
+
             await conn.execute(
-                "update ticket_voucher set initial_top_up_amount = $1, pretix_item_id = $2, "
-                "   pretix_product_name = $3 where id = $4",
-                ticket.initial_top_up_amount,
+                "update ticket_voucher set pretix_item_id = $1, pretix_product_name = $2 "
+                "where id = $3 and (pretix_item_id, pretix_product_name) is distinct from ($1, $2)",
                 ticket.pretix_item_id,
                 ticket.pretix_product_name,
-                existing["id"],
+                voucher_id,
             )
-            customer_account_id = existing["customer_account_id"]
+
+            if has_checked_in:
+                # Once the ticket is checked in the top-up has been booked and the account belongs to a real
+                # customer, so the amount, name and email must not be silently changed anymore.
+                existing_top_up = float(existing["initial_top_up_amount"])
+                if abs(existing_top_up - ticket.initial_top_up_amount) > 1e-9:
+                    logger.warning(
+                        f"Top-up amount for already checked-in ticket {ticket.token[:8]}... "
+                        f"(order {ticket.external_reference}) changed in the ticket shop from "
+                        f"{existing_top_up:.2f} to {ticket.initial_top_up_amount:.2f}; not updating"
+                    )
+                return False
+
+            await conn.execute(
+                "update ticket_voucher set initial_top_up_amount = $1 "
+                "where id = $2 and initial_top_up_amount is distinct from $1",
+                ticket.initial_top_up_amount,
+                voucher_id,
+            )
             if ticket.customer_name:
                 await conn.execute(
-                    "update account set name = $1 where id = $2",
+                    "update account set name = $1 where id = $2 and name is distinct from $1",
                     ticket.customer_name,
                     customer_account_id,
                 )
             if ticket.customer_email:
                 await conn.execute(
                     "insert into customer_info (customer_account_id, email) values ($1, $2) "
-                    "on conflict (customer_account_id) do update set email = $2",
+                    "on conflict (customer_account_id) do update set email = excluded.email "
+                    "where customer_info.email is distinct from excluded.email",
                     customer_account_id,
                     ticket.customer_email,
                 )

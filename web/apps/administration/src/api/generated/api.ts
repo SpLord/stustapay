@@ -1809,10 +1809,7 @@ export type GetCashierShiftStatsApiArg = {
   nodeId: number;
   shiftId?: number | null;
 };
-export type GetCashierRevenueReportApiResponse =
-  /** status 200 Successful Response */ {
-    [key: string]: any;
-  }[];
+export type GetCashierRevenueReportApiResponse = /** status 200 Successful Response */ CashierRevenueRow[];
 export type GetCashierRevenueReportApiArg = {
   nodeId: number;
 };
@@ -2912,6 +2909,16 @@ export type CashierShiftStats = {
 export type CashierShiftStatsRead = {
   booked_products: CashierProductStats[];
   orders: OrderRead[];
+};
+export type CashierRevenueRow = {
+  cashier_id: number;
+  login: string;
+  display_name: string;
+  product_id: number;
+  product_name: string;
+  is_deposit: boolean;
+  quantity: number;
+  revenue: number;
 };
 export type CloseOutResult = {
   cashier_id: number;

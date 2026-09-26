@@ -162,7 +162,8 @@ jobs:
             systemctl restart stustapay-*
             ```
           draft: false
-          prerelease: false
+          # release candidates (e.g. v2026.2.1-pretix24-rc1) are published as prereleases
+          prerelease: ${{ contains(github.ref_name, '-rc') }}
 
       - name: Push notification
         if: success()
