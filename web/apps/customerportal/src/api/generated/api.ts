@@ -50,6 +50,15 @@ const injectedRtkApi = api
         }),
         providesTags: ["base"],
       }),
+      getEventDesign: build.query<GetEventDesignApiResponse, GetEventDesignApiArg>({
+        query: (queryArg) => ({
+          url: `/event-design`,
+          params: {
+            base_url: queryArg.baseUrl,
+          },
+        }),
+        providesTags: ["base"],
+      }),
       getBon: build.query<GetBonApiResponse, GetBonApiArg>({
         query: (queryArg) => ({ url: `/bon/${queryArg.orderUuid}` }),
         providesTags: ["base"],
@@ -59,19 +68,11 @@ const injectedRtkApi = api
         providesTags: ["base"],
       }),
       createCheckout: build.mutation<CreateCheckoutApiResponse, CreateCheckoutApiArg>({
-        query: (queryArg) => ({
-          url: `/sumup/create-checkout`,
-          method: "POST",
-          body: queryArg.createCheckoutPayload,
-        }),
+        query: (queryArg) => ({ url: `/sumup/create-checkout`, method: "POST", body: queryArg.createCheckoutPayload }),
         invalidatesTags: ["sumup"],
       }),
       checkCheckout: build.mutation<CheckCheckoutApiResponse, CheckCheckoutApiArg>({
-        query: (queryArg) => ({
-          url: `/sumup/check-checkout`,
-          method: "POST",
-          body: queryArg.checkCheckoutPayload,
-        }),
+        query: (queryArg) => ({ url: `/sumup/check-checkout`, method: "POST", body: queryArg.checkCheckoutPayload }),
         invalidatesTags: ["sumup"],
       }),
     }),
@@ -100,6 +101,10 @@ export type GetPayoutTransactionsApiResponse = /** status 200 Successful Respons
 export type GetPayoutTransactionsApiArg = void;
 export type GetCustomerConfigApiResponse = /** status 200 Successful Response */ CustomerPortalApiConfig;
 export type GetCustomerConfigApiArg = {
+  baseUrl: string;
+};
+export type GetEventDesignApiResponse = /** status 200 Successful Response */ EventDesign;
+export type GetEventDesignApiArg = {
   baseUrl: string;
 };
 export type GetBonApiResponse = /** status 200 Successful Response */ BonJsonRead;
@@ -133,7 +138,6 @@ export type AccountType =
   | "donation_exit"
   | "sepa_exit"
   | "cash_register";
-export type ProductRestriction = "under_16" | "under_18";
 export type UserTagHistoryEntry = {
   user_tag_id: number;
   user_tag_pin: string;
@@ -184,10 +188,12 @@ export type Customer = {
   comment: string | null;
   balance: number;
   vouchers: number;
+  activated_at?: string | null;
   user_tag_id: number | null;
   user_tag_uid: number | null;
   user_tag_comment?: string | null;
-  restriction: ProductRestriction | null;
+  user_tag_variant_ids?: number[];
+  user_tag_variant_names?: string[];
   tag_history: UserTagHistoryEntry[];
   iban: string | null;
   account_name: string | null;
@@ -207,10 +213,12 @@ export type CustomerRead = {
   comment: string | null;
   balance: number;
   vouchers: number;
+  activated_at?: string | null;
   user_tag_id: number | null;
   user_tag_uid: number | null;
   user_tag_comment?: string | null;
-  restriction: ProductRestriction | null;
+  user_tag_variant_ids?: number[];
+  user_tag_variant_names?: string[];
   tag_history: UserTagHistoryEntryRead[];
   iban: string | null;
   account_name: string | null;
@@ -256,6 +264,7 @@ export type OrderType =
   | "money_transfer_imbalance"
   | "cashier_shift_start"
   | "cashier_shift_end";
+export type TaxType = "regular_vat" | "reduced_vat" | "no_tax" | "transparent";
 export type ProductType = "discount" | "topup" | "payout" | "money_transfer" | "imbalance" | "user_defined" | "ticket";
 export type Product = {
   name: string;
@@ -263,14 +272,16 @@ export type Product = {
   fixed_price: boolean;
   price_in_vouchers?: number | null;
   tax_rate_id: number;
-  restrictions: ProductRestriction[];
+  user_tag_variant_ids: number[];
   is_locked: boolean;
   is_returnable: boolean;
+  is_deposit: boolean;
   target_account_id?: number | null;
   node_id: number;
   id: number;
   tax_name: string;
   tax_rate: number;
+  tax_type: TaxType;
   type: ProductType;
   price_per_voucher?: number | null;
 };
@@ -281,6 +292,7 @@ export type LineItem = {
   tax_rate_id: number;
   tax_name: string;
   tax_rate: number;
+  vouchers_redeemed: number;
   item_id: number;
   total_tax: number;
 };
@@ -291,6 +303,7 @@ export type LineItemRead = {
   tax_rate_id: number;
   tax_name: string;
   tax_rate: number;
+  vouchers_redeemed: number;
   item_id: number;
   total_tax: number;
   total_price: number;
@@ -353,13 +366,14 @@ export type PayoutTransaction = {
 };
 export type EventDesign = {
   bon_logo_blob_id: string | null;
-  app_logo_blob_id: string | null;
-  customer_logo_blob_id: string | null;
-  wristband_guide_blob_id: string | null;
+  app_logo_blob_id?: string | null;
+  customer_logo_blob_id?: string | null;
+  wristband_guide_blob_id?: string | null;
 };
 export type CustomerPortalApiConfig = {
   test_mode: boolean;
   test_mode_message: string;
+  event_name: string;
   data_privacy_url: string;
   contact_email: string;
   about_page_url: string;
@@ -374,6 +388,7 @@ export type CustomerPortalApiConfig = {
   };
   event_design: EventDesign;
   node_id: number;
+  feedback_url?: string | null;
 };
 export type OrderWithTse = {
   id: number;
@@ -491,6 +506,8 @@ export const {
   useLazyGetPayoutTransactionsQuery,
   useGetCustomerConfigQuery,
   useLazyGetCustomerConfigQuery,
+  useGetEventDesignQuery,
+  useLazyGetEventDesignQuery,
   useGetBonQuery,
   useLazyGetBonQuery,
   useGetBlobQuery,

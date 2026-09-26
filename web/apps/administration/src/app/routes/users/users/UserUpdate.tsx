@@ -1,37 +1,58 @@
-import { useGetUserQuery, useUpdateUserMutation } from "@/api";
-import { UserRoutes } from "@/app/routes";
-import { EditLayout } from "@/components";
-import { useCurrentNode } from "@/hooks";
 import { Loading } from "@stustapay/components";
 import { UserSchema } from "@stustapay/models";
+import { eq, useLiveQuery } from "@tanstack/react-db";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
-import { useParams } from "react-router-dom";
-import { UserUpdateForm } from "./UserUpdateForm";
-import { withPrivilegeGuard } from "@/app/layout";
+import { Navigate, useParams } from "react-router-dom";
 
-export const UserUpdate: React.FC = withPrivilegeGuard("user_management", () => {
+import { withPrivilegeGuard } from "@/app/layout";
+import { UserRoutes } from "@/app/routes";
+import { EditLayoutV2 } from "@/components";
+import { getUserCollection } from "@/db/collections";
+import { useCurrentNode } from "@/hooks";
+
+import { UserUpdateForm } from "./UserUpdateForm";
+
+export const UserUpdate: React.FC = withPrivilegeGuard("node_administration", () => {
   const { t } = useTranslation();
   const { currentNode } = useCurrentNode();
   const { userId } = useParams();
-  const [updateUser] = useUpdateUserMutation();
-  const { data: user, isLoading } = useGetUserQuery({ nodeId: currentNode.id, userId: Number(userId) });
+  const {
+    data: user,
+    isLoading,
+    isError,
+  } = useLiveQuery(
+    (q) =>
+      q
+        .from({ users: getUserCollection(currentNode.id) })
+        .where(({ users }) => eq(users.id, Number(userId)))
+        .findOne(),
+    [currentNode.id, userId]
+  );
 
-  if (isLoading) {
-    return <Loading />;
+  if (isError) {
+    return <Navigate to={UserRoutes.list()} />;
   }
 
-  if (!user) {
+  if (isLoading || !user) {
     return <Loading />;
   }
 
   return (
-    <EditLayout
+    <EditLayoutV2
       title={t("updateUser")}
       successRoute={UserRoutes.detail(user.id)}
       initialValues={user}
       validationSchema={UserSchema}
-      onSubmit={(u) => updateUser({ nodeId: currentNode.id, userId: user.id, updateUserPayload: u })}
+      onSubmit={(updatedUser) =>
+        getUserCollection(currentNode.id).update(user.id, (draft) => {
+          draft.login = updatedUser.login;
+          draft.display_name = updatedUser.display_name;
+          draft.description = updatedUser.description;
+          draft.user_tag_pin = updatedUser.user_tag_pin ?? null;
+          draft.user_tag_uid_hex = updatedUser.user_tag_uid_hex ?? null;
+        })
+      }
       form={UserUpdateForm}
     />
   );

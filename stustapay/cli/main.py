@@ -1,5 +1,6 @@
 import asyncio
 import sys
+from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Annotated
@@ -38,10 +39,8 @@ def get_config(
         int,
         typer.Option("--verbose", "-v", count=True, help="increase program verbosity"),
     ] = 0,
-    debug: Annotated[bool, typer.Option(help="enable asyncio debugging")] = False,
 ):
     log_setup(verbose - quiet)
-    asyncio.get_event_loop().set_debug(debug)
 
     if not config_path.exists():
         sys.stderr.write(f"Config file does not exist: {config_path}")
@@ -95,18 +94,21 @@ def ao146a_export(
         typer.Option("--filename", "-f", help="output file path of resulting xml file"),
     ] = Path("ao146a.xml"),
     shutdown_date: Annotated[
-        str,
+        str | None,
         typer.Option(
             "--shutdown", help="Datum der Ausserbetriebname der ASe (TT.MM.JJJJ), ignorieren um keines zu setzen"
         ),
-    ] = "None",
+    ] = None,
 ):
     """Exportiere ein XML um Kassen in ELSTER nach AO146a zu melden."""
+    parsed_shutdown_date = None
+    if shutdown_date is not None:
+        parsed_shutdown_date = datetime.strptime(shutdown_date, "%d.%m.%Y").date()
     generator = AO146Aexporter(
         config=ctx.obj.config,
         filename=str(filename),
         event_node_id=node_id,
-        shutdown_date=shutdown_date,
+        shutdown_date=parsed_shutdown_date,
     )
     asyncio.run(generator.run())
 

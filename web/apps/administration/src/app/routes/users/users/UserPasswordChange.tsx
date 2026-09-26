@@ -1,15 +1,16 @@
-import { useChangeUserPasswordMutation } from "@/api";
-import { withPrivilegeGuard } from "@/app/layout";
-import { UserRoutes } from "@/app/routes";
-import { EditLayout } from "@/components";
-import { useCurrentNode } from "@/hooks";
-import i18n from "@/i18n";
 import { FormTextField } from "@stustapay/form-components";
 import { FormikProps } from "formik";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 import { useParams } from "react-router-dom";
 import { z } from "zod";
+
+import { useChangeUserPasswordMutation } from "@/api";
+import { withPrivilegeGuard } from "@/app/layout";
+import { UserRoutes } from "@/app/routes";
+import { EditLayout } from "@/components";
+import { useCurrentNode } from "@/hooks";
+import i18n from "@/i18n";
 
 const PasswordChangeSchema = z
   .object({
@@ -49,7 +50,7 @@ const initialValues: PasswordChange = {
   new_password_confirm: "",
 };
 
-export const UserPasswordChange: React.FC = withPrivilegeGuard("user_management", () => {
+export const UserPasswordChange: React.FC = withPrivilegeGuard("node_administration", () => {
   const { t } = useTranslation();
   const { currentNode } = useCurrentNode();
   const { userId } = useParams();

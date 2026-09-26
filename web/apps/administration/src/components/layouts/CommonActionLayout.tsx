@@ -1,7 +1,9 @@
 import { ChevronLeft } from "@mui/icons-material";
-import { Button, Grid, IconButton, Stack, Typography } from "@mui/material";
+import { LoadingButton } from "@mui/lab";
+import { Grid, IconButton, Stack, Typography } from "@mui/material";
 import * as React from "react";
 import { useNavigate } from "react-router-dom";
+
 import { LayoutAction } from "./types";
 
 export interface CommonActionLayoutProps {
@@ -13,16 +15,24 @@ export interface CommonActionLayoutProps {
 export const CommonActionLayout: React.FC<CommonActionLayoutProps> = ({ title, children, actions }) => {
   const navigate = useNavigate();
 
-  const renderedActions = actions?.map(({ hidden, label, icon, onClick, ...props }, index) => {
+  const renderedActions = actions?.map(({ hidden, label, icon, loading, onClick, ...props }, index) => {
     if (hidden) {
       return null;
     }
 
     if (label) {
       return (
-        <Button key={label} variant="outlined" startIcon={icon} onClick={onClick} {...props}>
+        <LoadingButton
+          key={label}
+          variant="outlined"
+          startIcon={icon}
+          onClick={onClick}
+          loading={loading}
+          loadingPosition="start"
+          {...props}
+        >
           {label}
-        </Button>
+        </LoadingButton>
       );
     }
     return (
@@ -34,8 +44,8 @@ export const CommonActionLayout: React.FC<CommonActionLayoutProps> = ({ title, c
 
   return (
     <Stack spacing={2}>
-      <Grid container spacing={1} justifyContent="space-between">
-        <Grid display="flex" alignItems="center">
+      <Grid container spacing={1} sx={{ display: "flex", justifyContent: "space-between" }}>
+        <Grid sx={{ display: "flex", alignItems: "center" }}>
           <IconButton onClick={() => navigate(-1)}>
             <ChevronLeft />
           </IconButton>

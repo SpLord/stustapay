@@ -6,7 +6,7 @@ from pydantic import BaseModel, EmailStr
 
 from stustapay.core.config import CoreConfig
 from stustapay.core.schema.config import SEPAConfig, SMTPConfig
-from stustapay.core.schema.user import Privilege
+from stustapay.core.schema.user import EventPrivilege, NodePrivilege
 
 ROOT_NODE_ID = 0
 INITIAL_EVENT_NODE_ID = 1
@@ -32,6 +32,7 @@ class _BaseEvent(BaseModel):
     customer_portal_about_page_url: str
     customer_portal_data_privacy_url: str
     customer_portal_contact_email: EmailStr
+    customer_portal_feedback_url: str | None = None
 
     pretix_presale_enabled: bool
     pretix_shop_url: str | None
@@ -42,8 +43,17 @@ class _BaseEvent(BaseModel):
 
     ust_id: str
     bon_issuer: str
-    bon_address: str
+    bon_street: str
+    bon_zip: str
+    bon_city: str
+    bon_country: str = "DEU"
     bon_title: str
+
+    def formatted_bon_address(self) -> str:
+        city_line = f"{self.bon_zip} {self.bon_city}".strip()
+        if city_line:
+            return f"{self.bon_street}\n{city_line}"
+        return self.bon_street
 
     sepa_enabled: bool
     sepa_sender_name: str
@@ -64,6 +74,8 @@ class _BaseEvent(BaseModel):
     payout_registered_subject: str | None = None
     payout_registered_message: str | None = None
     payout_sender: str | None = None
+
+    headwind_enabled: bool = False
 
     # map of lang_code -> [text type -> text content]
     translation_texts: dict[Language, dict[str, str]] = {}
@@ -97,6 +109,10 @@ class _RestrictedEventMetadata(BaseModel):
     pretix_api_key: str | None
 
     email_smtp_password: str | None = None
+
+    headwind_url: str | None = None
+    headwind_username: str | None = None
+    headwind_password: str | None = None
 
 
 class UpdateEvent(_BaseEvent, _RestrictedEventMetadata):
@@ -184,5 +200,6 @@ class NewEvent(NewNode, UpdateEvent):
 
 
 class NodeSeenByUser(Node):
-    privileges_at_node: set[Privilege]
+    event_privileges_at_node: set[EventPrivilege]
+    node_privileges_at_node: set[NodePrivilege]
     children: list["NodeSeenByUser"]  # type: ignore

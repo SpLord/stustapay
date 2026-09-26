@@ -1,4 +1,16 @@
+import { Alert, Box, Button, Grid, Link, Stack, Typography } from "@mui/material";
+import { Loading } from "@stustapay/components";
+import { FormCheckbox, FormCurrencyInput, FormTextField } from "@stustapay/form-components";
+import { useOpenModal } from "@stustapay/modal-provider";
+import { toFormikValidationSchema } from "@stustapay/utils";
+import { Formik, FormikHelpers } from "formik";
+import iban from "iban";
 import * as React from "react";
+import { Trans, useTranslation } from "react-i18next";
+import { Navigate, useNavigate, Link as RouterLink } from "react-router-dom";
+import { toast } from "react-toastify";
+import { z } from "zod";
+
 import {
   useGetCustomerQuery,
   usePayoutInfoQuery,
@@ -7,17 +19,6 @@ import {
 } from "@/api";
 import { useCurrencyFormatter } from "@/hooks";
 import { usePublicConfig } from "@/hooks/usePublicConfig";
-import { Alert, Button, Grid, Link, Stack, Typography } from "@mui/material";
-import { Loading } from "@stustapay/components";
-import { FormCheckbox, FormCurrencyInput, FormTextField } from "@stustapay/form-components";
-import { toFormikValidationSchema } from "@stustapay/utils";
-import { Formik, FormikHelpers } from "formik";
-import iban from "iban";
-import { Trans, useTranslation } from "react-i18next";
-import { Navigate, useNavigate, Link as RouterLink } from "react-router-dom";
-import { toast } from "react-toastify";
-import { z } from "zod";
-import { useOpenModal } from "@stustapay/modal-provider";
 
 export const PayoutInfo: React.FC = () => {
   const { t } = useTranslation();
@@ -65,7 +66,7 @@ export const PayoutInfo: React.FC = () => {
         });
       }
     }),
-    email: z.string().email(),
+    email: z.string().email({ pattern: z.regexes.html5Email }),
     privacy_policy: z.boolean().refine((val) => val, {
       message: t("payout.mustAcceptPrivacyPolicy"),
     }),
@@ -116,7 +117,9 @@ export const PayoutInfo: React.FC = () => {
       openModal({
         type: "confirm",
         title: t("payout.confirmDonateAmountTitle"),
-        content: t("payout.confirmDonateAmountContent", { donation: formatCurrency(values.donation) }),
+        content: t("payout.confirmDonateAmountContent", {
+          donation: formatCurrency(values.donation),
+        }),
         closeOnBackdropClick: false,
         onConfirm: pushToServer,
         onCancel: () => setSubmitting(false),
@@ -129,7 +132,9 @@ export const PayoutInfo: React.FC = () => {
     openModal({
       type: "confirm",
       title: t("payout.confirmDonateAllTitle"),
-      content: t("payout.confirmDonateAllContent", { remainingBalance: formatCurrency(customer.balance) }),
+      content: t("payout.confirmDonateAllContent", {
+        remainingBalance: formatCurrency(customer.balance),
+      }),
       closeOnBackdropClick: false,
       onConfirm: () => {
         updateCustomerDonateAll()
@@ -150,7 +155,9 @@ export const PayoutInfo: React.FC = () => {
   if (payoutInfo.in_payout_run && !payoutInfo.payout_date) {
     info_text = t("payout.infoPayoutScheduled");
   } else if (payoutInfo.in_payout_run && payoutInfo.payout_date) {
-    info_text = t("payout.infoPayoutCompleted", { payout_date: new Date(payoutInfo.payout_date).toLocaleString() });
+    info_text = t("payout.infoPayoutCompleted", {
+      payout_date: new Date(payoutInfo.payout_date).toLocaleString(),
+    });
   } else if (customer.has_entered_info) {
     info_text = t("payout.infoPayoutInitiated");
   } else {
@@ -165,7 +172,7 @@ export const PayoutInfo: React.FC = () => {
   }
 
   return (
-    <Grid container justifyItems="center" justifyContent="center" sx={{ paddingX: 0.5 }}>
+    <Grid container sx={{ display: "flex", justifyContent: "center", alignItems: "center", paddingX: 0.5 }}>
       <Grid size={{ xs: 12, sm: 8 }} sx={{ mt: 2 }}>
         <Stack spacing={2}>
           <Alert severity="info" variant="outlined" sx={{ mb: 2 }}>
@@ -179,7 +186,9 @@ export const PayoutInfo: React.FC = () => {
             disabled={payoutInfo.in_payout_run}
             onClick={onAllTipClick}
           >
-            {t("payout.donateRemainingBalanceOf", { remainingBalance: formatCurrency(customer.balance) })}
+            {t("payout.donateRemainingBalanceOf", {
+              remainingBalance: formatCurrency(customer.balance),
+            })}
           </Button>
 
           <Typography variant="h5">{t("payout.payoutTitle")}</Typography>
@@ -234,6 +243,19 @@ export const PayoutInfo: React.FC = () => {
                     formik={formik}
                     disabled={payoutInfo.in_payout_run}
                   />
+                  {config.feedback_url && (
+                    <Box sx={{ textAlign: "center", my: 1 }}>
+                      <Link
+                        href={config.feedback_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        variant="body2"
+                        color="primary"
+                      >
+                        {t("payout.sendFeedback")} →
+                      </Link>
+                    </Box>
+                  )}
                   <Button
                     type="submit"
                     variant="contained"

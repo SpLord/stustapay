@@ -1,5 +1,3 @@
-import { Account, useUpdateBalanceMutation } from "@/api";
-import { useCurrencyFormatter, useCurrencySymbol, useCurrentNode } from "@/hooks";
 import {
   Button,
   Dialog,
@@ -14,6 +12,9 @@ import { NumericInput } from "@stustapay/components";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "react-toastify";
+
+import { Account, useUpdateBalanceMutation } from "@/api";
+import { useCurrencyFormatter, useCurrencySymbol, useCurrentNode } from "@/hooks";
 
 export interface EditAccountBalanceModalProps {
   account: Account;
@@ -36,7 +37,11 @@ export const EditAccountBalanceModal: React.FC<EditAccountBalanceModalProps> = (
   }, [account]);
 
   const handleConfirm = () => {
-    updateBalance({ nodeId: currentNode.id, accountId: account.id, updateBalancePayload: { new_balance: balance } })
+    updateBalance({
+      nodeId: currentNode.id,
+      accountId: account.id,
+      updateBalancePayload: { new_balance: balance },
+    })
       .unwrap()
       .then(() => {
         handleClose();
@@ -65,7 +70,9 @@ export const EditAccountBalanceModal: React.FC<EditAccountBalanceModalProps> = (
           onChange={handleChange}
           label={t("account.newBalance")}
           slotProps={{
-            input: { endAdornment: <InputAdornment position="end">{currencySymbol}</InputAdornment> },
+            input: {
+              endAdornment: <InputAdornment position="end">{currencySymbol}</InputAdornment>,
+            },
           }}
         />
       </DialogContent>

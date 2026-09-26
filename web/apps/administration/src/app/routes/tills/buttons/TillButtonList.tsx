@@ -1,14 +1,16 @@
-import { selectTillButtonAll, useDeleteTillButtonMutation, useListTillButtonsQuery, TillButton } from "@/api";
-import { TillButtonsRoutes } from "@/app/routes";
-import { ListLayout } from "@/components";
-import { useCurrentNode, useCurrentUserHasPrivilege, useCurrentUserHasPrivilegeAtNode, useRenderNode } from "@/hooks";
 import { Delete as DeleteIcon, Edit as EditIcon } from "@mui/icons-material";
 import { DataGrid, GridActionsCellItem, GridColDef } from "@stustapay/framework";
-import { Loading } from "@stustapay/components";
 import { useOpenModal } from "@stustapay/modal-provider";
+import { useLiveQuery } from "@tanstack/react-db";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
+
+import { TillButtonsRoutes } from "@/app/routes";
+import { ListLayout } from "@/components";
+import { TillButton } from "@/db/api/generated";
+import { getTillButtonCollection } from "@/db/collections";
+import { useCurrentNode, useCurrentUserHasPrivilege, useCurrentUserHasPrivilegeAtNode, useRenderNode } from "@/hooks";
 
 export const TillButtonList: React.FC = () => {
   const { t } = useTranslation();
@@ -18,21 +20,11 @@ export const TillButtonList: React.FC = () => {
   const navigate = useNavigate();
   const openModal = useOpenModal();
 
-  const { buttons, isLoading } = useListTillButtonsQuery(
-    { nodeId: currentNode.id },
-    {
-      selectFromResult: ({ data, ...rest }) => ({
-        ...rest,
-        buttons: data ? selectTillButtonAll(data) : undefined,
-      }),
-    }
+  const { data: buttons, isLoading } = useLiveQuery(
+    (q) => q.from({ buttons: getTillButtonCollection(currentNode.id) }),
+    [currentNode.id]
   );
-  const [deleteButton] = useDeleteTillButtonMutation();
   const { dataGridNodeColumn } = useRenderNode();
-
-  if (isLoading) {
-    return <Loading />;
-  }
 
   const openConfirmDeleteDialog = (buttonId: number) => {
     openModal({
@@ -40,9 +32,7 @@ export const TillButtonList: React.FC = () => {
       title: t("button.delete"),
       content: t("button.deleteDescription"),
       onConfirm: () => {
-        deleteButton({ nodeId: currentNode.id, buttonId })
-          .unwrap()
-          .catch(() => undefined);
+        getTillButtonCollection(currentNode.id).delete(buttonId);
         return true;
       },
     });
@@ -91,11 +81,12 @@ export const TillButtonList: React.FC = () => {
     <ListLayout title={t("button.buttons")} routes={TillButtonsRoutes}>
       <DataGrid
         autoHeight
+        loading={isLoading}
         getRowId={(row) => row.name}
         rows={buttons ?? []}
         columns={columns}
         disableRowSelectionOnClick
-        sx={{ p: 1, boxShadow: (theme) => theme.shadows[1] }}
+        sx={{ boxShadow: (theme) => theme.shadows[1] }}
       />
     </ListLayout>
   );

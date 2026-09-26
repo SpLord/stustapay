@@ -33,6 +33,8 @@ fun UserDisplayView(viewModel: UserViewModel, goToUserUpdateView: () -> Unit) {
     val status by viewModel.status.collectAsStateWithLifecycle()
     val currentUser by viewModel.currentUser.collectAsStateWithLifecycle()
     val currentTag by viewModel.currentTag.collectAsStateWithLifecycle()
+    val isEditingSelf by viewModel.isEditingSelf.collectAsStateWithLifecycle()
+    val currentTagV = currentTag
 
     if (currentUser == null) {
         Scaffold(
@@ -84,10 +86,7 @@ fun UserDisplayView(viewModel: UserViewModel, goToUserUpdateView: () -> Unit) {
     } else {
         val user = currentUser!!
 
-        val isPrivileged = false
-        /*val isPrivileged = user.roleNames.mapNotNull { role ->
-            availableRoles.find { available -> available.name == role }?.isPrivileged
-        }.contains(true)*/
+        val assignedRoleNames = user.assignedRoles.map { "${it.name} (${it.nodeName})" }
 
         Scaffold(
             content = { padding ->
@@ -98,8 +97,20 @@ fun UserDisplayView(viewModel: UserViewModel, goToUserUpdateView: () -> Unit) {
                             .padding(10.dp)
                     ) {
                         ListItem(
+                            text = { Text(stringResource(R.string.common_tag_pin)) },
+                            secondaryText = { Text(currentTag?.pin ?: "") }
+                        )
+                        ListItem(
                             text = { Text(stringResource(R.string.common_tag_id)) },
-                            secondaryText = { Text(tagIDtoString(currentTag.uid.ulongValue(true))) }
+                            secondaryText = {
+                                Text(
+                                    if (currentTagV != null) {
+                                        tagIDtoString(currentTagV.uid.ulongValue(true))
+                                    } else {
+                                        "unknown"
+                                    }
+                                )
+                            }
                         )
                         ListItem(
                             text = { Text(stringResource(R.string.user_username)) },
@@ -109,13 +120,16 @@ fun UserDisplayView(viewModel: UserViewModel, goToUserUpdateView: () -> Unit) {
                             text = { Text(stringResource(R.string.user_displayname)) },
                             secondaryText = { Text(user.displayName) }
                         )
-                        /*ListItem(
-                            text = { Text(stringResource(R.string.user_roles)) },
-                            secondaryText = { Text(user.roleNames.reduceOrNull { acc, r -> "$acc, $r" } ?: "") }
-                        )*/
+                        if (!user.description.isNullOrEmpty()) {
+                            ListItem(
+                                text = { Text(stringResource(R.string.user_description)) },
+                                secondaryText = { Text(user.description ?: "") }
+                            )
+                        }
+
                         ListItem(
-                            text = { Text(stringResource(R.string.user_description)) },
-                            secondaryText = { Text(user.description ?: "") }
+                            text = { Text(stringResource(R.string.user_roles)) },
+                            secondaryText = { Text(assignedRoleNames.joinToString(", ")) }
                         )
                     }
                 }
@@ -147,17 +161,18 @@ fun UserDisplayView(viewModel: UserViewModel, goToUserUpdateView: () -> Unit) {
                     }
                     Spacer(modifier = Modifier.height(10.dp))
 
-                    Button(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(10.dp),
-                        enabled = !isPrivileged,
-                        onClick = {
-                            scope.launch {
-                                goToUserUpdateView()
-                            }
-                        }) {
-                        Text(text = stringResource(R.string.user_update_title), fontSize = 24.sp)
+                    if (!isEditingSelf) {
+                        Button(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(10.dp),
+                            onClick = {
+                                scope.launch {
+                                    goToUserUpdateView()
+                                }
+                            }) {
+                            Text(text = stringResource(R.string.user_update_title), fontSize = 24.sp)
+                        }
                     }
                 }
             }

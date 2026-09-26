@@ -1,12 +1,15 @@
-import { NewTillProfile, useCreateTillProfileMutation } from "@/api";
-import { TillProfileRoutes } from "@/app/routes";
-import { CreateLayout } from "@/components";
-import { useCurrentNode } from "@/hooks";
 import { NewTillProfileSchema } from "@stustapay/models";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
-import { TillProfileForm } from "./TillProfileForm";
+
 import { withPrivilegeGuard } from "@/app/layout";
+import { TillProfileRoutes } from "@/app/routes";
+import { CreateLayoutV2 } from "@/components";
+import { NewTillProfile } from "@/db/api/generated";
+import { generateId, getTillProfileCollection } from "@/db/collections";
+import { useCurrentNode } from "@/hooks";
+
+import { TillProfileForm } from "./TillProfileForm";
 
 const initialValues: NewTillProfile = {
   name: "",
@@ -24,15 +27,20 @@ const initialValues: NewTillProfile = {
 export const TillProfileCreate: React.FC = withPrivilegeGuard("node_administration", () => {
   const { t } = useTranslation();
   const { currentNode } = useCurrentNode();
-  const [createProfile] = useCreateTillProfileMutation();
 
   return (
-    <CreateLayout
+    <CreateLayoutV2
       title={t("profile.create")}
       successRoute={TillProfileRoutes.list()}
       initialValues={initialValues}
       validationSchema={NewTillProfileSchema}
-      onSubmit={(profile) => createProfile({ nodeId: currentNode.id, newTillProfile: profile })}
+      onSubmit={(profile) =>
+        getTillProfileCollection(currentNode.id).insert({
+          ...profile,
+          id: generateId(),
+          node_id: currentNode.id,
+        })
+      }
       form={TillProfileForm}
     />
   );

@@ -1,9 +1,13 @@
-import { Terminal, selectTerminalAll, useListTerminalsQuery, useSwitchTerminalMutation } from "@/api";
-import { useCurrentNode } from "@/hooks";
 import { Typography, Button, Dialog, DialogActions, DialogContent, DialogTitle } from "@mui/material";
 import { Loading, Select } from "@stustapay/components";
+import { useLiveQuery } from "@tanstack/react-db";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
+
+import { useSwitchTerminalMutation } from "@/api";
+import { Terminal } from "@/db/api/generated";
+import { getTerminalCollection, refetchTillTerminalCollections } from "@/db/collections";
+import { useCurrentNode } from "@/hooks";
 
 export type TillSwitchTerminalProps = {
   tillId: number;
@@ -14,19 +18,16 @@ export type TillSwitchTerminalProps = {
 export const TillSwitchTerminal: React.FC<TillSwitchTerminalProps> = ({ tillId, open, onClose }) => {
   const { t } = useTranslation();
   const { currentNode } = useCurrentNode();
-  const { terminals } = useListTerminalsQuery(
-    { nodeId: currentNode.id },
-    {
-      selectFromResult: ({ data, ...rest }) => ({
-        ...rest,
-        terminals: data ? selectTerminalAll(data).filter((t) => t.till_id == null) : [],
-      }),
-    }
+  const { data: terminals, isLoading } = useLiveQuery(
+    (q) => q.from({ terminals: getTerminalCollection(currentNode.id) }),
+    [currentNode.id]
   );
   const [selectedTerminal, setSelectedTerminal] = React.useState<Terminal | null>(null);
   const [switchTerminal] = useSwitchTerminalMutation();
 
-  if (!terminals) {
+  const freeTerminals = terminals?.filter((terminal) => terminal.till_id == null) ?? [];
+
+  if (isLoading || !terminals) {
     return <Loading />;
   }
 
@@ -38,7 +39,7 @@ export const TillSwitchTerminal: React.FC<TillSwitchTerminalProps> = ({ tillId, 
       nodeId: currentNode.id,
       tillId,
       switchTerminalPayload: { new_terminal_id: selectedTerminal.id },
-    }).then(onClose);
+    }).then(() => refetchTillTerminalCollections(currentNode.id).then(onClose));
   };
 
   return (
@@ -50,7 +51,7 @@ export const TillSwitchTerminal: React.FC<TillSwitchTerminalProps> = ({ tillId, 
           multiple={false}
           formatOption={(terminal: Terminal) => terminal.name}
           value={selectedTerminal}
-          options={terminals}
+          options={freeTerminals}
           label={t("till.terminal")}
           onChange={setSelectedTerminal}
         />

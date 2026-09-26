@@ -1,13 +1,14 @@
-import * as React from "react";
-import { ProductRestriction, UserTagSecret, useCreateUserTagsMutation, useListUserTagSecretsQuery } from "@/api";
-import { UserTagRoutes } from "@/app/routes";
-import { useCurrentNode } from "@/hooks";
-import { useTranslation } from "react-i18next";
-import { RestrictionSelect } from "@/components/features";
-import { Select } from "@stustapay/components";
 import { Alert, Button, LinearProgress, Paper, Stack, TextField, Typography } from "@mui/material";
+import { Select } from "@stustapay/components";
+import * as React from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
+
+import { UserTagSecret, useCreateUserTagsMutation, useListUserTagSecretsQuery } from "@/api";
+import { UserTagRoutes } from "@/app/routes";
+import { UserTagVariantSelect } from "@/components/features";
+import { useCurrentNode } from "@/hooks";
 
 export const UserTagCreateSingle: React.FC = () => {
   const { t } = useTranslation();
@@ -18,7 +19,7 @@ export const UserTagCreateSingle: React.FC = () => {
 
   const [pin, setPin] = React.useState("");
   const [secretId, setSecretId] = React.useState<number | null>(null);
-  const [restriction, setRestriction] = React.useState<ProductRestriction | null>(null);
+  const [variantId, setVariantId] = React.useState<number | null>(null);
 
   if (secretsError) {
     return <Alert severity="error">{`Error loading user tag secrets: ${secretsError}`}</Alert>;
@@ -45,7 +46,7 @@ export const UserTagCreateSingle: React.FC = () => {
           {
             pin: pin.trim(),
             secret_id: secretId,
-            restriction: restriction,
+            variant_ids: variantId != null ? [variantId] : [],
           },
         ],
       }).unwrap();
@@ -78,10 +79,10 @@ export const UserTagCreateSingle: React.FC = () => {
             formatOption={(secret: UserTagSecret) => secret.description}
             onChange={(secret) => secret && setSecretId(secret.id)}
           />
-          <RestrictionSelect
-            label={t("userTag.singleRestrictionLabel")}
-            value={restriction}
-            onChange={(val) => setRestriction(val)}
+          <UserTagVariantSelect
+            label={t("userTag.variants")}
+            value={variantId}
+            onChange={(val) => setVariantId(val)}
             multiple={false}
           />
           {isLoading && <LinearProgress />}

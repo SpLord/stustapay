@@ -108,22 +108,14 @@ class PretixApi:
             "Authorization": f"Token {self.api_key}",
         }
 
-    async def _request(
-        self,
-        method: str,
-        url: str,
-        query: dict | None = None,
-        json_data: dict | None = None,
-    ) -> dict:
+    async def _request(self, method: str, url: str, query: dict | None = None, json_data: dict | None = None) -> dict:
         async with aiohttp.ClientSession(trust_env=True, headers=self._get_pretix_auth_headers()) as session:
             try:
                 async with session.request(method, url, params=query, json=json_data, timeout=self.timeout) as response:
                     if not response.ok:
                         resp = await response.json()
                         err = _PretixErrorFormat.model_validate(resp)
-                        raise PretixError(
-                            f"Pretix API returned an error: {err.code} - {err.message or 'Unknown error'}"
-                        )
+                        raise PretixError(f"Pretix API returned an error: {err.code} - {err.message}")
                     return await response.json(content_type=None)
             except asyncio.TimeoutError as e:
                 raise PretixError("Pretix API timeout") from e
@@ -202,10 +194,7 @@ class PretixTicketProvider(TicketProvider):
         self.logger = logging.getLogger("pretix_ticket_provider")
 
     def _compute_topup_for_ticket(
-        self,
-        order: PretixOrder,
-        ticket_position: PretixOrderPosition,
-        pretix_topup_ids: list[int],
+        self, order: PretixOrder, ticket_position: PretixOrderPosition, pretix_topup_ids: list[int]
     ) -> float:
         """Compute the total top-up amount for a ticket position by summing up
         all add-on positions that reference this ticket and are top-up products."""
@@ -234,7 +223,7 @@ class PretixTicketProvider(TicketProvider):
             return order.invoice_address.name
         return None
 
-    async def _synchronize_pretix_order(
+    async def _synchronizie_pretix_order(
         self,
         conn: Connection,
         node: Node,
@@ -243,7 +232,7 @@ class PretixTicketProvider(TicketProvider):
         order: PretixOrder,
         product_names: dict[int, str] | None = None,
     ):
-        if order.status != PretixOrderStatus.paid:
+        if order.status == PretixOrderStatus.pending:
             self.logger.debug(
                 f"Skipped importing ticket from pretix order {order.code} as order has status {order.status.name}"
             )
@@ -254,37 +243,54 @@ class PretixTicketProvider(TicketProvider):
         pretix_topup_ids = event_settings.pretix_topup_ids or []
 
         async with conn.transaction(isolation="serializable"):
-            for position in order.positions:
-                if position.item in pretix_ticket_product_ids:
-                    # Compute top-up amount from add-on positions linked to this ticket
-                    topup_amount = self._compute_topup_for_ticket(order, position, pretix_topup_ids)
-
-                    customer_email = self._resolve_customer_email(order, position)
-                    customer_name = self._resolve_customer_name(order, position)
-
-                    pretix_product_name = (product_names or {}).get(position.item)
-
-                    imported = await self.store_external_ticket(
-                        conn=conn,
-                        node=node,
-                        ticket=CreateExternalTicket(
-                            external_reference=order.code,
-                            created_at=order.datetime,
-                            token=position.secret,
-                            ticket_type=ExternalTicketType.pretix,
-                            external_link=api.get_link_to_order(order.code),
-                            customer_email=customer_email,
-                            customer_name=customer_name,
-                            initial_top_up_amount=topup_amount,
-                            pretix_item_id=position.item,
-                            pretix_product_name=pretix_product_name,
-                        ),
+            if order.status == PretixOrderStatus.canceled or order.status == PretixOrderStatus.expired:
+                exists_and_is_not_cancelled = await conn.fetchval(
+                    "select exists(select from ticket_voucher where node_id = $1 and external_reference = $2 and not cancelled)",
+                    node.event_node_id,
+                    order.code,
+                )
+                if exists_and_is_not_cancelled:
+                    await conn.execute(
+                        "update ticket_voucher set cancelled = true "
+                        "where node_id = $1 and external_reference = $2 and not cancelled",
+                        node.event_node_id,
+                        order.code,
                     )
-                    if imported:
-                        self.logger.info(
-                            f"Imported ticket from pretix order {order.code} "
-                            f"(item={position.item}, topup={topup_amount:.2f})"
+                    self.logger.info(f"Order {order.code} was changed to cancelled status")
+                    return
+                return
+            if order.status == PretixOrderStatus.paid:
+                for position in order.positions:
+                    if position.item in pretix_ticket_product_ids:
+                        # Compute top-up amount from add-on positions linked to this ticket
+                        topup_amount = self._compute_topup_for_ticket(order, position, pretix_topup_ids)
+
+                        customer_email = self._resolve_customer_email(order, position)
+                        customer_name = self._resolve_customer_name(order, position)
+
+                        pretix_product_name = (product_names or {}).get(position.item)
+
+                        imported = await self.store_external_ticket(
+                            conn=conn,
+                            node=node,
+                            ticket=CreateExternalTicket(
+                                external_reference=order.code,
+                                created_at=order.datetime,
+                                token=position.secret,
+                                ticket_type=ExternalTicketType.pretix,
+                                external_link=api.get_link_to_order(order.code),
+                                customer_email=customer_email,
+                                customer_name=customer_name,
+                                initial_top_up_amount=topup_amount,
+                                pretix_item_id=position.item,
+                                pretix_product_name=pretix_product_name,
+                            ),
                         )
+                        if imported:
+                            self.logger.info(
+                                f"Imported ticket from pretix order {order.code} "
+                                f"(item={position.item}, topup={topup_amount:.2f})"
+                            )
 
     async def _synchronize_tickets_for_node(
         self, conn: Connection, node: Node, event_settings: RestrictedEventSettings
@@ -300,7 +306,7 @@ class PretixTicketProvider(TicketProvider):
 
         orders = await api.fetch_orders()
         for order in orders:
-            await self._synchronize_pretix_order(
+            await self._synchronizie_pretix_order(
                 conn=conn,
                 node=node,
                 api=api,
@@ -321,9 +327,10 @@ class PretixTicketProvider(TicketProvider):
         while True:
             try:
                 async with self.db_pool.acquire() as conn:
-                    relevant_node_ids = await conn.fetchval(
+                    relevant_node_ids: list[int] | None = await conn.fetchval(
                         "select array_agg(n.id) from node n join event e on n.event_id = e.id where e.pretix_presale_enabled"
                     )
+                    relevant_node_ids = relevant_node_ids or []
 
                     if not relevant_node_ids:
                         self.logger.debug("No pretix-enabled events found, skipping sync")
@@ -370,7 +377,7 @@ class PretixTicketProvider(TicketProvider):
             else:
                 self.logger.warning(f"Failed to sync checkin to Pretix for voucher {row['id']}")
 
-    async def _handle_pretix_order_paid_webhook(self, node_id: int, payload: PretixOrderWebhookPayload):
+    async def _handle_pretix_order_changed_webhook(self, node_id: int, payload: PretixOrderWebhookPayload):
         async with self.db_pool.acquire() as conn:
             node = await fetch_node(conn=conn, node_id=node_id)
             assert node is not None
@@ -395,7 +402,7 @@ class PretixTicketProvider(TicketProvider):
             order = await api.fetch_order(order_code=payload.code)
             products = await api.fetch_products()
             product_names = {p.id: next(iter(p.name.values()), "") for p in products}
-            await self._synchronize_pretix_order(
+            await self._synchronizie_pretix_order(
                 conn=conn,
                 node=node,
                 api=api,
@@ -403,49 +410,6 @@ class PretixTicketProvider(TicketProvider):
                 order=order,
                 product_names=product_names,
             )
-
-    async def _handle_pretix_order_canceled_webhook(self, node_id: int, payload: PretixOrderWebhookPayload):
-        """Handle order cancellation: mark all vouchers for this order as cancelled."""
-        async with self.db_pool.acquire() as conn:
-            node = await fetch_node(conn=conn, node_id=node_id)
-            assert node is not None
-
-            result = await conn.execute(
-                "update ticket_voucher set cancelled = true "
-                "where node_id = $1 and external_reference = $2 and not cancelled",
-                node.event_node_id,
-                payload.code,
-            )
-            self.logger.info(f"Cancelled vouchers for pretix order {payload.code} in event {node.name}: {result}")
-
-    async def _handle_pretix_order_changed_webhook(self, node_id: int, payload: PretixOrderWebhookPayload):
-        """Handle order changes: re-fetch order and update voucher data."""
-        async with self.db_pool.acquire() as conn:
-            node = await fetch_node(conn=conn, node_id=node_id)
-            assert node is not None
-            settings = await fetch_restricted_event_settings_for_node(conn=conn, node_id=node_id)
-            if not settings.pretix_presale_enabled:
-                return
-
-            api = PretixApi.from_event(settings)
-            order = await api.fetch_order(order_code=payload.code)
-
-            if order.status == PretixOrderStatus.canceled:
-                await conn.execute(
-                    "update ticket_voucher set cancelled = true "
-                    "where node_id = $1 and external_reference = $2 and not cancelled",
-                    node.event_node_id,
-                    payload.code,
-                )
-                self.logger.info(f"Order {payload.code} was changed to cancelled status")
-                return
-
-            if order.status == PretixOrderStatus.paid:
-                # Re-sync: import any new positions, update top-up amounts
-                await self._synchronize_pretix_order(
-                    conn=conn, node=node, api=api, event_settings=settings, order=order
-                )
-                self.logger.info(f"Re-synced changed pretix order {payload.code}")
 
     async def _handle_pretix_checkin_webhook(self, node_id: int, payload: PretixWebhookPayload):
         """Handle checkin from pretixSCAN: mark voucher as externally checked in."""
@@ -459,8 +423,10 @@ class PretixTicketProvider(TicketProvider):
             )
 
     async def notify_pretix_checkin(self, node_id: int, voucher_token: str):
-        """Notify Pretix that a ticket has been checked in (band assigned in StuStaPay).
-        Called after NFC wristband assignment."""
+        """
+        Notify Pretix that a ticket has been checked in (band assigned in StuStaPay).
+        Called after NFC wristband assignment.
+        """
         async with self.db_pool.acquire() as conn:
             node = await fetch_node(conn=conn, node_id=node_id)
             assert node is not None
@@ -487,24 +453,12 @@ class PretixTicketProvider(TicketProvider):
         try:
             validated = PretixWebhookPayload.model_validate(payload)
 
-            if validated.action == "pretix.event.order.paid":
-                try:
-                    order_payload = PretixOrderWebhookPayload.model_validate(payload)
-                    await self._handle_pretix_order_paid_webhook(node_id=node_id, payload=order_payload)
-                except ValidationError:
-                    return
-
-            elif validated.action in (
+            if validated.action in (
+                "pretix.event.order.paid",
                 "pretix.event.order.canceled",
                 "pretix.event.order.expired",
+                "pretix.event.order.changed",
             ):
-                try:
-                    order_payload = PretixOrderWebhookPayload.model_validate(payload)
-                    await self._handle_pretix_order_canceled_webhook(node_id=node_id, payload=order_payload)
-                except ValidationError:
-                    return
-
-            elif validated.action == "pretix.event.order.changed":
                 try:
                     order_payload = PretixOrderWebhookPayload.model_validate(payload)
                     await self._handle_pretix_order_changed_webhook(node_id=node_id, payload=order_payload)

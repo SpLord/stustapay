@@ -1,7 +1,7 @@
 export * from "./OrderTable";
 export * from "./PrivilegeSelect";
 export * from "./ProductSelect";
-export * from "./RestrictionSelect";
+export * from "./UserTagVariantSelect";
 export * from "./RoleSelect";
 export * from "./ThemeSelect";
 export * from "./UserSelect";
@@ -9,4 +9,5 @@ export * from "./TaxRateSelect";
 export * from "./CurrencyIdentifierSelect";
 export * from "./TillSwitchTerminal";
 export * from "./TerminalSwitchTill";
+export * from "./MdmDeviceChangeMapping";
 export * from "./TransactionTable";

@@ -1,0 +1,66 @@
+import { heyApiPlugin } from "@hey-api/vite-plugin";
+import { nxCopyAssetsPlugin } from "@nx/vite/plugins/nx-copy-assets.plugin";
+import { nxViteTsPaths } from "@nx/vite/plugins/nx-tsconfig-paths.plugin";
+import react from "@vitejs/plugin-react";
+/// <reference types='vitest' />
+import { defineConfig } from "vite";
+import checker from "vite-plugin-checker";
+
+export default defineConfig(() => ({
+  root: __dirname,
+  cacheDir: "../../node_modules/.vite/apps/administration",
+  server: {
+    port: 4200,
+    host: "0.0.0.0",
+    proxy: {
+      "/api": {
+        target: "http://localhost:8081",
+        rewrite: (path) => path.replace(/^\/api/, ""),
+      },
+    },
+  },
+  preview: {
+    port: 4200,
+    host: "0.0.0.0",
+  },
+  plugins: [
+    react(),
+    nxViteTsPaths(),
+    nxCopyAssetsPlugin(["*.md"]),
+    checker({ typescript: { tsconfigPath: "tsconfig.app.json" } }),
+    heyApiPlugin({
+      config: {
+        input: "../../../api/administration.json",
+        output: "src/db/api/generated",
+        plugins: [
+          { name: "@hey-api/client-fetch", runtimeConfigPath: "@/db/api/runtimeConfig" },
+          { name: "@hey-api/sdk" },
+          { name: "zod" },
+        ],
+      },
+    }),
+  ],
+  // Uncomment this if you are using workers.
+  // worker: {
+  //  plugins: [ nxViteTsPaths() ],
+  // },
+  build: {
+    outDir: "../../dist/apps/administration",
+    emptyOutDir: true,
+    reportCompressedSize: true,
+    commonjsOptions: {
+      transformMixedEsModules: true,
+    },
+  },
+  test: {
+    watch: false,
+    globals: true,
+    environment: "jsdom",
+    include: ["{src,tests}/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}"],
+    reporters: ["default"],
+    coverage: {
+      reportsDirectory: "../../coverage/apps/administration",
+      provider: "v8" as const,
+    },
+  },
+}));

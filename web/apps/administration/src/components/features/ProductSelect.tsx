@@ -1,23 +1,19 @@
-import { Product, selectProductAll, useListProductsQuery } from "@/api";
-import { useCurrencyFormatter, useCurrentNode } from "@/hooks";
 import { Select, SelectProps } from "@stustapay/components";
+import { useLiveQuery } from "@tanstack/react-db";
 import * as React from "react";
 
-export type ProductSelectProps = {
-  onlyLocked?: boolean;
-} & Omit<SelectProps<Product, false>, "options" | "formatOption" | "multiple">;
+import { Product } from "@/api";
+import { getProductCollection } from "@/db/collections";
+import { useCurrencyFormatter, useCurrentNode } from "@/hooks";
 
-export const ProductSelect: React.FC<ProductSelectProps> = ({ onlyLocked = false, ...props }) => {
+export type ProductSelectProps = Omit<SelectProps<Product, false>, "options" | "formatOption" | "multiple">;
+
+export const ProductSelect: React.FC<ProductSelectProps> = ({ ...props }) => {
   const { currentNode } = useCurrentNode();
   const formatCurrency = useCurrencyFormatter();
-  const { products } = useListProductsQuery(
-    { nodeId: currentNode.id },
-    {
-      selectFromResult: ({ data, ...rest }) => ({
-        ...rest,
-        products: data ? selectProductAll(data).filter((p) => p.is_locked || !onlyLocked) : [],
-      }),
-    }
+  const { data: products } = useLiveQuery(
+    (q) => q.from({ products: getProductCollection(currentNode.id) }),
+    [currentNode.id]
   );
 
   return (

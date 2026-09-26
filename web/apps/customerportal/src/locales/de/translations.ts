@@ -10,6 +10,7 @@ export const translations: NestedPartialAsStrings<Translations> = {
   login: "Login",
   userTagUid: "Bändchen-Chip ID",
   userTagPin: "Bändchen-Chip Pin",
+  pinRequired: "Bändchen-Chip Pin is benötigt",
   loginFailed: "Login fehlgeschlagen: {{reason}}.",
   errorLoadingCustomer: "Fehler beim Laden der Kundendaten",
   payoutInfo:
@@ -95,6 +96,7 @@ export const translations: NestedPartialAsStrings<Translations> = {
     confirmDonateAmountTitle: "Spenden?",
     confirmDonateAmountContent: "Willst Du {{donation}} spenden?",
     onlyDuringEvent: "Eine Auszahlung des Restguthabens ist nur während der Veranstaltung möglich!",
+    sendFeedback: "Umfrage und Feedback zur Veranstaltung",
   },
   topup: {
     onlineTopUp: "Online-Aufladung",

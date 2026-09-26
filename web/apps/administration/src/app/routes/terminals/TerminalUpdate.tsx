@@ -1,14 +1,17 @@
-import { useGetTerminalQuery, useUpdateTerminalMutation } from "@/api";
-import { TerminalRoutes } from "@/app/routes";
-import { EditLayout } from "@/components";
-import { useCurrentNode } from "@/hooks";
 import { Loading } from "@stustapay/components";
 import { UpdateTerminalSchema } from "@stustapay/models";
+import { eq, useLiveQuery } from "@tanstack/react-db";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 import { Navigate, useParams } from "react-router-dom";
-import { TerminalForm } from "./TerminalForm";
+
 import { withPrivilegeGuard } from "@/app/layout";
+import { TerminalRoutes } from "@/app/routes";
+import { EditLayoutV2 } from "@/components";
+import { getTerminalCollection } from "@/db/collections";
+import { useCurrentNode } from "@/hooks";
+
+import { TerminalForm } from "./TerminalForm";
 
 export const TerminalUpdate: React.FC = withPrivilegeGuard("node_administration", () => {
   const { t } = useTranslation();
@@ -17,12 +20,18 @@ export const TerminalUpdate: React.FC = withPrivilegeGuard("node_administration"
   const {
     data: terminal,
     isLoading,
-    error,
-  } = useGetTerminalQuery({ nodeId: currentNode.id, terminalId: Number(terminalId) });
-  const [updateTerminal] = useUpdateTerminalMutation();
+    isError,
+  } = useLiveQuery(
+    (q) =>
+      q
+        .from({ terminals: getTerminalCollection(currentNode.id) })
+        .where(({ terminals }) => eq(terminals.id, Number(terminalId)))
+        .findOne(),
+    [currentNode.id, terminalId]
+  );
 
-  if (error) {
-    return <Navigate to={TerminalRoutes.list()} />;
+  if (isError) {
+    return <Navigate to={TerminalRoutes.action("list")} />;
   }
 
   if (isLoading || !terminal) {
@@ -30,13 +39,18 @@ export const TerminalUpdate: React.FC = withPrivilegeGuard("node_administration"
   }
 
   return (
-    <EditLayout
+    <EditLayoutV2
       title={t("terminal.update")}
       successRoute={TerminalRoutes.detail(terminal.id)}
       initialValues={terminal}
       form={TerminalForm}
       validationSchema={UpdateTerminalSchema}
-      onSubmit={(t) => updateTerminal({ nodeId: currentNode.id, terminalId: terminal.id, newTerminal: t })}
+      onSubmit={(updatedTerminal) =>
+        getTerminalCollection(currentNode.id).update(terminal.id, (draft) => {
+          draft.name = updatedTerminal.name;
+          draft.description = updatedTerminal.description;
+        })
+      }
     />
   );
 });

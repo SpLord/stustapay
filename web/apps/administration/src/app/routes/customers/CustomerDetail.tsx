@@ -1,18 +1,25 @@
-import { withPrivilegeGuard } from "@/app/layout";
-import { Privilege, formatUserTagUid } from "@stustapay/models";
+import { Edit as EditIcon, RemoveCircle as RemoveCircleIcon } from "@mui/icons-material";
+import { Alert, Button, Grid, IconButton, Stack } from "@mui/material";
+import { Loading } from "@stustapay/components";
+import { NodePrivilege, formatUserTagUid } from "@stustapay/models";
+import * as React from "react";
+import { useTranslation } from "react-i18next";
+import { useNavigate, useParams } from "react-router-dom";
+import { toast } from "react-toastify";
+
 import {
   Customer,
-  selectOrderAll,
   useAllowCustomerPayoutMutation,
   useDisableAccountMutation,
   useGetCustomerQuery,
-  useListOrdersQuery,
   usePreventCustomerPayoutMutation,
   useUpdateAccountCommentMutation,
 } from "@/api";
-import { AccountRoutes, PayoutRunRoutes, UserTagRoutes } from "@/app/routes";
+import { withPrivilegeGuard } from "@/app/layout";
+import { CustomerRoutes, PayoutRunRoutes, UserTagRoutes } from "@/app/routes";
 import {
   DetailBoolField,
+  DetailDateField,
   DetailField,
   DetailLayout,
   DetailNumberField,
@@ -20,18 +27,12 @@ import {
   EditableListItem,
 } from "@/components";
 import { OrderTable } from "@/components/features";
+import { LayoutAction } from "@/components/layouts/types";
 import { useCurrentNode, useCurrentUserHasPrivilegeAtNode } from "@/hooks";
-import { Edit as EditIcon, RemoveCircle as RemoveCircleIcon } from "@mui/icons-material";
-import { Alert, Button, Grid, IconButton, Stack } from "@mui/material";
-import { Loading } from "@stustapay/components";
-import * as React from "react";
-import { useTranslation } from "react-i18next";
-import { useNavigate, useParams } from "react-router-dom";
-import { toast } from "react-toastify";
+
 import { AccountTagHistoryTable } from "../accounts/components/AccountTagHistoryTable";
 import { EditAccountBalanceModal } from "../accounts/components/EditAccountBalanceModal";
 import { EditAccountVoucherAmountModal } from "../accounts/components/EditAccountVoucherAmountModal";
-import { LayoutAction } from "@/components/layouts/types";
 
 const PayoutDetails: React.FC<{ customer: Customer }> = ({ customer }) => {
   const { t } = useTranslation();
@@ -90,7 +91,7 @@ const PayoutDetails: React.FC<{ customer: Customer }> = ({ customer }) => {
   );
 };
 
-export const CustomerDetail = withPrivilegeGuard(Privilege.node_administration, () => {
+export const CustomerDetail = withPrivilegeGuard(NodePrivilege.node_administration, () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { customerId } = useParams();
@@ -111,37 +112,13 @@ export const CustomerDetail = withPrivilegeGuard(Privilege.node_administration, 
   const [balanceModalOpen, setBalanceModalOpen] = React.useState(false);
   const [voucherModalOpen, setVoucherModalOpen] = React.useState(false);
 
-  const {
-    orders,
-    error: orderError,
-    isLoading: isOrdersLoading,
-  } = useListOrdersQuery(
-    { nodeId: currentNode.id, customerAccountId: Number(customerId) },
-    {
-      selectFromResult: ({ data, ...rest }) => ({
-        ...rest,
-        orders: data ? selectOrderAll(data) : undefined,
-      }),
-    }
-  );
-
   if (isAccountLoading || (!customer && !error)) {
     return <Loading />;
   }
 
   if (error || !customer) {
     toast.error("Error loading account");
-    navigate(AccountRoutes.list());
-    return null;
-  }
-
-  if (isOrdersLoading || (!orders && !orderError)) {
-    return <Loading />;
-  }
-
-  if (orderError || !orders) {
-    toast.error("Error loading account");
-    navigate(-1);
+    navigate(CustomerRoutes.list());
     return null;
   }
 
@@ -178,7 +155,12 @@ export const CustomerDetail = withPrivilegeGuard(Privilege.node_administration, 
   };
 
   const actions: LayoutAction[] = [
-    { label: t("account.disable"), onClick: handleDisableAccount, color: "error", icon: <RemoveCircleIcon /> },
+    {
+      label: t("account.disable"),
+      onClick: handleDisableAccount,
+      color: "error",
+      icon: <RemoveCircleIcon />,
+    },
   ];
 
   if (canManagePayoutsAtNode(currentNode.id) && customer.payout == null) {
@@ -198,8 +180,8 @@ export const CustomerDetail = withPrivilegeGuard(Privilege.node_administration, 
   }
 
   return (
-    <DetailLayout title={`Customer Account ${customer.id}`} routes={AccountRoutes} actions={actions}>
-      <Grid container spacing={1} display="grid" alignItems="stretch" gridTemplateColumns="1fr 1fr">
+    <DetailLayout title={`Customer Account ${customer.id}`} routes={CustomerRoutes} actions={actions}>
+      <Grid container spacing={1} sx={{ display: "grid", alignItems: "stretch", gridTemplateColumns: "1fr 1fr" }}>
         <Grid>
           <DetailView sx={{ height: "100%" }}>
             <DetailField label={t("account.id")} value={customer.id} />
@@ -209,6 +191,7 @@ export const CustomerDetail = withPrivilegeGuard(Privilege.node_administration, 
               value={formatUserTagUid(customer.user_tag_uid_hex)}
               linkTo={UserTagRoutes.detail(customer.user_tag_id)}
             />
+            <DetailDateField label={t("account.activatedAt")} value={customer.activated_at} />
             <DetailField label={t("account.name")} value={customer.name} />
             <EditableListItem
               label={t("account.comment")}
@@ -240,7 +223,7 @@ export const CustomerDetail = withPrivilegeGuard(Privilege.node_administration, 
         open={voucherModalOpen}
         handleClose={() => setVoucherModalOpen(false)}
       />
-      <OrderTable orders={orders} showCashierColumn showTillColumn />
+      <OrderTable customerAccountId={Number(customerId)} showCashierColumn showTillColumn />
     </DetailLayout>
   );
 });

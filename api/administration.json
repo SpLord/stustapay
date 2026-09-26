@@ -5,7 +5,7 @@
     "license": {
       "name": "AGPL-3.0"
     },
-    "version": "0.1.0"
+    "version": "2026.2.1"
   },
   "paths": {
     "/products": {
@@ -46,7 +46,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/NormalizedList_Product_int_"
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Product"
+                  },
+                  "title": "Response List Products Products Get"
                 }
               }
             }
@@ -126,63 +130,6 @@
       }
     },
     "/products/{product_id}": {
-      "get": {
-        "tags": [
-          "products"
-        ],
-        "summary": "Get Product",
-        "operationId": "get_product",
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "product_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Product Id"
-            }
-          },
-          {
-            "name": "node_id",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Node Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Product"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found"
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
       "post": {
         "tags": [
           "products"
@@ -335,7 +282,10 @@
             "schema": {
               "anyOf": [
                 {
-                  "$ref": "#/components/schemas/Privilege"
+                  "$ref": "#/components/schemas/EventPrivilege"
+                },
+                {
+                  "$ref": "#/components/schemas/NodePrivilege"
                 },
                 {
                   "type": "null"
@@ -351,7 +301,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/NormalizedList_User_int_"
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/User"
+                  },
+                  "title": "Response List Users Users Get"
                 }
               }
             }
@@ -430,13 +384,13 @@
         }
       }
     },
-    "/users/{user_id}": {
+    "/users/{user_id}/voucher-grant-stats": {
       "get": {
         "tags": [
           "users"
         ],
-        "summary": "Get User",
-        "operationId": "get_user",
+        "summary": "Get User Voucher Grant Stats",
+        "operationId": "get_user_voucher_grant_stats",
         "security": [
           {
             "OAuth2PasswordBearer": []
@@ -468,7 +422,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/User"
+                  "$ref": "#/components/schemas/UserVoucherGrantStats"
                 }
               }
             }
@@ -487,7 +441,72 @@
             }
           }
         }
-      },
+      }
+    },
+    "/users/{user_id}/role-assignments": {
+      "get": {
+        "tags": [
+          "users"
+        ],
+        "summary": "List User Role Assignments",
+        "operationId": "list_user_role_assignments",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "User Id"
+            }
+          },
+          {
+            "name": "node_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Node Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/UserRoleAssignment"
+                  },
+                  "title": "Response List User Role Assignments Users  User Id  Role Assignments Get"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/users/{user_id}": {
       "post": {
         "tags": [
           "users"
@@ -709,7 +728,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/NormalizedList_UserRole_int_"
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/UserRole"
+                  },
+                  "title": "Response List User Roles User Roles Get"
                 }
               }
             }
@@ -1053,7 +1076,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/NormalizedList_TaxRate_int_"
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TaxRate"
+                  },
+                  "title": "Response List Tax Rates Tax Rates Get"
                 }
               }
             }
@@ -1133,63 +1160,6 @@
       }
     },
     "/tax-rates/{tax_rate_id}": {
-      "get": {
-        "tags": [
-          "tax-rates"
-        ],
-        "summary": "Get Tax Rate",
-        "operationId": "get_tax_rate",
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "tax_rate_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Tax Rate Id"
-            }
-          },
-          {
-            "name": "node_id",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Node Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TaxRate"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found"
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
       "post": {
         "tags": [
           "tax-rates"
@@ -1455,7 +1425,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/NormalizedList_Till_int_"
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Till"
+                  },
+                  "title": "Response List Tills Tills Get"
                 }
               }
             }
@@ -1535,63 +1509,6 @@
       }
     },
     "/tills/{till_id}": {
-      "get": {
-        "tags": [
-          "tills"
-        ],
-        "summary": "Get Till",
-        "operationId": "get_till",
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "till_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Till Id"
-            }
-          },
-          {
-            "name": "node_id",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Node Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Till"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found"
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
       "post": {
         "tags": [
           "tills"
@@ -1872,7 +1789,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/NormalizedList_TillLayout_int_"
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TillLayout"
+                  },
+                  "title": "Response List Till Layouts Till Layouts Get"
                 }
               }
             }
@@ -1952,63 +1873,6 @@
       }
     },
     "/till-layouts/{layout_id}": {
-      "get": {
-        "tags": [
-          "till-layouts"
-        ],
-        "summary": "Get Till Layout",
-        "operationId": "get_till_layout",
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "layout_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Layout Id"
-            }
-          },
-          {
-            "name": "node_id",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Node Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TillLayout"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found"
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
       "post": {
         "tags": [
           "till-layouts"
@@ -2161,7 +2025,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/NormalizedList_TillProfile_int_"
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TillProfile"
+                  },
+                  "title": "Response List Till Profiles Till Profiles Get"
                 }
               }
             }
@@ -2241,63 +2109,6 @@
       }
     },
     "/till-profiles/{profile_id}": {
-      "get": {
-        "tags": [
-          "till-profiles"
-        ],
-        "summary": "Get Till Profile",
-        "operationId": "get_till_profile",
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "profile_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Profile Id"
-            }
-          },
-          {
-            "name": "node_id",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Node Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TillProfile"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found"
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
       "post": {
         "tags": [
           "till-profiles"
@@ -2450,7 +2261,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/NormalizedList_TillButton_int_"
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TillButton"
+                  },
+                  "title": "Response List Till Buttons Till Buttons Get"
                 }
               }
             }
@@ -2530,63 +2345,6 @@
       }
     },
     "/till-buttons/{button_id}": {
-      "get": {
-        "tags": [
-          "till-buttons"
-        ],
-        "summary": "Get Till Button",
-        "operationId": "get_till_button",
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "button_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Button Id"
-            }
-          },
-          {
-            "name": "node_id",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Node Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TillButton"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found"
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
       "post": {
         "tags": [
           "till-buttons"
@@ -2739,7 +2497,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/NormalizedList_CashRegisterStocking_int_"
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CashRegisterStocking"
+                  },
+                  "title": "Response List Register Stockings Till Register Stockings Get"
                 }
               }
             }
@@ -2971,7 +2733,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/NormalizedList_CashRegister_int_"
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CashRegister"
+                  },
+                  "title": "Response List Cash Registers Admin Till Registers Get"
                 }
               }
             }
@@ -3050,28 +2816,19 @@
         }
       }
     },
-    "/till-registers/{register_id}": {
-      "get": {
+    "/till-registers/transfer-register": {
+      "post": {
         "tags": [
           "till-registers"
         ],
-        "summary": "Get Cash Register Admin",
-        "operationId": "get_cash_register_admin",
+        "summary": "Transfer Register",
+        "operationId": "transfer_register",
         "security": [
           {
             "OAuth2PasswordBearer": []
           }
         ],
         "parameters": [
-          {
-            "name": "register_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Register Id"
-            }
-          },
           {
             "name": "node_id",
             "in": "query",
@@ -3082,14 +2839,22 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransferRegisterPayload"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashRegister"
-                }
+                "schema": {}
               }
             }
           },
@@ -3107,7 +2872,9 @@
             }
           }
         }
-      },
+      }
+    },
+    "/till-registers/{register_id}": {
       "post": {
         "tags": [
           "till-registers"
@@ -3229,182 +2996,6 @@
         }
       }
     },
-    "/till-registers/{register_id}/cashier-shifts": {
-      "get": {
-        "tags": [
-          "till-registers"
-        ],
-        "summary": "Get Cashier Shifts For Register",
-        "operationId": "get_cashier_shifts_for_register",
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "register_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Register Id"
-            }
-          },
-          {
-            "name": "node_id",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Node Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/NormalizedList_CashierShift_int_"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found"
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/till-registers/{register_id}/transactions": {
-      "get": {
-        "tags": [
-          "till-registers"
-        ],
-        "summary": "List Transactions",
-        "operationId": "list_transactions",
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "register_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Register Id"
-            }
-          },
-          {
-            "name": "node_id",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Node Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/NormalizedList_Transaction_int_"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found"
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/till-registers/transfer-register": {
-      "post": {
-        "tags": [
-          "till-registers"
-        ],
-        "summary": "Transfer Register",
-        "operationId": "transfer_register",
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "node_id",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Node Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/TransferRegisterPayload"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "404": {
-            "description": "Not found"
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/public-config": {
       "get": {
         "tags": [
@@ -3427,82 +3018,6 @@
             "description": "Not found"
           }
         }
-      }
-    },
-    "/config": {
-      "get": {
-        "tags": [
-          "config"
-        ],
-        "summary": "List Config Entries",
-        "operationId": "list_config_entries",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/NormalizedList_ConfigEntry_str_"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found"
-          }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ]
-      },
-      "post": {
-        "tags": [
-          "config"
-        ],
-        "summary": "Set Config Entry",
-        "operationId": "set_config_entry",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ConfigEntry"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ConfigEntry"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found"
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ]
       }
     },
     "/system-accounts": {
@@ -3534,7 +3049,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/NormalizedList_Account_int_"
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Account"
+                  },
+                  "title": "Response List System Accounts System Accounts Get"
                 }
               }
             }
@@ -3585,66 +3104,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/MoneyOverview"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found"
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/accounts/find-accounts": {
-      "post": {
-        "tags": [
-          "accounts"
-        ],
-        "summary": "Find Accounts",
-        "operationId": "find_accounts",
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "node_id",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Node Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/FindAccountPayload"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/NormalizedList_Account_int_"
                 }
               }
             }
@@ -3984,65 +3443,6 @@
         }
       }
     },
-    "/orders/by-till/{till_id}": {
-      "get": {
-        "tags": [
-          "orders"
-        ],
-        "summary": "List Orders By Till",
-        "operationId": "list_orders_by_till",
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "till_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Till Id"
-            }
-          },
-          {
-            "name": "node_id",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Node Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/NormalizedList_Order_int_"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found"
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/orders": {
       "get": {
         "tags": [
@@ -4068,10 +3468,59 @@
           {
             "name": "customer_account_id",
             "in": "query",
-            "required": true,
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Customer Account Id"
+            }
+          },
+          {
+            "name": "till_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Till Id"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
             "schema": {
               "type": "integer",
-              "title": "Customer Account Id"
+              "default": 0,
+              "title": "Offset"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Limit"
             }
           }
         ],
@@ -4081,7 +3530,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/NormalizedList_Order_int_"
+                  "$ref": "#/components/schemas/PaginatedList_Order_"
                 }
               }
             }
@@ -4330,13 +3779,13 @@
         }
       }
     },
-    "/cashiers": {
+    "/cashiers/shifts": {
       "get": {
         "tags": [
           "cashiers"
         ],
-        "summary": "List Cashiers",
-        "operationId": "list_cashiers",
+        "summary": "List Cashier Shifts",
+        "operationId": "list_cashier_shifts",
         "security": [
           {
             "OAuth2PasswordBearer": []
@@ -4351,64 +3800,53 @@
               "type": "integer",
               "title": "Node Id"
             }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/NormalizedList_Cashier_int_"
-                }
-              }
-            }
           },
-          "404": {
-            "description": "Not found"
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/cashiers/{cashier_id}": {
-      "get": {
-        "tags": [
-          "cashiers"
-        ],
-        "summary": "Get Cashier",
-        "operationId": "get_cashier",
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "parameters": [
           {
             "name": "cashier_id",
-            "in": "path",
-            "required": true,
+            "in": "query",
+            "required": false,
             "schema": {
-              "type": "integer",
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Cashier Id"
             }
           },
           {
-            "name": "node_id",
+            "name": "cash_register_id",
             "in": "query",
-            "required": true,
+            "required": false,
             "schema": {
-              "type": "integer",
-              "title": "Node Id"
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cash Register Id"
+            }
+          },
+          {
+            "name": "shift_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Shift Id"
             }
           }
         ],
@@ -4418,66 +3856,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Cashier"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found"
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/cashiers/{cashier_id}/shifts": {
-      "get": {
-        "tags": [
-          "cashiers"
-        ],
-        "summary": "Get Cashier Shifts",
-        "operationId": "get_cashier_shifts",
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "cashier_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Cashier Id"
-            }
-          },
-          {
-            "name": "node_id",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Node Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/NormalizedList_CashierShift_int_"
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CashierShift"
+                  },
+                  "title": "Response List Cashier Shifts Cashiers Shifts Get"
                 }
               }
             }
@@ -4553,6 +3936,61 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CashierShiftStats"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/cashiers/revenue-report": {
+      "get": {
+        "tags": [
+          "cashiers"
+        ],
+        "summary": "Get Cashier Revenue Report",
+        "operationId": "get_cashier_revenue_report",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "node_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Node Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": true
+                  },
+                  "title": "Response Get Cashier Revenue Report Cashiers Revenue Report Get"
                 }
               }
             }
@@ -5062,6 +4500,174 @@
         }
       }
     },
+    "/stats/payment-methods": {
+      "get": {
+        "tags": [
+          "stats"
+        ],
+        "summary": "Get Payment Method Stats",
+        "operationId": "get_payment_method_stats",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "node_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Node Id"
+            }
+          },
+          {
+            "name": "to_timestamp",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To Timestamp"
+            }
+          },
+          {
+            "name": "from_timestamp",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From Timestamp"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentMethodStatsResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/stats/free-tickets": {
+      "get": {
+        "tags": [
+          "stats"
+        ],
+        "summary": "Get Free Ticket Stats",
+        "operationId": "get_free_ticket_stats",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "node_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Node Id"
+            }
+          },
+          {
+            "name": "to_timestamp",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To Timestamp"
+            }
+          },
+          {
+            "name": "from_timestamp",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From Timestamp"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FreeTicketStats"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/tickets": {
       "get": {
         "tags": [
@@ -5091,7 +4697,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/NormalizedList_Ticket_int_"
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Ticket"
+                  },
+                  "title": "Response List Tickets Tickets Get"
                 }
               }
             }
@@ -5224,28 +4834,19 @@
         }
       }
     },
-    "/tickets/{ticket_id}": {
+    "/tickets/stats/presale": {
       "get": {
         "tags": [
           "tickets"
         ],
-        "summary": "Get Ticket",
-        "operationId": "get_ticket",
+        "summary": "Get Presale Stats",
+        "operationId": "get_presale_stats",
         "security": [
           {
             "OAuth2PasswordBearer": []
           }
         ],
         "parameters": [
-          {
-            "name": "ticket_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Ticket Id"
-            }
-          },
           {
             "name": "node_id",
             "in": "query",
@@ -5262,7 +4863,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Ticket"
+                  "$ref": "#/components/schemas/PresaleStats"
                 }
               }
             }
@@ -5281,7 +4882,9 @@
             }
           }
         }
-      },
+      }
+    },
+    "/tickets/{ticket_id}": {
       "post": {
         "tags": [
           "tickets"
@@ -5579,6 +5182,67 @@
         }
       }
     },
+    "/user-tags/csv-export": {
+      "post": {
+        "tags": [
+          "user_tags"
+        ],
+        "summary": "User Tags Csv Export",
+        "operationId": "user_tags_csv_export",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "node_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Node Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserTagsCsvExportPayload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string",
+                  "title": "Response User Tags Csv Export User Tags Csv Export Post"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/user-tags/find-user-tags": {
       "post": {
         "tags": [
@@ -5618,7 +5282,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/NormalizedList_UserTagDetail_int_"
+                  "$ref": "#/components/schemas/NormalizedList_UserTagDetail__int_"
                 }
               }
             }
@@ -5767,6 +5431,299 @@
         }
       }
     },
+    "/user-tag-variants": {
+      "get": {
+        "tags": [
+          "user_tags"
+        ],
+        "summary": "List User Tag Variants",
+        "operationId": "list_user_tag_variants",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "node_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Node Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/UserTagVariant"
+                  },
+                  "title": "Response List User Tag Variants User Tag Variants Get"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "user_tags"
+        ],
+        "summary": "Create User Tag Variant",
+        "operationId": "create_user_tag_variant",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "node_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Node Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewUserTagVariant"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserTagVariant"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/user-tag-variants/{user_tag_variant_id}": {
+      "get": {
+        "tags": [
+          "user_tags"
+        ],
+        "summary": "Get User Tag Variant",
+        "operationId": "get_user_tag_variant",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user_tag_variant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "User Tag Variant Id"
+            }
+          },
+          {
+            "name": "node_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Node Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserTagVariant"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "user_tags"
+        ],
+        "summary": "Update User Tag Variant",
+        "operationId": "update_user_tag_variant",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user_tag_variant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "User Tag Variant Id"
+            }
+          },
+          {
+            "name": "node_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Node Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewUserTagVariant"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserTagVariant"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "user_tags"
+        ],
+        "summary": "Delete User Tag Variant",
+        "operationId": "delete_user_tag_variant",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user_tag_variant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "User Tag Variant Id"
+            }
+          },
+          {
+            "name": "node_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Node Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/tses/": {
       "get": {
         "tags": [
@@ -5796,7 +5753,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/NormalizedList_Tse_int_"
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Tse"
+                  },
+                  "title": "Response List Tses Tses  Get"
                 }
               }
             }
@@ -5973,7 +5934,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/NormalizedList_PayoutRunWithStats_int_"
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PayoutRunWithStats"
+                  },
+                  "title": "Response List Payout Runs Payouts  Get"
                 }
               }
             }
@@ -6844,6 +6809,180 @@
         }
       }
     },
+    "/tree/events/{node_id}/event-design/app-logo": {
+      "post": {
+        "tags": [
+          "tree"
+        ],
+        "summary": "Update App Logo",
+        "operationId": "update_app_logo",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "node_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Node Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewBlob"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tree/events/{node_id}/event-design/customer-logo": {
+      "post": {
+        "tags": [
+          "tree"
+        ],
+        "summary": "Update Customer Logo",
+        "operationId": "update_customer_logo",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "node_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Node Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewBlob"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tree/events/{node_id}/event-design/wristband-guide": {
+      "post": {
+        "tags": [
+          "tree"
+        ],
+        "summary": "Update Wristband Guide",
+        "operationId": "update_wristband_guide",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "node_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Node Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewBlob"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/tree/events/{node_id}/event-design": {
       "get": {
         "tags": [
@@ -7469,6 +7608,114 @@
         }
       }
     },
+    "/tree/events/{node_id}/export-dsfinvk": {
+      "post": {
+        "tags": [
+          "tree"
+        ],
+        "summary": "Export Dsfinvk",
+        "operationId": "export_dsfinvk",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "node_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Node Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              },
+              "application/zip": {}
+            }
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tree/events/{node_id}/export-ao146a": {
+      "post": {
+        "tags": [
+          "tree"
+        ],
+        "summary": "Export Ao146A",
+        "operationId": "export_ao146a",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "node_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Node Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Ao146aExportPayload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              },
+              "application/xml": {}
+            }
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/tree/nodes/{node_id}/configure-sumup-token": {
       "post": {
         "tags": [
@@ -7558,68 +7805,9 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/AuditLog"
+                    "$ref": "#/components/schemas/AuditLogDetail"
                   },
                   "title": "Response List Audit Logs Tree Nodes  Node Id  Audit Logs Get"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found"
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/tree/nodes/{node_id}/audit-logs/{audit_log_id}": {
-      "get": {
-        "tags": [
-          "tree"
-        ],
-        "summary": "Get Audit Log",
-        "operationId": "get_audit_log",
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "node_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Node Id"
-            }
-          },
-          {
-            "name": "audit_log_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Audit Log Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AuditLogDetail"
                 }
               }
             }
@@ -8098,6 +8286,64 @@
         }
       }
     },
+    "/customers/switch-tag": {
+      "post": {
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Switch Customer Tag",
+        "operationId": "switch_customer_tag",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "node_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Node Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SwitchCustomerTagPayload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/terminal": {
       "get": {
         "tags": [
@@ -8127,7 +8373,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/NormalizedList_Terminal_int_"
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Terminal"
+                  },
+                  "title": "Response List Terminals Terminal Get"
                 }
               }
             }
@@ -8206,28 +8456,19 @@
         }
       }
     },
-    "/terminal/{terminal_id}": {
+    "/terminal/mdm-devices": {
       "get": {
         "tags": [
           "terminals"
         ],
-        "summary": "Get Terminal",
-        "operationId": "get_terminal",
+        "summary": "List Mdm Devices",
+        "operationId": "list_mdm_devices",
         "security": [
           {
             "OAuth2PasswordBearer": []
           }
         ],
         "parameters": [
-          {
-            "name": "terminal_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Terminal Id"
-            }
-          },
           {
             "name": "node_id",
             "in": "query",
@@ -8244,7 +8485,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Terminal"
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MdmDeviceWithMapping"
+                  },
+                  "title": "Response List Mdm Devices Terminal Mdm Devices Get"
                 }
               }
             }
@@ -8263,7 +8508,180 @@
             }
           }
         }
-      },
+      }
+    },
+    "/terminal/mdm-devices/change-device-to-terminal-mapping": {
+      "post": {
+        "tags": [
+          "terminals"
+        ],
+        "summary": "Change Mdm Device Mapping",
+        "operationId": "change_mdm_device_mapping",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "node_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Node Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeMdmDeviceMappingPayload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/terminal/mdm-devices/{mdm_device_id}/location": {
+      "get": {
+        "tags": [
+          "terminals"
+        ],
+        "summary": "Get Mdm Device Location",
+        "operationId": "get_mdm_device_location",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "mdm_device_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Mdm Device Id"
+            }
+          },
+          {
+            "name": "node_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Node Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MdmDeviceLocation"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/terminal/locations": {
+      "get": {
+        "tags": [
+          "terminals"
+        ],
+        "summary": "List Terminal Locations",
+        "operationId": "list_terminal_locations",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "node_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Node Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TerminalLocation"
+                  },
+                  "title": "Response List Terminal Locations Terminal Locations Get"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/terminal/{terminal_id}": {
       "post": {
         "tags": [
           "terminals"
@@ -8570,6 +8988,114 @@
         }
       }
     },
+    "/transactions": {
+      "get": {
+        "tags": [
+          "transactions"
+        ],
+        "summary": "List Transactions",
+        "operationId": "list_transactions",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "node_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Node Id"
+            }
+          },
+          {
+            "name": "cash_register_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cash Register Id"
+            }
+          },
+          {
+            "name": "transaction_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Transaction Id"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 0,
+              "title": "Offset"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedList_Transaction_"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/transactions/{transaction_id}": {
       "get": {
         "tags": [
@@ -8757,6 +9283,18 @@
             "type": "integer",
             "title": "Vouchers"
           },
+          "activated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Activated At"
+          },
           "user_tag_id": {
             "anyOf": [
               {
@@ -8790,15 +9328,21 @@
             ],
             "title": "User Tag Comment"
           },
-          "restriction": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/ProductRestriction"
-              },
-              {
-                "type": "null"
-              }
-            ]
+          "user_tag_variant_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "User Tag Variant Ids",
+            "default": []
+          },
+          "user_tag_variant_names": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "User Tag Variant Names",
+            "default": []
           },
           "tag_history": {
             "items": {
@@ -8831,7 +9375,6 @@
           "vouchers",
           "user_tag_id",
           "user_tag_uid",
-          "restriction",
           "tag_history",
           "user_tag_uid_hex"
         ],
@@ -8857,58 +9400,23 @@
         ],
         "title": "AccountType"
       },
-      "AuditLog": {
+      "Ao146aExportPayload": {
         "properties": {
-          "id": {
-            "type": "integer",
-            "title": "Id"
-          },
-          "created_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Created At"
-          },
-          "node_id": {
-            "type": "integer",
-            "title": "Node Id"
-          },
-          "log_type": {
-            "type": "string",
-            "title": "Log Type"
-          },
-          "originating_user_id": {
+          "shutdown_date": {
             "anyOf": [
               {
-                "type": "integer"
+                "type": "string",
+                "format": "date"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Originating User Id"
-          },
-          "originating_terminal_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Originating Terminal Id"
+            "title": "Shutdown Date"
           }
         },
         "type": "object",
-        "required": [
-          "id",
-          "created_at",
-          "node_id",
-          "log_type",
-          "originating_user_id",
-          "originating_terminal_id"
-        ],
-        "title": "AuditLog"
+        "title": "Ao146aExportPayload"
       },
       "AuditLogDetail": {
         "properties": {
@@ -8952,6 +9460,7 @@
             "title": "Originating Terminal Id"
           },
           "content": {
+            "additionalProperties": true,
             "type": "object",
             "title": "Content"
           }
@@ -9220,122 +9729,6 @@
         ],
         "title": "CashRegisterStocking"
       },
-      "Cashier": {
-        "properties": {
-          "node_id": {
-            "type": "integer",
-            "title": "Node Id"
-          },
-          "id": {
-            "type": "integer",
-            "title": "Id"
-          },
-          "login": {
-            "type": "string",
-            "title": "Login"
-          },
-          "display_name": {
-            "type": "string",
-            "title": "Display Name"
-          },
-          "description": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Description"
-          },
-          "user_tag_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "User Tag Id"
-          },
-          "user_tag_uid": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "User Tag Uid"
-          },
-          "transport_account_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Transport Account Id"
-          },
-          "cash_register_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Cash Register Id"
-          },
-          "cash_drawer_balance": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Cash Drawer Balance"
-          },
-          "terminal_ids": {
-            "items": {
-              "type": "integer"
-            },
-            "type": "array",
-            "title": "Terminal Ids"
-          },
-          "user_tag_uid_hex": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "User Tag Uid Hex",
-            "readOnly": true
-          }
-        },
-        "type": "object",
-        "required": [
-          "node_id",
-          "id",
-          "login",
-          "display_name",
-          "cash_drawer_balance",
-          "terminal_ids",
-          "user_tag_uid_hex"
-        ],
-        "title": "Cashier"
-      },
       "CashierProductStats": {
         "properties": {
           "product": {
@@ -9443,6 +9836,24 @@
           "orders"
         ],
         "title": "CashierShiftStats"
+      },
+      "ChangeMdmDeviceMappingPayload": {
+        "properties": {
+          "mdm_device_id": {
+            "type": "string",
+            "title": "Mdm Device Id"
+          },
+          "terminal_id": {
+            "type": "integer",
+            "title": "Terminal Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "mdm_device_id",
+          "terminal_id"
+        ],
+        "title": "ChangeMdmDeviceMappingPayload"
       },
       "ChangePasswordPayload": {
         "properties": {
@@ -9649,31 +10060,6 @@
         ],
         "title": "Config"
       },
-      "ConfigEntry": {
-        "properties": {
-          "key": {
-            "type": "string",
-            "title": "Key"
-          },
-          "value": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Value"
-          }
-        },
-        "type": "object",
-        "required": [
-          "key",
-          "value"
-        ],
-        "title": "ConfigEntry"
-      },
       "CreateSepaXMLPayload": {
         "properties": {
           "execution_date": {
@@ -9790,12 +10176,19 @@
             ],
             "title": "Active Role Name"
           },
-          "privileges": {
+          "event_privileges": {
             "items": {
-              "$ref": "#/components/schemas/Privilege"
+              "$ref": "#/components/schemas/EventPrivilege"
             },
             "type": "array",
-            "title": "Privileges"
+            "title": "Event Privileges"
+          },
+          "node_privileges": {
+            "items": {
+              "$ref": "#/components/schemas/NodePrivilege"
+            },
+            "type": "array",
+            "title": "Node Privileges"
           },
           "description": {
             "anyOf": [
@@ -9858,8 +10251,7 @@
           "node_id",
           "id",
           "login",
-          "display_name",
-          "privileges"
+          "display_name"
         ],
         "title": "CurrentUser",
         "description": "Describes a logged-in user in the system"
@@ -9907,6 +10299,18 @@
             "type": "integer",
             "title": "Vouchers"
           },
+          "activated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Activated At"
+          },
           "user_tag_id": {
             "anyOf": [
               {
@@ -9940,15 +10344,21 @@
             ],
             "title": "User Tag Comment"
           },
-          "restriction": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/ProductRestriction"
-              },
-              {
-                "type": "null"
-              }
-            ]
+          "user_tag_variant_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "User Tag Variant Ids",
+            "default": []
+          },
+          "user_tag_variant_names": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "User Tag Variant Names",
+            "default": []
           },
           "tag_history": {
             "items": {
@@ -10065,7 +10475,6 @@
           "vouchers",
           "user_tag_id",
           "user_tag_uid",
-          "restriction",
           "tag_history",
           "iban",
           "account_name",
@@ -10079,6 +10488,38 @@
           "user_tag_uid_hex"
         ],
         "title": "Customer"
+      },
+      "DepositOverview": {
+        "properties": {
+          "total_deposit_charged": {
+            "type": "number",
+            "title": "Total Deposit Charged"
+          },
+          "total_deposit_returned": {
+            "type": "number",
+            "title": "Total Deposit Returned"
+          },
+          "deposit_balance": {
+            "type": "number",
+            "title": "Deposit Balance"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total_deposit_charged",
+          "total_deposit_returned",
+          "deposit_balance"
+        ],
+        "title": "DepositOverview"
+      },
+      "DeviceStatus": {
+        "type": "string",
+        "enum": [
+          "online",
+          "offline",
+          "unknown"
+        ],
+        "title": "DeviceStatus"
       },
       "EditSaleProducts": {
         "properties": {
@@ -10126,6 +10567,42 @@
               }
             ],
             "title": "Bon Logo Blob Id"
+          },
+          "app_logo_blob_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "App Logo Blob Id"
+          },
+          "customer_logo_blob_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Customer Logo Blob Id"
+          },
+          "wristband_guide_blob_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wristband Guide Blob Id"
           }
         },
         "type": "object",
@@ -10133,6 +10610,20 @@
           "bon_logo_blob_id"
         ],
         "title": "EventDesign"
+      },
+      "EventPrivilege": {
+        "type": "string",
+        "enum": [
+          "customer_management",
+          "payout_management",
+          "create_user",
+          "cash_transport",
+          "terminal_login",
+          "supervised_terminal_login",
+          "grant_free_tickets",
+          "grant_vouchers"
+        ],
+        "title": "EventPrivilege"
       },
       "ExternalTicket": {
         "properties": {
@@ -10174,6 +10665,43 @@
             ],
             "title": "Customer Email"
           },
+          "customer_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Customer Name"
+          },
+          "initial_top_up_amount": {
+            "type": "number",
+            "title": "Initial Top Up Amount"
+          },
+          "pretix_item_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pretix Item Id"
+          },
+          "pretix_product_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pretix Product Name"
+          },
           "id": {
             "type": "integer",
             "title": "Id"
@@ -10185,6 +10713,14 @@
           "has_checked_in": {
             "type": "boolean",
             "title": "Has Checked In"
+          },
+          "cancelled": {
+            "type": "boolean",
+            "title": "Cancelled"
+          },
+          "externally_checked_in": {
+            "type": "boolean",
+            "title": "Externally Checked In"
           }
         },
         "type": "object",
@@ -10193,9 +10729,17 @@
           "created_at",
           "token",
           "ticket_type",
+          "external_link",
+          "customer_email",
+          "customer_name",
+          "initial_top_up_amount",
+          "pretix_item_id",
+          "pretix_product_name",
           "id",
           "customer_account_id",
-          "has_checked_in"
+          "has_checked_in",
+          "cancelled",
+          "externally_checked_in"
         ],
         "title": "ExternalTicket"
       },
@@ -10205,19 +10749,6 @@
           "pretix"
         ],
         "title": "ExternalTicketType"
-      },
-      "FindAccountPayload": {
-        "properties": {
-          "search_term": {
-            "type": "string",
-            "title": "Search Term"
-          }
-        },
-        "type": "object",
-        "required": [
-          "search_term"
-        ],
-        "title": "FindAccountPayload"
       },
       "FindCustomerPayload": {
         "properties": {
@@ -10244,6 +10775,19 @@
           "search_term"
         ],
         "title": "FindUserTagPayload"
+      },
+      "FreeTicketStats": {
+        "properties": {
+          "free_tickets_issued": {
+            "type": "integer",
+            "title": "Free Tickets Issued"
+          }
+        },
+        "type": "object",
+        "required": [
+          "free_tickets_issued"
+        ],
+        "title": "FreeTicketStats"
       },
       "GenerateDailyReportPayload": {
         "properties": {
@@ -10338,6 +10882,10 @@
             "type": "number",
             "title": "Tax Rate"
           },
+          "vouchers_redeemed": {
+            "type": "integer",
+            "title": "Vouchers Redeemed"
+          },
           "item_id": {
             "type": "integer",
             "title": "Item Id"
@@ -10360,6 +10908,7 @@
           "tax_rate_id",
           "tax_name",
           "tax_rate",
+          "vouchers_redeemed",
           "item_id",
           "total_tax",
           "total_price"
@@ -10395,6 +10944,213 @@
         ],
         "title": "LoginPayload"
       },
+      "MdmDevice": {
+        "properties": {
+          "device_id": {
+            "type": "string",
+            "title": "Device Id"
+          },
+          "serial": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Serial"
+          },
+          "imei": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Imei"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "last_update": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Update"
+          },
+          "ip_address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ip Address"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "status": {
+            "$ref": "#/components/schemas/DeviceStatus"
+          },
+          "location_last_update": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location Last Update"
+          }
+        },
+        "type": "object",
+        "required": [
+          "device_id",
+          "status"
+        ],
+        "title": "MdmDevice"
+      },
+      "MdmDeviceLocation": {
+        "properties": {
+          "latitude": {
+            "type": "number",
+            "title": "Latitude"
+          },
+          "longitude": {
+            "type": "number",
+            "title": "Longitude"
+          },
+          "last_update": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Update"
+          }
+        },
+        "type": "object",
+        "required": [
+          "latitude",
+          "longitude",
+          "last_update"
+        ],
+        "title": "MdmDeviceLocation"
+      },
+      "MdmDeviceMappingWithTerminal": {
+        "properties": {
+          "terminal_id": {
+            "type": "integer",
+            "title": "Terminal Id"
+          },
+          "type": {
+            "$ref": "#/components/schemas/MdmType"
+          },
+          "mdm_device_id": {
+            "type": "string",
+            "title": "Mdm Device Id"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "terminal_name": {
+            "type": "string",
+            "title": "Terminal Name"
+          },
+          "terminal_description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Terminal Description"
+          }
+        },
+        "type": "object",
+        "required": [
+          "terminal_id",
+          "type",
+          "mdm_device_id",
+          "created_at",
+          "updated_at",
+          "terminal_name"
+        ],
+        "title": "MdmDeviceMappingWithTerminal"
+      },
+      "MdmDeviceWithMapping": {
+        "properties": {
+          "device": {
+            "$ref": "#/components/schemas/MdmDevice"
+          },
+          "mapping": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MdmDeviceMappingWithTerminal"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "device",
+          "mapping"
+        ],
+        "title": "MdmDeviceWithMapping"
+      },
+      "MdmType": {
+        "type": "string",
+        "enum": [
+          "headwind"
+        ],
+        "title": "MdmType"
+      },
       "MoneyOverview": {
         "properties": {
           "system_accounts": {
@@ -10411,6 +11167,16 @@
           "total_cash_register_balance": {
             "type": "number",
             "title": "Total Cash Register Balance"
+          },
+          "deposit_overview": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DepositOverview"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -10589,6 +11355,39 @@
             ],
             "title": "Email Smtp Password"
           },
+          "headwind_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Headwind Url"
+          },
+          "headwind_username": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Headwind Username"
+          },
+          "headwind_password": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Headwind Password"
+          },
           "currency_identifier": {
             "type": "string",
             "title": "Currency Identifier"
@@ -10658,6 +11457,17 @@
             "format": "email",
             "title": "Customer Portal Contact Email"
           },
+          "customer_portal_feedback_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Customer Portal Feedback Url"
+          },
           "pretix_presale_enabled": {
             "type": "boolean",
             "title": "Pretix Presale Enabled"
@@ -10709,6 +11519,20 @@
             ],
             "title": "Pretix Ticket Ids"
           },
+          "pretix_topup_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pretix Topup Ids"
+          },
           "ust_id": {
             "type": "string",
             "title": "Ust Id"
@@ -10717,9 +11541,22 @@
             "type": "string",
             "title": "Bon Issuer"
           },
-          "bon_address": {
+          "bon_street": {
             "type": "string",
-            "title": "Bon Address"
+            "title": "Bon Street"
+          },
+          "bon_zip": {
+            "type": "string",
+            "title": "Bon Zip"
+          },
+          "bon_city": {
+            "type": "string",
+            "title": "Bon City"
+          },
+          "bon_country": {
+            "type": "string",
+            "title": "Bon Country",
+            "default": "DEU"
           },
           "bon_title": {
             "type": "string",
@@ -10862,6 +11699,11 @@
             ],
             "title": "Payout Sender"
           },
+          "headwind_enabled": {
+            "type": "boolean",
+            "title": "Headwind Enabled",
+            "default": false
+          },
           "translation_texts": {
             "additionalProperties": {
               "additionalProperties": {
@@ -10917,9 +11759,12 @@
           "pretix_organizer",
           "pretix_event",
           "pretix_ticket_ids",
+          "pretix_topup_ids",
           "ust_id",
           "bon_issuer",
-          "bon_address",
+          "bon_street",
+          "bon_zip",
+          "bon_city",
           "bon_title",
           "sepa_enabled",
           "sepa_sender_name",
@@ -11021,12 +11866,12 @@
             "type": "integer",
             "title": "Tax Rate Id"
           },
-          "restrictions": {
+          "user_tag_variant_ids": {
             "items": {
-              "$ref": "#/components/schemas/ProductRestriction"
+              "type": "integer"
             },
             "type": "array",
-            "title": "Restrictions",
+            "title": "User Tag Variant Ids",
             "default": []
           },
           "is_locked": {
@@ -11037,6 +11882,11 @@
           "is_returnable": {
             "type": "boolean",
             "title": "Is Returnable",
+            "default": false
+          },
+          "is_deposit": {
+            "type": "boolean",
+            "title": "Is Deposit",
             "default": false
           },
           "target_account_id": {
@@ -11072,13 +11922,17 @@
           "description": {
             "type": "string",
             "title": "Description"
+          },
+          "tax_type": {
+            "$ref": "#/components/schemas/TaxType"
           }
         },
         "type": "object",
         "required": [
           "name",
           "rate",
-          "description"
+          "description",
+          "tax_type"
         ],
         "title": "NewTaxRate"
       },
@@ -11120,12 +11974,12 @@
             "type": "integer",
             "title": "Tax Rate Id"
           },
-          "restrictions": {
+          "user_tag_variant_ids": {
             "items": {
-              "$ref": "#/components/schemas/ProductRestriction"
+              "type": "integer"
             },
             "type": "array",
-            "title": "Restrictions"
+            "title": "User Tag Variant Ids"
           },
           "is_locked": {
             "type": "boolean",
@@ -11141,7 +11995,7 @@
           "name",
           "price",
           "tax_rate_id",
-          "restrictions",
+          "user_tag_variant_ids",
           "is_locked",
           "initial_top_up_amount"
         ],
@@ -11398,23 +12252,38 @@
             "type": "string",
             "title": "Name"
           },
-          "is_privileged": {
+          "can_assign_all_roles": {
             "type": "boolean",
-            "title": "Is Privileged",
+            "title": "Can Assign All Roles",
             "default": false
           },
-          "privileges": {
+          "assignable_role_ids": {
             "items": {
-              "$ref": "#/components/schemas/Privilege"
+              "type": "integer"
             },
             "type": "array",
-            "title": "Privileges"
+            "title": "Assignable Role Ids"
+          },
+          "event_privileges": {
+            "items": {
+              "$ref": "#/components/schemas/EventPrivilege"
+            },
+            "type": "array",
+            "title": "Event Privileges"
+          },
+          "node_privileges": {
+            "items": {
+              "$ref": "#/components/schemas/NodePrivilege"
+            },
+            "type": "array",
+            "title": "Node Privileges"
           }
         },
         "type": "object",
         "required": [
           "name",
-          "privileges"
+          "event_privileges",
+          "node_privileges"
         ],
         "title": "NewUserRole"
       },
@@ -11424,19 +12293,25 @@
             "type": "string",
             "title": "Pin"
           },
-          "restriction": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/ProductRestriction"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "secret_id": {
             "type": "integer",
             "title": "Secret Id"
+          },
+          "variant_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Variant Ids",
+            "default": []
+          },
+          "variant_names": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Variant Names",
+            "default": []
           }
         },
         "type": "object",
@@ -11469,6 +12344,29 @@
         ],
         "title": "NewUserTagSecret"
       },
+      "NewUserTagVariant": {
+        "properties": {
+          "variant_name": {
+            "type": "string",
+            "title": "Variant Name"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "default": ""
+          },
+          "priority": {
+            "type": "integer",
+            "title": "Priority",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "variant_name"
+        ],
+        "title": "NewUserTagVariant"
+      },
       "NewUserToRoles": {
         "properties": {
           "user_id": {
@@ -11481,11 +12379,6 @@
             },
             "type": "array",
             "title": "Role Ids"
-          },
-          "terminal_only": {
-            "type": "boolean",
-            "title": "Terminal Only",
-            "default": false
           }
         },
         "type": "object",
@@ -11642,6 +12535,15 @@
         ],
         "title": "NodeChoice"
       },
+      "NodePrivilege": {
+        "type": "string",
+        "enum": [
+          "node_administration",
+          "view_node_stats",
+          "can_book_orders"
+        ],
+        "title": "NodePrivilege"
+      },
       "NodeSeenByUser": {
         "properties": {
           "id": {
@@ -11745,13 +12647,21 @@
             "type": "array",
             "title": "Children"
           },
-          "privileges_at_node": {
+          "event_privileges_at_node": {
             "items": {
-              "$ref": "#/components/schemas/Privilege"
+              "$ref": "#/components/schemas/EventPrivilege"
             },
             "type": "array",
             "uniqueItems": true,
-            "title": "Privileges At Node"
+            "title": "Event Privileges At Node"
+          },
+          "node_privileges_at_node": {
+            "items": {
+              "$ref": "#/components/schemas/NodePrivilege"
+            },
+            "type": "array",
+            "uniqueItems": true,
+            "title": "Node Privileges At Node"
           }
         },
         "type": "object",
@@ -11771,467 +12681,12 @@
           "forbidden_objects_in_subtree",
           "computed_forbidden_objects_in_subtree",
           "children",
-          "privileges_at_node"
+          "event_privileges_at_node",
+          "node_privileges_at_node"
         ],
         "title": "NodeSeenByUser"
       },
-      "NormalizedList_Account_int_": {
-        "properties": {
-          "ids": {
-            "items": {
-              "type": "integer"
-            },
-            "type": "array",
-            "title": "Ids"
-          },
-          "entities": {
-            "additionalProperties": {
-              "$ref": "#/components/schemas/Account"
-            },
-            "type": "object",
-            "title": "Entities"
-          }
-        },
-        "type": "object",
-        "required": [
-          "ids",
-          "entities"
-        ],
-        "title": "NormalizedList[Account, int]"
-      },
-      "NormalizedList_CashRegisterStocking_int_": {
-        "properties": {
-          "ids": {
-            "items": {
-              "type": "integer"
-            },
-            "type": "array",
-            "title": "Ids"
-          },
-          "entities": {
-            "additionalProperties": {
-              "$ref": "#/components/schemas/CashRegisterStocking"
-            },
-            "type": "object",
-            "title": "Entities"
-          }
-        },
-        "type": "object",
-        "required": [
-          "ids",
-          "entities"
-        ],
-        "title": "NormalizedList[CashRegisterStocking, int]"
-      },
-      "NormalizedList_CashRegister_int_": {
-        "properties": {
-          "ids": {
-            "items": {
-              "type": "integer"
-            },
-            "type": "array",
-            "title": "Ids"
-          },
-          "entities": {
-            "additionalProperties": {
-              "$ref": "#/components/schemas/CashRegister"
-            },
-            "type": "object",
-            "title": "Entities"
-          }
-        },
-        "type": "object",
-        "required": [
-          "ids",
-          "entities"
-        ],
-        "title": "NormalizedList[CashRegister, int]"
-      },
-      "NormalizedList_CashierShift_int_": {
-        "properties": {
-          "ids": {
-            "items": {
-              "type": "integer"
-            },
-            "type": "array",
-            "title": "Ids"
-          },
-          "entities": {
-            "additionalProperties": {
-              "$ref": "#/components/schemas/CashierShift"
-            },
-            "type": "object",
-            "title": "Entities"
-          }
-        },
-        "type": "object",
-        "required": [
-          "ids",
-          "entities"
-        ],
-        "title": "NormalizedList[CashierShift, int]"
-      },
-      "NormalizedList_Cashier_int_": {
-        "properties": {
-          "ids": {
-            "items": {
-              "type": "integer"
-            },
-            "type": "array",
-            "title": "Ids"
-          },
-          "entities": {
-            "additionalProperties": {
-              "$ref": "#/components/schemas/Cashier"
-            },
-            "type": "object",
-            "title": "Entities"
-          }
-        },
-        "type": "object",
-        "required": [
-          "ids",
-          "entities"
-        ],
-        "title": "NormalizedList[Cashier, int]"
-      },
-      "NormalizedList_ConfigEntry_str_": {
-        "properties": {
-          "ids": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Ids"
-          },
-          "entities": {
-            "additionalProperties": {
-              "$ref": "#/components/schemas/ConfigEntry"
-            },
-            "type": "object",
-            "title": "Entities"
-          }
-        },
-        "type": "object",
-        "required": [
-          "ids",
-          "entities"
-        ],
-        "title": "NormalizedList[ConfigEntry, str]"
-      },
-      "NormalizedList_Order_int_": {
-        "properties": {
-          "ids": {
-            "items": {
-              "type": "integer"
-            },
-            "type": "array",
-            "title": "Ids"
-          },
-          "entities": {
-            "additionalProperties": {
-              "$ref": "#/components/schemas/Order"
-            },
-            "type": "object",
-            "title": "Entities"
-          }
-        },
-        "type": "object",
-        "required": [
-          "ids",
-          "entities"
-        ],
-        "title": "NormalizedList[Order, int]"
-      },
-      "NormalizedList_PayoutRunWithStats_int_": {
-        "properties": {
-          "ids": {
-            "items": {
-              "type": "integer"
-            },
-            "type": "array",
-            "title": "Ids"
-          },
-          "entities": {
-            "additionalProperties": {
-              "$ref": "#/components/schemas/PayoutRunWithStats"
-            },
-            "type": "object",
-            "title": "Entities"
-          }
-        },
-        "type": "object",
-        "required": [
-          "ids",
-          "entities"
-        ],
-        "title": "NormalizedList[PayoutRunWithStats, int]"
-      },
-      "NormalizedList_Product_int_": {
-        "properties": {
-          "ids": {
-            "items": {
-              "type": "integer"
-            },
-            "type": "array",
-            "title": "Ids"
-          },
-          "entities": {
-            "additionalProperties": {
-              "$ref": "#/components/schemas/Product"
-            },
-            "type": "object",
-            "title": "Entities"
-          }
-        },
-        "type": "object",
-        "required": [
-          "ids",
-          "entities"
-        ],
-        "title": "NormalizedList[Product, int]"
-      },
-      "NormalizedList_TaxRate_int_": {
-        "properties": {
-          "ids": {
-            "items": {
-              "type": "integer"
-            },
-            "type": "array",
-            "title": "Ids"
-          },
-          "entities": {
-            "additionalProperties": {
-              "$ref": "#/components/schemas/TaxRate"
-            },
-            "type": "object",
-            "title": "Entities"
-          }
-        },
-        "type": "object",
-        "required": [
-          "ids",
-          "entities"
-        ],
-        "title": "NormalizedList[TaxRate, int]"
-      },
-      "NormalizedList_Terminal_int_": {
-        "properties": {
-          "ids": {
-            "items": {
-              "type": "integer"
-            },
-            "type": "array",
-            "title": "Ids"
-          },
-          "entities": {
-            "additionalProperties": {
-              "$ref": "#/components/schemas/Terminal"
-            },
-            "type": "object",
-            "title": "Entities"
-          }
-        },
-        "type": "object",
-        "required": [
-          "ids",
-          "entities"
-        ],
-        "title": "NormalizedList[Terminal, int]"
-      },
-      "NormalizedList_Ticket_int_": {
-        "properties": {
-          "ids": {
-            "items": {
-              "type": "integer"
-            },
-            "type": "array",
-            "title": "Ids"
-          },
-          "entities": {
-            "additionalProperties": {
-              "$ref": "#/components/schemas/Ticket"
-            },
-            "type": "object",
-            "title": "Entities"
-          }
-        },
-        "type": "object",
-        "required": [
-          "ids",
-          "entities"
-        ],
-        "title": "NormalizedList[Ticket, int]"
-      },
-      "NormalizedList_TillButton_int_": {
-        "properties": {
-          "ids": {
-            "items": {
-              "type": "integer"
-            },
-            "type": "array",
-            "title": "Ids"
-          },
-          "entities": {
-            "additionalProperties": {
-              "$ref": "#/components/schemas/TillButton"
-            },
-            "type": "object",
-            "title": "Entities"
-          }
-        },
-        "type": "object",
-        "required": [
-          "ids",
-          "entities"
-        ],
-        "title": "NormalizedList[TillButton, int]"
-      },
-      "NormalizedList_TillLayout_int_": {
-        "properties": {
-          "ids": {
-            "items": {
-              "type": "integer"
-            },
-            "type": "array",
-            "title": "Ids"
-          },
-          "entities": {
-            "additionalProperties": {
-              "$ref": "#/components/schemas/TillLayout"
-            },
-            "type": "object",
-            "title": "Entities"
-          }
-        },
-        "type": "object",
-        "required": [
-          "ids",
-          "entities"
-        ],
-        "title": "NormalizedList[TillLayout, int]"
-      },
-      "NormalizedList_TillProfile_int_": {
-        "properties": {
-          "ids": {
-            "items": {
-              "type": "integer"
-            },
-            "type": "array",
-            "title": "Ids"
-          },
-          "entities": {
-            "additionalProperties": {
-              "$ref": "#/components/schemas/TillProfile"
-            },
-            "type": "object",
-            "title": "Entities"
-          }
-        },
-        "type": "object",
-        "required": [
-          "ids",
-          "entities"
-        ],
-        "title": "NormalizedList[TillProfile, int]"
-      },
-      "NormalizedList_Till_int_": {
-        "properties": {
-          "ids": {
-            "items": {
-              "type": "integer"
-            },
-            "type": "array",
-            "title": "Ids"
-          },
-          "entities": {
-            "additionalProperties": {
-              "$ref": "#/components/schemas/Till"
-            },
-            "type": "object",
-            "title": "Entities"
-          }
-        },
-        "type": "object",
-        "required": [
-          "ids",
-          "entities"
-        ],
-        "title": "NormalizedList[Till, int]"
-      },
-      "NormalizedList_Transaction_int_": {
-        "properties": {
-          "ids": {
-            "items": {
-              "type": "integer"
-            },
-            "type": "array",
-            "title": "Ids"
-          },
-          "entities": {
-            "additionalProperties": {
-              "$ref": "#/components/schemas/Transaction"
-            },
-            "type": "object",
-            "title": "Entities"
-          }
-        },
-        "type": "object",
-        "required": [
-          "ids",
-          "entities"
-        ],
-        "title": "NormalizedList[Transaction, int]"
-      },
-      "NormalizedList_Tse_int_": {
-        "properties": {
-          "ids": {
-            "items": {
-              "type": "integer"
-            },
-            "type": "array",
-            "title": "Ids"
-          },
-          "entities": {
-            "additionalProperties": {
-              "$ref": "#/components/schemas/Tse"
-            },
-            "type": "object",
-            "title": "Entities"
-          }
-        },
-        "type": "object",
-        "required": [
-          "ids",
-          "entities"
-        ],
-        "title": "NormalizedList[Tse, int]"
-      },
-      "NormalizedList_UserRole_int_": {
-        "properties": {
-          "ids": {
-            "items": {
-              "type": "integer"
-            },
-            "type": "array",
-            "title": "Ids"
-          },
-          "entities": {
-            "additionalProperties": {
-              "$ref": "#/components/schemas/UserRole"
-            },
-            "type": "object",
-            "title": "Entities"
-          }
-        },
-        "type": "object",
-        "required": [
-          "ids",
-          "entities"
-        ],
-        "title": "NormalizedList[UserRole, int]"
-      },
-      "NormalizedList_UserTagDetail_int_": {
+      "NormalizedList_UserTagDetail__int_": {
         "properties": {
           "ids": {
             "items": {
@@ -12254,30 +12709,6 @@
           "entities"
         ],
         "title": "NormalizedList[UserTagDetail, int]"
-      },
-      "NormalizedList_User_int_": {
-        "properties": {
-          "ids": {
-            "items": {
-              "type": "integer"
-            },
-            "type": "array",
-            "title": "Ids"
-          },
-          "entities": {
-            "additionalProperties": {
-              "$ref": "#/components/schemas/User"
-            },
-            "type": "object",
-            "title": "Entities"
-          }
-        },
-        "type": "object",
-        "required": [
-          "ids",
-          "entities"
-        ],
-        "title": "NormalizedList[User, int]"
       },
       "ObjectType": {
         "type": "string",
@@ -12743,6 +13174,48 @@
         ],
         "title": "OrderWithTse"
       },
+      "PaginatedList_Order_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Order"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total"
+        ],
+        "title": "PaginatedList[Order]"
+      },
+      "PaginatedList_Transaction_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Transaction"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total"
+        ],
+        "title": "PaginatedList[Transaction]"
+      },
       "PaymentMethod": {
         "type": "string",
         "enum": [
@@ -12752,6 +13225,56 @@
           "sumup_online"
         ],
         "title": "PaymentMethod"
+      },
+      "PaymentMethodStats": {
+        "properties": {
+          "payment_method": {
+            "$ref": "#/components/schemas/PaymentMethod"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "revenue": {
+            "type": "number",
+            "title": "Revenue"
+          }
+        },
+        "type": "object",
+        "required": [
+          "payment_method",
+          "count",
+          "revenue"
+        ],
+        "title": "PaymentMethodStats"
+      },
+      "PaymentMethodStatsResponse": {
+        "properties": {
+          "from_time": {
+            "type": "string",
+            "format": "date-time",
+            "title": "From Time"
+          },
+          "to_time": {
+            "type": "string",
+            "format": "date-time",
+            "title": "To Time"
+          },
+          "stats": {
+            "items": {
+              "$ref": "#/components/schemas/PaymentMethodStats"
+            },
+            "type": "array",
+            "title": "Stats"
+          }
+        },
+        "type": "object",
+        "required": [
+          "from_time",
+          "to_time",
+          "stats"
+        ],
+        "title": "PaymentMethodStatsResponse"
       },
       "Payout": {
         "properties": {
@@ -12961,6 +13484,10 @@
             "type": "number",
             "title": "Tax Rate"
           },
+          "vouchers_redeemed": {
+            "type": "integer",
+            "title": "Vouchers Redeemed"
+          },
           "total_price": {
             "type": "number",
             "title": "Total Price",
@@ -12975,6 +13502,7 @@
           "tax_rate_id",
           "tax_name",
           "tax_rate",
+          "vouchers_redeemed",
           "total_price"
         ],
         "title": "PendingLineItem"
@@ -12984,6 +13512,10 @@
           "total_payout_amount": {
             "type": "number",
             "title": "Total Payout Amount"
+          },
+          "total_unclaimed_payout_amount": {
+            "type": "number",
+            "title": "Total Unclaimed Payout Amount"
           },
           "total_donation_amount": {
             "type": "number",
@@ -12997,10 +13529,49 @@
         "type": "object",
         "required": [
           "total_payout_amount",
+          "total_unclaimed_payout_amount",
           "total_donation_amount",
           "n_payouts"
         ],
         "title": "PendingPayoutDetail"
+      },
+      "PresaleStats": {
+        "properties": {
+          "total_tickets": {
+            "type": "integer",
+            "title": "Total Tickets"
+          },
+          "checked_in_tickets": {
+            "type": "integer",
+            "title": "Checked In Tickets"
+          },
+          "cancelled_tickets": {
+            "type": "integer",
+            "title": "Cancelled Tickets"
+          },
+          "total_credit_sold": {
+            "type": "number",
+            "title": "Total Credit Sold"
+          },
+          "credit_activated": {
+            "type": "number",
+            "title": "Credit Activated"
+          },
+          "credit_pending": {
+            "type": "number",
+            "title": "Credit Pending"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total_tickets",
+          "checked_in_tickets",
+          "cancelled_tickets",
+          "total_credit_sold",
+          "credit_activated",
+          "credit_pending"
+        ],
+        "title": "PresaleStats"
       },
       "PretixFetchProductsPayload": {
         "properties": {
@@ -13056,25 +13627,6 @@
         ],
         "title": "PretixProduct"
       },
-      "Privilege": {
-        "type": "string",
-        "enum": [
-          "node_administration",
-          "customer_management",
-          "payout_management",
-          "create_user",
-          "allow_privileged_role_assignment",
-          "user_management",
-          "view_node_stats",
-          "cash_transport",
-          "terminal_login",
-          "supervised_terminal_login",
-          "can_book_orders",
-          "grant_free_tickets",
-          "grant_vouchers"
-        ],
-        "title": "Privilege"
-      },
       "Product": {
         "properties": {
           "name": {
@@ -13111,12 +13663,12 @@
             "type": "integer",
             "title": "Tax Rate Id"
           },
-          "restrictions": {
+          "user_tag_variant_ids": {
             "items": {
-              "$ref": "#/components/schemas/ProductRestriction"
+              "type": "integer"
             },
             "type": "array",
-            "title": "Restrictions"
+            "title": "User Tag Variant Ids"
           },
           "is_locked": {
             "type": "boolean",
@@ -13125,6 +13677,10 @@
           "is_returnable": {
             "type": "boolean",
             "title": "Is Returnable"
+          },
+          "is_deposit": {
+            "type": "boolean",
+            "title": "Is Deposit"
           },
           "target_account_id": {
             "anyOf": [
@@ -13153,6 +13709,9 @@
             "type": "number",
             "title": "Tax Rate"
           },
+          "tax_type": {
+            "$ref": "#/components/schemas/TaxType"
+          },
           "type": {
             "$ref": "#/components/schemas/ProductType"
           },
@@ -13174,13 +13733,15 @@
           "price",
           "fixed_price",
           "tax_rate_id",
-          "restrictions",
+          "user_tag_variant_ids",
           "is_locked",
           "is_returnable",
+          "is_deposit",
           "node_id",
           "id",
           "tax_name",
           "tax_rate",
+          "tax_type",
           "type"
         ],
         "title": "Product"
@@ -13195,6 +13756,14 @@
             "type": "string",
             "title": "Product Name"
           },
+          "node_id": {
+            "type": "integer",
+            "title": "Node Id"
+          },
+          "node_name": {
+            "type": "string",
+            "title": "Node Name"
+          },
           "count": {
             "type": "integer",
             "title": "Count"
@@ -13202,24 +13771,23 @@
           "revenue": {
             "type": "number",
             "title": "Revenue"
+          },
+          "vouchers_redeemed": {
+            "type": "integer",
+            "title": "Vouchers Redeemed"
           }
         },
         "type": "object",
         "required": [
           "product_id",
           "product_name",
+          "node_id",
+          "node_name",
           "count",
-          "revenue"
+          "revenue",
+          "vouchers_redeemed"
         ],
         "title": "ProductOverallStats"
-      },
-      "ProductRestriction": {
-        "type": "string",
-        "enum": [
-          "under_16",
-          "under_18"
-        ],
-        "title": "ProductRestriction"
       },
       "ProductStats": {
         "properties": {
@@ -13299,6 +13867,14 @@
             "type": "string",
             "title": "Product Name"
           },
+          "node_id": {
+            "type": "integer",
+            "title": "Node Id"
+          },
+          "node_name": {
+            "type": "string",
+            "title": "Node Name"
+          },
           "intervals": {
             "items": {
               "$ref": "#/components/schemas/StatInterval"
@@ -13311,6 +13887,8 @@
         "required": [
           "product_id",
           "product_name",
+          "node_id",
+          "node_name",
           "intervals"
         ],
         "title": "ProductTimeseries"
@@ -13399,6 +13977,17 @@
             "format": "email",
             "title": "Customer Portal Contact Email"
           },
+          "customer_portal_feedback_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Customer Portal Feedback Url"
+          },
           "pretix_presale_enabled": {
             "type": "boolean",
             "title": "Pretix Presale Enabled"
@@ -13450,6 +14039,20 @@
             ],
             "title": "Pretix Ticket Ids"
           },
+          "pretix_topup_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pretix Topup Ids"
+          },
           "ust_id": {
             "type": "string",
             "title": "Ust Id"
@@ -13458,9 +14061,22 @@
             "type": "string",
             "title": "Bon Issuer"
           },
-          "bon_address": {
+          "bon_street": {
             "type": "string",
-            "title": "Bon Address"
+            "title": "Bon Street"
+          },
+          "bon_zip": {
+            "type": "string",
+            "title": "Bon Zip"
+          },
+          "bon_city": {
+            "type": "string",
+            "title": "Bon City"
+          },
+          "bon_country": {
+            "type": "string",
+            "title": "Bon Country",
+            "default": "DEU"
           },
           "bon_title": {
             "type": "string",
@@ -13596,6 +14212,11 @@
             ],
             "title": "Payout Sender"
           },
+          "headwind_enabled": {
+            "type": "boolean",
+            "title": "Headwind Enabled",
+            "default": false
+          },
           "translation_texts": {
             "additionalProperties": {
               "additionalProperties": {
@@ -13637,9 +14258,12 @@
           "pretix_organizer",
           "pretix_event",
           "pretix_ticket_ids",
+          "pretix_topup_ids",
           "ust_id",
           "bon_issuer",
-          "bon_address",
+          "bon_street",
+          "bon_zip",
+          "bon_city",
           "bon_title",
           "sepa_enabled",
           "sepa_sender_name",
@@ -13701,6 +14325,39 @@
               }
             ],
             "title": "Email Smtp Password"
+          },
+          "headwind_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Headwind Url"
+          },
+          "headwind_username": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Headwind Username"
+          },
+          "headwind_password": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Headwind Password"
           },
           "currency_identifier": {
             "type": "string",
@@ -13771,6 +14428,17 @@
             "format": "email",
             "title": "Customer Portal Contact Email"
           },
+          "customer_portal_feedback_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Customer Portal Feedback Url"
+          },
           "pretix_presale_enabled": {
             "type": "boolean",
             "title": "Pretix Presale Enabled"
@@ -13822,6 +14490,20 @@
             ],
             "title": "Pretix Ticket Ids"
           },
+          "pretix_topup_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pretix Topup Ids"
+          },
           "ust_id": {
             "type": "string",
             "title": "Ust Id"
@@ -13830,9 +14512,22 @@
             "type": "string",
             "title": "Bon Issuer"
           },
-          "bon_address": {
+          "bon_street": {
             "type": "string",
-            "title": "Bon Address"
+            "title": "Bon Street"
+          },
+          "bon_zip": {
+            "type": "string",
+            "title": "Bon Zip"
+          },
+          "bon_city": {
+            "type": "string",
+            "title": "Bon City"
+          },
+          "bon_country": {
+            "type": "string",
+            "title": "Bon Country",
+            "default": "DEU"
           },
           "bon_title": {
             "type": "string",
@@ -13968,6 +14663,11 @@
             ],
             "title": "Payout Sender"
           },
+          "headwind_enabled": {
+            "type": "boolean",
+            "title": "Headwind Enabled",
+            "default": false
+          },
           "translation_texts": {
             "additionalProperties": {
               "additionalProperties": {
@@ -14014,9 +14714,12 @@
           "pretix_organizer",
           "pretix_event",
           "pretix_ticket_ids",
+          "pretix_topup_ids",
           "ust_id",
           "bon_issuer",
-          "bon_address",
+          "bon_street",
+          "bon_zip",
+          "bon_city",
           "bon_title",
           "sepa_enabled",
           "sepa_sender_name",
@@ -14267,6 +14970,29 @@
         ],
         "title": "SumUpTransactionStatus"
       },
+      "SwitchCustomerTagPayload": {
+        "properties": {
+          "old_user_tag_pin": {
+            "type": "string",
+            "title": "Old User Tag Pin"
+          },
+          "new_user_tag_pin": {
+            "type": "string",
+            "title": "New User Tag Pin"
+          },
+          "comment": {
+            "type": "string",
+            "title": "Comment"
+          }
+        },
+        "type": "object",
+        "required": [
+          "old_user_tag_pin",
+          "new_user_tag_pin",
+          "comment"
+        ],
+        "title": "SwitchCustomerTagPayload"
+      },
       "SwitchTerminalPayload": {
         "properties": {
           "new_terminal_id": {
@@ -14307,6 +15033,9 @@
             "type": "string",
             "title": "Description"
           },
+          "tax_type": {
+            "$ref": "#/components/schemas/TaxType"
+          },
           "id": {
             "type": "integer",
             "title": "Id"
@@ -14321,6 +15050,7 @@
           "name",
           "rate",
           "description",
+          "tax_type",
           "id",
           "node_id"
         ],
@@ -14358,6 +15088,16 @@
           "total_no_tax"
         ],
         "title": "TaxRateAggregation"
+      },
+      "TaxType": {
+        "type": "string",
+        "enum": [
+          "regular_vat",
+          "reduced_vat",
+          "no_tax",
+          "transparent"
+        ],
+        "title": "TaxType"
       },
       "Terminal": {
         "properties": {
@@ -14445,6 +15185,17 @@
             "type": "string",
             "format": "date-time",
             "title": "Last Seen"
+          },
+          "mdm_device_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mdm Device Id"
           }
         },
         "type": "object",
@@ -14458,6 +15209,52 @@
           "last_seen"
         ],
         "title": "Terminal"
+      },
+      "TerminalLocation": {
+        "properties": {
+          "terminal_id": {
+            "type": "integer",
+            "title": "Terminal Id"
+          },
+          "terminal_name": {
+            "type": "string",
+            "title": "Terminal Name"
+          },
+          "mdm_device_id": {
+            "type": "string",
+            "title": "Mdm Device Id"
+          },
+          "latitude": {
+            "type": "number",
+            "title": "Latitude"
+          },
+          "longitude": {
+            "type": "number",
+            "title": "Longitude"
+          },
+          "last_update": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Update"
+          }
+        },
+        "type": "object",
+        "required": [
+          "terminal_id",
+          "terminal_name",
+          "mdm_device_id",
+          "latitude",
+          "longitude",
+          "last_update"
+        ],
+        "title": "TerminalLocation"
       },
       "Ticket": {
         "properties": {
@@ -14473,12 +15270,12 @@
             "type": "integer",
             "title": "Tax Rate Id"
           },
-          "restrictions": {
+          "user_tag_variant_ids": {
             "items": {
-              "$ref": "#/components/schemas/ProductRestriction"
+              "type": "integer"
             },
             "type": "array",
-            "title": "Restrictions"
+            "title": "User Tag Variant Ids"
           },
           "is_locked": {
             "type": "boolean",
@@ -14514,7 +15311,7 @@
           "name",
           "price",
           "tax_rate_id",
-          "restrictions",
+          "user_tag_variant_ids",
           "is_locked",
           "initial_top_up_amount",
           "node_id",
@@ -15206,6 +16003,39 @@
             ],
             "title": "Email Smtp Password"
           },
+          "headwind_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Headwind Url"
+          },
+          "headwind_username": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Headwind Username"
+          },
+          "headwind_password": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Headwind Password"
+          },
           "currency_identifier": {
             "type": "string",
             "title": "Currency Identifier"
@@ -15275,6 +16105,17 @@
             "format": "email",
             "title": "Customer Portal Contact Email"
           },
+          "customer_portal_feedback_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Customer Portal Feedback Url"
+          },
           "pretix_presale_enabled": {
             "type": "boolean",
             "title": "Pretix Presale Enabled"
@@ -15326,6 +16167,20 @@
             ],
             "title": "Pretix Ticket Ids"
           },
+          "pretix_topup_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pretix Topup Ids"
+          },
           "ust_id": {
             "type": "string",
             "title": "Ust Id"
@@ -15334,9 +16189,22 @@
             "type": "string",
             "title": "Bon Issuer"
           },
-          "bon_address": {
+          "bon_street": {
             "type": "string",
-            "title": "Bon Address"
+            "title": "Bon Street"
+          },
+          "bon_zip": {
+            "type": "string",
+            "title": "Bon Zip"
+          },
+          "bon_city": {
+            "type": "string",
+            "title": "Bon City"
+          },
+          "bon_country": {
+            "type": "string",
+            "title": "Bon Country",
+            "default": "DEU"
           },
           "bon_title": {
             "type": "string",
@@ -15479,6 +16347,11 @@
             ],
             "title": "Payout Sender"
           },
+          "headwind_enabled": {
+            "type": "boolean",
+            "title": "Headwind Enabled",
+            "default": false
+          },
           "translation_texts": {
             "additionalProperties": {
               "additionalProperties": {
@@ -15510,9 +16383,12 @@
           "pretix_organizer",
           "pretix_event",
           "pretix_ticket_ids",
+          "pretix_topup_ids",
           "ust_id",
           "bon_issuer",
-          "bon_address",
+          "bon_street",
+          "bon_zip",
+          "bon_city",
           "bon_title",
           "sepa_enabled",
           "sepa_sender_name",
@@ -15617,22 +16493,38 @@
       },
       "UpdateUserRolePrivilegesPayload": {
         "properties": {
-          "is_privileged": {
+          "can_assign_all_roles": {
             "type": "boolean",
-            "title": "Is Privileged"
+            "title": "Can Assign All Roles"
           },
-          "privileges": {
+          "assignable_role_ids": {
             "items": {
-              "$ref": "#/components/schemas/Privilege"
+              "type": "integer"
             },
             "type": "array",
-            "title": "Privileges"
+            "title": "Assignable Role Ids"
+          },
+          "event_privileges": {
+            "items": {
+              "$ref": "#/components/schemas/EventPrivilege"
+            },
+            "type": "array",
+            "title": "Event Privileges"
+          },
+          "node_privileges": {
+            "items": {
+              "$ref": "#/components/schemas/NodePrivilege"
+            },
+            "type": "array",
+            "title": "Node Privileges"
           }
         },
         "type": "object",
         "required": [
-          "is_privileged",
-          "privileges"
+          "can_assign_all_roles",
+          "assignable_role_ids",
+          "event_privileges",
+          "node_privileges"
         ],
         "title": "UpdateUserRolePrivilegesPayload"
       },
@@ -15718,6 +16610,35 @@
             ],
             "title": "Transport Account Id"
           },
+          "cash_register_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cash Register Id"
+          },
+          "cash_drawer_balance": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cash Drawer Balance"
+          },
+          "terminal_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Terminal Ids"
+          },
           "id": {
             "type": "integer",
             "title": "Id"
@@ -15740,6 +16661,7 @@
           "login",
           "display_name",
           "node_id",
+          "terminal_ids",
           "id",
           "user_tag_uid_hex"
         ],
@@ -15802,17 +16724,31 @@
             "type": "string",
             "title": "Name"
           },
-          "is_privileged": {
+          "can_assign_all_roles": {
             "type": "boolean",
-            "title": "Is Privileged",
+            "title": "Can Assign All Roles",
             "default": false
           },
-          "privileges": {
+          "assignable_role_ids": {
             "items": {
-              "$ref": "#/components/schemas/Privilege"
+              "type": "integer"
             },
             "type": "array",
-            "title": "Privileges"
+            "title": "Assignable Role Ids"
+          },
+          "event_privileges": {
+            "items": {
+              "$ref": "#/components/schemas/EventPrivilege"
+            },
+            "type": "array",
+            "title": "Event Privileges"
+          },
+          "node_privileges": {
+            "items": {
+              "$ref": "#/components/schemas/NodePrivilege"
+            },
+            "type": "array",
+            "title": "Node Privileges"
           },
           "id": {
             "type": "integer",
@@ -15826,11 +16762,51 @@
         "type": "object",
         "required": [
           "name",
-          "privileges",
+          "event_privileges",
+          "node_privileges",
           "id",
           "node_id"
         ],
         "title": "UserRole"
+      },
+      "UserRoleAssignment": {
+        "properties": {
+          "user_id": {
+            "type": "integer",
+            "title": "User Id"
+          },
+          "node_id": {
+            "type": "integer",
+            "title": "Node Id"
+          },
+          "node_name": {
+            "type": "string",
+            "title": "Node Name"
+          },
+          "role_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Role Ids"
+          },
+          "roles": {
+            "items": {
+              "$ref": "#/components/schemas/UserRole"
+            },
+            "type": "array",
+            "title": "Roles"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_id",
+          "node_id",
+          "node_name",
+          "role_ids",
+          "roles"
+        ],
+        "title": "UserRoleAssignment"
       },
       "UserTagAccountAssociation": {
         "properties": {
@@ -15876,6 +16852,18 @@
             "type": "integer",
             "title": "Node Id"
           },
+          "activated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Activated At"
+          },
           "comment": {
             "anyOf": [
               {
@@ -15886,6 +16874,22 @@
               }
             ],
             "title": "Comment"
+          },
+          "variant_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Variant Ids",
+            "default": []
+          },
+          "variant_names": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Variant Names",
+            "default": []
           },
           "account_id": {
             "anyOf": [
@@ -16038,6 +17042,58 @@
         ],
         "title": "UserTagSecret"
       },
+      "UserTagVariant": {
+        "properties": {
+          "variant_name": {
+            "type": "string",
+            "title": "Variant Name"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "default": ""
+          },
+          "priority": {
+            "type": "integer",
+            "title": "Priority",
+            "default": 0
+          },
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "node_id": {
+            "type": "integer",
+            "title": "Node Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "variant_name",
+          "id",
+          "node_id"
+        ],
+        "title": "UserTagVariant"
+      },
+      "UserTagsCsvExportPayload": {
+        "properties": {
+          "exclude_activated": {
+            "type": "boolean",
+            "title": "Exclude Activated",
+            "default": false
+          },
+          "variant_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Variant Ids",
+            "default": []
+          }
+        },
+        "type": "object",
+        "title": "UserTagsCsvExportPayload"
+      },
       "UserToRoles": {
         "properties": {
           "user_id": {
@@ -16051,11 +17107,6 @@
             "type": "array",
             "title": "Role Ids"
           },
-          "terminal_only": {
-            "type": "boolean",
-            "title": "Terminal Only",
-            "default": false
-          },
           "node_id": {
             "type": "integer",
             "title": "Node Id"
@@ -16068,6 +17119,19 @@
           "node_id"
         ],
         "title": "UserToRoles"
+      },
+      "UserVoucherGrantStats": {
+        "properties": {
+          "vouchers_granted": {
+            "type": "integer",
+            "title": "Vouchers Granted"
+          }
+        },
+        "type": "object",
+        "required": [
+          "vouchers_granted"
+        ],
+        "title": "UserVoucherGrantStats"
       },
       "ValidationError": {
         "properties": {

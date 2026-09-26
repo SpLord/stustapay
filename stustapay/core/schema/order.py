@@ -123,12 +123,11 @@ class Button(BaseModel):
     price: Optional[float] = None
 
     # check for new Items if either quantity or price is set
-    @model_validator(mode="after")  # type: ignore
-    @classmethod
-    def check_quantity_or_price_set(cls, m: "Button"):
-        if (m.quantity is None) == (m.price is None):
+    @model_validator(mode="after")
+    def check_quantity_or_price_set(self):
+        if (self.quantity is None) == (self.price is None):
             raise ValueError("either price or quantity must be set")
-        return m
+        return self
 
 
 class BookedProduct(BaseModel):
@@ -140,12 +139,11 @@ class BookedProduct(BaseModel):
     price: Optional[float] = None
 
     # check for new Items if either quantity or price is set
-    @model_validator(mode="after")  # type: ignore
-    @classmethod
-    def check_quantity_or_price_set(cls, m: "BookedProduct"):
-        if (m.quantity is None) == (m.price is None):
+    @model_validator(mode="after")
+    def check_quantity_or_price_set(self):
+        if (self.quantity is None) == (self.price is None):
             raise ValueError("either price or quantity must be set")
-        return m
+        return self
 
 
 class NewSaleBase(BaseModel):
@@ -179,6 +177,7 @@ class PendingLineItem(BaseModel):
     tax_rate_id: int
     tax_name: str
     tax_rate: float
+    vouchers_redeemed: int
 
     @computed_field  # type: ignore[misc]
     @property
@@ -293,7 +292,8 @@ class CompletedTicketSale(PendingTicketSale):
 
 class CustomerRegistration(BaseModel):
     account_id: int
-    restriction: str | None
+    user_tag_variant_ids: list[int] = []
+    max_user_tag_variant_priority: int | None = None
     ticket_included_top_up: float
     # additional top-up requested on-site
     top_up_amount: float

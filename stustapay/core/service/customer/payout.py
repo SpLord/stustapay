@@ -13,6 +13,7 @@ from stustapay.core.config import Config
 from stustapay.core.schema.account import AccountType
 from stustapay.core.schema.audit_logs import AuditType
 from stustapay.core.schema.config import SEPAConfig
+from stustapay.core.schema.mail import MailMessage
 from stustapay.core.schema.payout import (
     NewPayoutRun,
     Payout,
@@ -21,7 +22,7 @@ from stustapay.core.schema.payout import (
     PendingPayoutDetail,
 )
 from stustapay.core.schema.tree import Node
-from stustapay.core.schema.user import CurrentUser, Privilege, format_user_tag_uid
+from stustapay.core.schema.user import CurrentUser, EventPrivilege, NodePrivilege, format_user_tag_uid
 from stustapay.core.service.account import get_system_account_for_node
 from stustapay.core.service.auth import AuthService
 from stustapay.core.service.common.audit_logs import create_audit_log
@@ -172,20 +173,32 @@ class PayoutService(Service[Config]):
 
     @with_db_transaction(read_only=True)
     @requires_node(event_only=True)
-    @requires_user([Privilege.payout_management])
+    @requires_user(event_privileges=[EventPrivilege.payout_management])
     async def get_pending_payout_detail(self, *, conn: Connection, node: Node) -> PendingPayoutDetail:
-        return await conn.fetch_one(
+        pending_detail = await conn.fetch_one(
             PendingPayoutDetail,
             "select coalesce(sum(c.balance), 0) - coalesce(sum(c.donation), 0) as total_payout_amount, "
+            "   0 as total_unclaimed_payout_amount, "
             "   coalesce(sum(c.donation), 0) as total_donation_amount, "
             "   count(*) as n_payouts "
             "from customers_without_payout_run c where c.node_id = $1",
             node.id,
         )
+        pending_detail.total_unclaimed_payout_amount = (
+            float(
+                await conn.fetchval(
+                    "select coalesce(sum(a.balance), 0) from account a where a.node_id = $1 and a.type = 'private'",
+                    node.id,
+                )
+            )
+            - pending_detail.total_payout_amount
+            - pending_detail.total_donation_amount
+        )
+        return pending_detail
 
     @with_db_transaction(read_only=True)
     @requires_node(event_only=True)
-    @requires_user([Privilege.payout_management])
+    @requires_user(event_privileges=[EventPrivilege.payout_management])
     async def get_payout_run_payouts(self, *, conn: Connection, node: Node, payout_run_id: int) -> list[Payout]:
         # this will error if no payout run with the given id exists for the given node
         await fetch_payout_run(conn=conn, node=node, payout_run_id=payout_run_id)
@@ -195,7 +208,7 @@ class PayoutService(Service[Config]):
 
     @with_db_transaction(read_only=True)
     @requires_node(event_only=True)
-    @requires_user([Privilege.payout_management])
+    @requires_user(event_privileges=[EventPrivilege.payout_management])
     async def get_payout_run_csv(self, *, conn: Connection, node: Node, payout_run_id: int) -> str:
         csv_data = await conn.fetchval(
             "select csv from payout_run where id = $1 and node_id = $2", payout_run_id, node.id
@@ -206,7 +219,7 @@ class PayoutService(Service[Config]):
 
     @with_db_transaction
     @requires_node(event_only=True)
-    @requires_user([Privilege.payout_management])
+    @requires_user(event_privileges=[EventPrivilege.payout_management])
     async def get_payout_run_sepa_xml(
         self,
         *,
@@ -242,7 +255,7 @@ class PayoutService(Service[Config]):
 
     @with_db_transaction(read_only=True)
     @requires_node(event_only=True)
-    @requires_user([Privilege.payout_management])
+    @requires_user(event_privileges=[EventPrivilege.payout_management])
     async def get_previous_payout_run_sepa_xml(
         self,
         *,
@@ -262,7 +275,7 @@ class PayoutService(Service[Config]):
 
     @with_db_transaction
     @requires_node(event_only=True)
-    @requires_user([Privilege.payout_management])
+    @requires_user(event_privileges=[EventPrivilege.payout_management])
     async def set_payout_run_as_done(
         self, *, conn: Connection, node: Node, current_user: CurrentUser, payout_run_id: int, mail_service: MailService
     ):
@@ -318,19 +331,23 @@ class PayoutService(Service[Config]):
         )
 
         res_config = await fetch_restricted_event_settings_for_node(conn, node.id)
+        assert res_config.payout_done_message is not None
+        assert res_config.payout_done_subject is not None
+        mail_messages = []
         for payout in payouts:
             if payout.email is None:
                 continue
             payout.amount = round(payout.amount, 2)
             payout.donation = round(payout.donation, 2)
-            assert res_config.payout_done_message is not None
-            await mail_service.send_mail(
-                subject=res_config.payout_done_subject,
-                message=res_config.payout_done_message.format(**payout.model_dump()),
-                from_addr=res_config.payout_sender,
-                to_addr=payout.email,
-                node_id=node.id,
+            mail_messages.append(
+                MailMessage(to_addr=payout.email, message=res_config.payout_done_message.format(**payout.model_dump()))
             )
+        await mail_service.send_mails(
+            subject=res_config.payout_done_subject,
+            messages=mail_messages,
+            from_addr=res_config.payout_sender,
+            node_id=node.id,
+        )
         await create_audit_log(
             conn=conn,
             log_type=AuditType.payout_run_marked_done,
@@ -341,7 +358,7 @@ class PayoutService(Service[Config]):
 
     @with_db_transaction
     @requires_node(event_only=True)
-    @requires_user([Privilege.payout_management])
+    @requires_user(event_privileges=[EventPrivilege.payout_management])
     async def revoke_payout_run(self, *, conn: Connection, node: Node, current_user: CurrentUser, payout_run_id: int):
         payout = await fetch_payout_run(conn=conn, node=node, payout_run_id=payout_run_id)
         if payout.done:
@@ -362,7 +379,7 @@ class PayoutService(Service[Config]):
 
     @with_db_transaction
     @requires_node(event_only=True)
-    @requires_user([Privilege.node_administration])
+    @requires_user(node_privileges=[NodePrivilege.node_administration])
     async def create_payout_run(
         self, *, conn: Connection, node: Node, current_user: CurrentUser, new_payout_run: NewPayoutRun
     ) -> PayoutRunWithStats:
@@ -465,13 +482,13 @@ class PayoutService(Service[Config]):
 
     @with_db_transaction(read_only=True)
     @requires_node(event_only=True)
-    @requires_user([Privilege.node_administration])
+    @requires_user(node_privileges=[NodePrivilege.node_administration])
     async def get_payout_run(self, *, conn: Connection, node: Node, payout_run_id: int) -> PayoutRunWithStats:
         return await fetch_payout_run_with_stats(conn=conn, node=node, payout_run_id=payout_run_id)
 
     @with_db_transaction(read_only=True)
     @requires_node(event_only=True)
-    @requires_user([Privilege.node_administration])
+    @requires_user(node_privileges=[NodePrivilege.node_administration])
     async def list_payout_runs(self, *, conn: Connection, node: Node) -> list[PayoutRunWithStats]:
         return await conn.fetch_many(
             PayoutRunWithStats,
@@ -486,7 +503,7 @@ class PayoutService(Service[Config]):
 
     @with_db_transaction
     @requires_node(event_only=True)
-    @requires_user([Privilege.payout_management, Privilege.customer_management])
+    @requires_user(event_privileges=[EventPrivilege.payout_management, EventPrivilege.customer_management])
     async def prevent_customer_payout(
         self, *, conn: Connection, node: Node, current_user: CurrentUser, customer_id: int
     ):
@@ -514,7 +531,7 @@ class PayoutService(Service[Config]):
 
     @with_db_transaction
     @requires_node(event_only=True)
-    @requires_user([Privilege.payout_management, Privilege.customer_management])
+    @requires_user(event_privileges=[EventPrivilege.payout_management, EventPrivilege.customer_management])
     async def allow_customer_payout(self, *, conn: Connection, node: Node, current_user: CurrentUser, customer_id: int):
         customer = await fetch_customer(conn=conn, node=node, customer_id=customer_id)
         if customer.payout is not None:

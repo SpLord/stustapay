@@ -12,6 +12,7 @@ from sftkit.service import Service, with_db_transaction
 
 from stustapay.bon.bon import BonJson
 from stustapay.core.config import Config
+from stustapay.core.http.normalize_data import PaginatedList
 from stustapay.core.schema.account import (
     Account,
     AccountType,
@@ -47,7 +48,7 @@ from stustapay.core.schema.order import (
     get_source_account,
     get_target_account,
 )
-from stustapay.core.schema.product import Product, ProductRestriction, ProductType
+from stustapay.core.schema.product import Product, ProductType
 from stustapay.core.schema.terminal import CurrentTerminal
 from stustapay.core.schema.ticket import (
     NewTicketScan,
@@ -58,7 +59,7 @@ from stustapay.core.schema.ticket import (
 )
 from stustapay.core.schema.till import Till
 from stustapay.core.schema.tree import Node, RestrictedEventSettings
-from stustapay.core.schema.user import CurrentUser, Privilege, User, format_user_tag_uid
+from stustapay.core.schema.user import CurrentUser, NodePrivilege, User, format_user_tag_uid
 from stustapay.core.service.account import (
     get_account_by_id,
     get_system_account_for_node,
@@ -70,6 +71,7 @@ from stustapay.core.service.common.decorators import (
     requires_user,
 )
 from stustapay.core.service.common.error import InvalidArgument, ServiceException
+from stustapay.core.service.customer.common import fetch_customer
 from stustapay.core.service.order.pending_order import (
     fetch_maybe_pending_order,
     fetch_pending_order,
@@ -87,11 +89,10 @@ from stustapay.core.service.product import (
     fetch_product,
     fetch_top_up_product,
 )
-from stustapay.core.service.till.common import fetch_virtual_till
+from stustapay.core.service.till.common import fetch_till, get_cash_register_account_id
 from stustapay.core.service.transaction import book_transaction
 from stustapay.core.service.tree.common import fetch_restricted_event_settings_for_node
 
-from ..till.common import get_cash_register_account_id
 from .booking import BookingIdentifier, NewLineItem, book_order
 from .stats import OrderStatsService
 from .voucher import VoucherService
@@ -279,6 +280,8 @@ class OrderService(Service[Config]):
                 raise InvalidArgument("this till profile is not allowed to use these buttons")
 
             for product in products:
+                if not product.is_locked:
+                    raise InvalidArgument(f"Product {product.name} is not locked.")
                 if (button.price is None) != product.fixed_price:
                     raise InvalidArgument("cannot book a fixed price product with a variable price")
                 if button.quantity is not None and button.quantity < 0 and not product.is_returnable:
@@ -289,7 +292,7 @@ class OrderService(Service[Config]):
     @staticmethod
     async def _preprocess_order_positions(
         *,
-        customer_restrictions: Optional[ProductRestriction],
+        customer_user_tag_variant_ids: list[int],
         booked_products: list[BookedProduct],
     ) -> list[PendingLineItem]:
         # we preprocess positions in a new order to group the resulting line items
@@ -324,7 +327,11 @@ class OrderService(Service[Config]):
                     raise RuntimeError("invalid internal price state, should not happen")
 
                 # check age restriction
-                if customer_restrictions is not None and customer_restrictions in product.restrictions:
+                if (
+                    len(customer_user_tag_variant_ids) > 0
+                    and len(product.user_tag_variant_ids) > 0
+                    and any(variant_id in product.user_tag_variant_ids for variant_id in customer_user_tag_variant_ids)
+                ):
                     restricted_product_names.add(product.name)
 
                 line_items_by_product[product.id] = PendingLineItem(
@@ -334,6 +341,7 @@ class OrderService(Service[Config]):
                     tax_rate=product.tax_rate,
                     tax_name=product.tax_name,
                     product=product,
+                    vouchers_redeemed=0,
                 )
 
         if len(restricted_product_names) > 0:
@@ -352,7 +360,7 @@ class OrderService(Service[Config]):
     async def _fetch_customer_by_user_tag(*, conn: Connection, node: Node, customer_tag_uid: int) -> Account:
         customer = await conn.fetch_maybe_one(
             Account,
-            "select a.*, t.restriction "
+            "select a.* "
             "from user_tag t join account_with_history a on t.id = a.user_tag_id "
             "where t.uid = $1 and a.type = 'private' and a.node_id = any($2)",
             customer_tag_uid,
@@ -385,7 +393,11 @@ class OrderService(Service[Config]):
         account = await conn.fetch_maybe_one(
             Account,
             "select a.*, "
-            "(select t.restriction from user_tag t where t.pin = $1 and t.node_id = any($2)) as restriction, "
+            "(select coalesce(array_agg(uttv.variant_id) filter (where uttv.variant_id is not null), "
+            "'{}'::bigint array) "
+            " from user_tag t "
+            " left join user_tag_to_variant uttv on t.id = uttv.user_tag_id "
+            " where t.pin = $1 and t.node_id = any($2)) as user_tag_variant_ids, "
             "null as user_tag_uid, "
             "'[]'::json as tag_history "
             "from account a "
@@ -399,7 +411,7 @@ class OrderService(Service[Config]):
         return account
 
     @with_db_transaction(read_only=True)
-    @requires_terminal(user_privileges=[Privilege.can_book_orders])
+    @requires_terminal(node_privileges=[NodePrivilege.can_book_orders])
     async def check_topup(
         self,
         *,
@@ -454,7 +466,7 @@ class OrderService(Service[Config]):
         )
 
     @with_db_transaction(read_only=False)
-    @requires_terminal(user_privileges=[Privilege.can_book_orders])
+    @requires_terminal(node_privileges=[NodePrivilege.can_book_orders])
     async def book_topup(
         self,
         *,
@@ -524,7 +536,7 @@ class OrderService(Service[Config]):
         return completed_top_up
 
     @with_db_transaction(read_only=False)
-    @requires_terminal(user_privileges=[Privilege.can_book_orders])
+    @requires_terminal(node_privileges=[NodePrivilege.can_book_orders])
     async def check_pending_topup(
         self,
         *,
@@ -554,7 +566,7 @@ class OrderService(Service[Config]):
         return None
 
     @with_db_transaction(read_only=False)
-    @requires_terminal(user_privileges=[Privilege.can_book_orders])
+    @requires_terminal(node_privileges=[NodePrivilege.can_book_orders])
     async def cancel_pending_order(self, *, conn: Connection, current_till: Till, order_uuid: UUID) -> None:
         pending_order = await fetch_pending_order(conn=conn, uuid=order_uuid)
         if pending_order.till_id != current_till.id:
@@ -610,8 +622,8 @@ class OrderService(Service[Config]):
             conn=conn, till_profile_id=till.active_profile_id, buttons=new_sale.buttons
         )
         line_items = await self._preprocess_order_positions(
-            customer_restrictions=(
-                customer_account.restriction if tag_payment and customer_account is not None else None
+            customer_user_tag_variant_ids=(
+                customer_account.user_tag_variant_ids if tag_payment and customer_account is not None else []
             ),
             booked_products=booked_products,
         )
@@ -669,7 +681,7 @@ class OrderService(Service[Config]):
         return order
 
     @with_db_transaction(read_only=True)
-    @requires_terminal(user_privileges=[Privilege.can_book_orders])
+    @requires_terminal(node_privileges=[NodePrivilege.can_book_orders])
     async def check_sale(self, *, conn: Connection, current_till: Till, node: Node, new_sale: NewSale) -> PendingSale:
         """
         prepare the given order: checks all requirements.
@@ -707,7 +719,7 @@ class OrderService(Service[Config]):
         )
 
     @with_db_transaction(read_only=True)
-    @requires_terminal(user_privileges=[Privilege.can_book_orders])
+    @requires_terminal(node_privileges=[NodePrivilege.can_book_orders])
     async def check_sale_products(
         self,
         *,
@@ -778,6 +790,7 @@ class OrderService(Service[Config]):
                 product_id=line_item.product.id,
                 product_price=line_item.product_price,
                 tax_rate_id=line_item.tax_rate_id,
+                vouchers_redeemed=line_item.vouchers_redeemed,
             )
             for line_item in pending_sale.line_items
         ]
@@ -875,7 +888,7 @@ class OrderService(Service[Config]):
         return completed_order
 
     @with_db_transaction(read_only=False)
-    @requires_terminal(user_privileges=[Privilege.can_book_orders])
+    @requires_terminal(node_privileges=[NodePrivilege.can_book_orders])
     async def book_sale(
         self,
         *,
@@ -931,14 +944,12 @@ class OrderService(Service[Config]):
             bon_url=bon_url,
         )
 
-    @with_db_transaction(read_only=False)
-    @requires_node()
-    @requires_user([Privilege.can_book_orders])
-    async def book_sale_products(
+    async def _book_sale_products(
         self,
         *,
         conn: Connection,
         node: Node,
+        till: Till,
         current_user: CurrentUser,
         new_sale: NewSaleProducts,
     ) -> CompletedSaleProducts:
@@ -962,12 +973,11 @@ class OrderService(Service[Config]):
             ],
             payment_method=new_sale.payment_method,
         )
-        virtual_till = await fetch_virtual_till(conn=conn, node=node)
         completed_sale = await self._book_sale(
             conn=conn,
             event_settings=event_settings,
             node=node,
-            till=virtual_till,
+            till=till,
             current_user=current_user,
             new_sale=internal_new_sale,
         )
@@ -989,7 +999,7 @@ class OrderService(Service[Config]):
 
     @with_db_transaction(read_only=False)
     @requires_node()
-    @requires_user([Privilege.can_book_orders])
+    @requires_user(node_privileges=[NodePrivilege.node_administration, NodePrivilege.can_book_orders])
     async def edit_sale_products(
         self,
         *,
@@ -1002,8 +1012,12 @@ class OrderService(Service[Config]):
         order = await fetch_order(conn=conn, order_id=order_id)
         if order is None:
             raise InvalidArgument("Order does not exist")
-        virtual_till = await fetch_virtual_till(conn=conn, node=node)
-        await self._cancel_sale(conn=conn, current_user=current_user, order_id=order_id, till_id=virtual_till.id)
+        if order.till_id is None:
+            raise InvalidArgument("Order does not have a till")
+        till = await fetch_till(conn=conn, node=node, till_id=order.till_id)
+        if till is None:
+            raise InvalidArgument("Order does not exist")
+        await self._cancel_sale(conn=conn, current_user=current_user, order_id=order_id, till_id=till.id)
 
         assert order.customer_tag_uid is not None
 
@@ -1015,11 +1029,8 @@ class OrderService(Service[Config]):
             payment_method=order.payment_method,
         )
 
-        return await self.book_sale_products(  # pylint: disable=unexpected-keyword-arg, missing-kwoa
-            conn=conn,
-            node_id=node.id,
-            current_user=current_user,
-            new_sale=new_sale,
+        return await self._book_sale_products(
+            conn=conn, node=node, current_user=current_user, new_sale=new_sale, till=till
         )
 
     @staticmethod
@@ -1041,6 +1052,8 @@ class OrderService(Service[Config]):
             raise InvalidArgument("Can only cancel sales")
         if order.payment_method != PaymentMethod.tag:
             raise InvalidArgument("Can only cancel orders payed with a tag")
+        if order.till_id != till_id:
+            raise InvalidArgument("Can only cancel orders for the same till the order was booked at")
 
         line_items = []
         for line_item in order.line_items:
@@ -1050,6 +1063,7 @@ class OrderService(Service[Config]):
                     product_id=line_item.product.id,
                     tax_rate_id=line_item.tax_rate_id,
                     product_price=line_item.product_price,
+                    vouchers_redeemed=-line_item.vouchers_redeemed,
                 )
             )
 
@@ -1084,19 +1098,25 @@ class OrderService(Service[Config]):
             )
 
     @with_db_transaction(read_only=False)
-    @requires_terminal(user_privileges=[Privilege.can_book_orders])
+    @requires_terminal(node_privileges=[NodePrivilege.can_book_orders])
     async def cancel_sale(self, *, conn: Connection, current_till: Till, current_user: CurrentUser, order_id: int):
         await self._cancel_sale(conn=conn, till_id=current_till.id, current_user=current_user, order_id=order_id)
 
     @with_db_transaction(read_only=False)
     @requires_node()
-    @requires_user([Privilege.can_book_orders])
+    @requires_user(node_privileges=[NodePrivilege.node_administration, NodePrivilege.can_book_orders])
     async def cancel_sale_admin(self, *, conn: Connection, node: Node, current_user: CurrentUser, order_id: int):
-        virtual_till = await fetch_virtual_till(conn=conn, node=node)
-        await self._cancel_sale(conn=conn, till_id=virtual_till.id, current_user=current_user, order_id=order_id)
+        till_id = await conn.fetchval(
+            "select t.id from ordr o join till t on o.till_id = t.id where o.id = $1 and t.node_id = any($2)",
+            order_id,
+            node.ids_to_event_node,
+        )
+        if till_id is None:
+            raise InvalidArgument("Order does not exist")
+        await self._cancel_sale(conn=conn, till_id=till_id, current_user=current_user, order_id=order_id)
 
     @with_db_transaction(read_only=False)
-    @requires_terminal(user_privileges=[Privilege.can_book_orders])
+    @requires_terminal(node_privileges=[NodePrivilege.can_book_orders])
     async def check_pay_out(
         self, *, conn: Connection, node: Node, current_till: Till, new_pay_out: NewPayOut
     ) -> PendingPayOut:
@@ -1139,7 +1159,7 @@ class OrderService(Service[Config]):
         )
 
     @with_db_transaction(read_only=False)
-    @requires_terminal(user_privileges=[Privilege.can_book_orders])
+    @requires_terminal(node_privileges=[NodePrivilege.can_book_orders])
     async def book_pay_out(
         self,
         *,
@@ -1166,6 +1186,7 @@ class OrderService(Service[Config]):
                 product_id=pay_out_product.id,
                 product_price=pending_pay_out.amount,
                 tax_rate_id=pay_out_product.tax_rate_id,
+                vouchers_redeemed=0,
             )
         ]
 
@@ -1212,7 +1233,7 @@ class OrderService(Service[Config]):
         )
 
     @with_db_transaction(read_only=True)
-    @requires_terminal(user_privileges=[Privilege.can_book_orders])
+    @requires_terminal(node_privileges=[NodePrivilege.can_book_orders])
     async def check_ticket_scan(
         self, *, conn: Connection, node: Node, current_till: Till, new_ticket_scan: NewTicketScan
     ) -> TicketScanResult:
@@ -1273,8 +1294,13 @@ class OrderService(Service[Config]):
                 "from ticket t "
                 "join till_layout_to_ticket tltt on tltt.ticket_id = t.id "
                 "join user_tag ut "
-                "   on (ut.restriction = any(t.restrictions) "
-                "       or t.restrictions = '{}'::text array and ut.restriction is null) "
+                "   on (exists ("
+                "           select from user_tag_to_variant uttv "
+                "           where uttv.user_tag_id = ut.id "
+                "             and uttv.variant_id = any(t.user_tag_variant_ids)"
+                "       ) "
+                "       or (t.user_tag_variant_ids = '{}'::bigint array "
+                "           and not exists (select from user_tag_to_variant uttv where uttv.user_tag_id = ut.id))) "
                 "where tltt.layout_id = $1 and ut.pin = $2",
                 layout_id,
                 customer_tag.tag_pin,
@@ -1337,7 +1363,7 @@ class OrderService(Service[Config]):
         return TicketScanResult(scanned_tickets=scanned_tickets)
 
     @with_db_transaction(read_only=True)
-    @requires_terminal(user_privileges=[Privilege.can_book_orders])
+    @requires_terminal(node_privileges=[NodePrivilege.can_book_orders])
     async def check_ticket_sale(
         self,
         *,
@@ -1376,6 +1402,8 @@ class OrderService(Service[Config]):
             )
             assert ticket_product is not None
             assert ticket_scan.total_price is not None
+            if not ticket_product.is_locked:
+                raise InvalidArgument(f"Ticket {ticket_product.name} is not locked and cannot be sold")
 
             line_items.append(
                 PendingLineItem(
@@ -1385,6 +1413,7 @@ class OrderService(Service[Config]):
                     tax_name=ticket.tax_name,
                     tax_rate=ticket.tax_rate,
                     tax_rate_id=ticket.tax_rate_id,
+                    vouchers_redeemed=0,
                 )
             )
 
@@ -1398,6 +1427,7 @@ class OrderService(Service[Config]):
                         tax_name=top_up_product.tax_name,
                         tax_rate=top_up_product.tax_rate,
                         tax_rate_id=top_up_product.tax_rate_id,
+                        vouchers_redeemed=0,
                     )
                 )
 
@@ -1422,7 +1452,7 @@ class OrderService(Service[Config]):
         return sale
 
     @with_db_transaction(read_only=False)
-    @requires_terminal(user_privileges=[Privilege.can_book_orders])
+    @requires_terminal(node_privileges=[NodePrivilege.can_book_orders])
     async def book_ticket_sale(
         self,
         *,
@@ -1492,7 +1522,7 @@ class OrderService(Service[Config]):
         return completed_ticket_sale
 
     @with_db_transaction(read_only=False)
-    @requires_terminal(user_privileges=[Privilege.can_book_orders])
+    @requires_terminal(node_privileges=[NodePrivilege.can_book_orders])
     async def check_pending_ticket_sale(
         self,
         *,
@@ -1524,7 +1554,7 @@ class OrderService(Service[Config]):
         return None
 
     @with_db_transaction(read_only=True)
-    @requires_terminal(user_privileges=[Privilege.can_book_orders])
+    @requires_terminal(node_privileges=[NodePrivilege.can_book_orders])
     async def show_order(self, *, conn: Connection, current_user: User, order_id: int) -> Optional[Order]:
         order = await fetch_order(conn=conn, order_id=order_id)
         if order is not None and order.cashier_id == current_user.id:
@@ -1532,7 +1562,7 @@ class OrderService(Service[Config]):
         return None
 
     @with_db_transaction(read_only=True)
-    @requires_terminal([Privilege.can_book_orders])
+    @requires_terminal(node_privileges=[NodePrivilege.can_book_orders])
     async def list_orders_terminal(
         self, *, conn: Connection, node: Node, current_user: User, current_terminal: CurrentTerminal
     ) -> list[Order]:
@@ -1545,52 +1575,140 @@ class OrderService(Service[Config]):
             node.event_node_id,
         )
 
-    @with_db_transaction(read_only=True)
-    @requires_node()
-    @requires_user([Privilege.node_administration])
-    async def list_orders(self, *, conn: Connection, node: Node, customer_account_id: int) -> list[Order]:
-        return await conn.fetch_many(
-            Order,
-            "select * from order_value_prefiltered((select array_agg(o.id) from ordr o where customer_account_id = $1), $2)",
-            customer_account_id,
-            node.event_node_id,
+    @staticmethod
+    async def _validate_cash_register_at_node(*, conn: Connection, node: Node, cash_register_id: int) -> None:
+        exists = await conn.fetchval(
+            "select exists("
+            "  select from cash_register cr join node n on cr.node_id = n.id "
+            "  where cr.id = $1 and (cr.node_id = any($2) or $3 = any(n.parent_ids))"
+            ")",
+            cash_register_id,
+            node.ids_to_event_node,
+            node.id,
         )
+        if not exists:
+            raise NotFound(element_type="cash_register", element_id=cash_register_id)
 
     @with_db_transaction(read_only=True)
     @requires_node()
-    @requires_user([Privilege.node_administration])
-    async def list_orders_by_till(self, *, conn: Connection, node: Node, till_id: int) -> list[Order]:
-        return await conn.fetch_many(
+    @requires_user(node_privileges=[NodePrivilege.node_administration])
+    async def list_orders(
+        self,
+        *,
+        conn: Connection,
+        node: Node,
+        customer_account_id: Optional[int] = None,
+        till_id: Optional[int] = None,
+        offset: int = 0,
+        limit: int = 500,
+    ) -> PaginatedList[Order]:
+        if customer_account_id is None and till_id is None:
+            raise InvalidArgument("At least one of customer_account_id or till_id must be provided")
+
+        if customer_account_id is not None:
+            await fetch_customer(conn=conn, node=node, customer_id=customer_account_id)
+        if till_id is not None and await fetch_till(conn=conn, node=node, till_id=till_id) is None:
+            raise NotFound(element_type="till", element_id=till_id)
+
+        if customer_account_id is not None and till_id is not None:
+            total = await conn.fetchval(
+                "select count(*) from ordr o where o.customer_account_id = $1 and o.till_id = $2",
+                customer_account_id,
+                till_id,
+            )
+            order_ids = await conn.fetch(
+                "select o.id from ordr o where o.customer_account_id = $1 and o.till_id = $2 "
+                "order by o.booked_at desc limit $3 offset $4",
+                customer_account_id,
+                till_id,
+                limit,
+                offset,
+            )
+        elif customer_account_id is not None:
+            total = await conn.fetchval(
+                "select count(*) from ordr o where o.customer_account_id = $1",
+                customer_account_id,
+            )
+            order_ids = await conn.fetch(
+                "select o.id from ordr o where o.customer_account_id = $1 order by o.booked_at desc limit $2 offset $3",
+                customer_account_id,
+                limit,
+                offset,
+            )
+        else:
+            total = await conn.fetchval(
+                "select count(*) from ordr o where o.till_id = $1",
+                till_id,
+            )
+            order_ids = await conn.fetch(
+                "select o.id from ordr o where o.till_id = $1 order by o.booked_at desc limit $2 offset $3",
+                till_id,
+                limit,
+                offset,
+            )
+
+        if not order_ids:
+            return PaginatedList(items=[], total=total)
+
+        orders = await conn.fetch_many(
             Order,
-            "select * from order_value_prefiltered((select array_agg(o.id) from ordr o where till_id = $1), $2)",
-            till_id,
+            "select * from order_value_prefiltered($1, $2)",
+            [row["id"] for row in order_ids],
             node.event_node_id,
         )
+        return PaginatedList(items=orders, total=total)
 
     @with_db_transaction(read_only=True)
     @requires_node()
-    @requires_user([Privilege.node_administration])
-    async def list_transactions_by_cash_register(
-        self, *, conn: Connection, node: Node, cash_register_id: int
-    ) -> list[Transaction]:
+    @requires_user(node_privileges=[NodePrivilege.node_administration])
+    async def list_transactions(
+        self,
+        *,
+        conn: Connection,
+        node: Node,
+        cash_register_id: int | None = None,
+        transaction_id: int | None = None,
+        offset: int = 0,
+        limit: int = 500,
+    ) -> PaginatedList[Transaction]:
+        if transaction_id is not None:
+            transaction = await fetch_transaction(conn=conn, node=node, transaction_id=transaction_id)
+            return PaginatedList(items=[transaction], total=1)
+
+        if cash_register_id is None:
+            return PaginatedList(items=[], total=0)
+
+        await self._validate_cash_register_at_node(conn=conn, node=node, cash_register_id=cash_register_id)
         cash_register_account_id = await get_cash_register_account_id(
             conn=conn, node=node, cash_register_id=cash_register_id
         )
-        return await conn.fetch_many(
-            Transaction,
-            "select * from transaction_with_order t where source_account = $1 or target_account = $1",
+
+        total = await conn.fetchval(
+            "select count(*) from transaction_with_order where source_account = $1 or target_account = $1",
             cash_register_account_id,
         )
 
+        transactions = await conn.fetch_many(
+            Transaction,
+            "select * from transaction_with_order "
+            "where source_account = $1 or target_account = $1 "
+            "order by booked_at desc limit $2 offset $3",
+            cash_register_account_id,
+            limit,
+            offset,
+        )
+
+        return PaginatedList(items=transactions, total=total)
+
     @with_db_transaction(read_only=True)
     @requires_node()
-    @requires_user([Privilege.node_administration])
+    @requires_user(node_privileges=[NodePrivilege.node_administration])
     async def get_order(self, *, conn: Connection, order_id: int) -> Optional[Order]:
         return await fetch_order(conn=conn, order_id=order_id)
 
     @with_db_transaction(read_only=True)
     @requires_node()
-    @requires_user([Privilege.node_administration])
+    @requires_user(node_privileges=[NodePrivilege.node_administration])
     async def get_transaction(self, *, conn: Connection, node: Node, transaction_id: int) -> Transaction:
         return await fetch_transaction(conn=conn, node=node, transaction_id=transaction_id)
 

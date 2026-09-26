@@ -8,38 +8,47 @@
 
 @file:Suppress(
     "ArrayInDataClass",
+    "DuplicatedCode",
     "EnumEntryName",
     "RemoveRedundantQualifierName",
-    "UnusedImport"
+    "RemoveRedundantCallsOfConversionMethods",
+    "REDUNDANT_CALL_OF_CONVERSION_METHOD",
+    "RedundantUnitReturnType",
+    "RemoveEmptyClassBody",
+    "UnnecessaryVariable",
+    "UnusedImport",
+    "UnnecessaryVariable",
+    "unused"
 )
 
 package de.stustapay.api.models
 
-import de.stustapay.api.models.ProductRestriction
 import de.stustapay.api.models.ProductType
+import de.stustapay.api.models.TaxType
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Contextual
 
 /**
- * 
  *
- * @param name 
- * @param price 
- * @param fixedPrice 
- * @param taxRateId 
- * @param restrictions 
- * @param isLocked 
- * @param isReturnable 
- * @param nodeId 
- * @param id 
- * @param taxName 
- * @param taxRate 
- * @param type 
- * @param priceInVouchers 
- * @param targetAccountId 
- * @param pricePerVoucher 
+ *
+ * @param name
+ * @param price
+ * @param fixedPrice
+ * @param taxRateId
+ * @param userTagVariantIds
+ * @param isLocked
+ * @param isReturnable
+ * @param nodeId
+ * @param id
+ * @param taxName
+ * @param taxRate
+ * @param taxType
+ * @param type
+ * @param priceInVouchers
+ * @param targetAccountId
+ * @param pricePerVoucher
  */
 @Serializable
 
@@ -57,8 +66,8 @@ data class Product (
     @SerialName(value = "tax_rate_id")
     val taxRateId: @Contextual com.ionspin.kotlin.bignum.integer.BigInteger,
 
-    @SerialName(value = "restrictions")
-    val restrictions: kotlin.collections.List<@Contextual ProductRestriction>,
+    @SerialName(value = "user_tag_variant_ids")
+    val userTagVariantIds: kotlin.collections.List<@Contextual com.ionspin.kotlin.bignum.integer.BigInteger>,
 
     @SerialName(value = "is_locked")
     val isLocked: kotlin.Boolean,
@@ -78,6 +87,9 @@ data class Product (
     @Contextual @SerialName(value = "tax_rate")
     val taxRate: kotlin.Double,
 
+    @Contextual @SerialName(value = "tax_type")
+    val taxType: TaxType,
+
     @Contextual @SerialName(value = "type")
     val type: ProductType,
 
@@ -94,4 +106,3 @@ data class Product (
 
 
 }
-

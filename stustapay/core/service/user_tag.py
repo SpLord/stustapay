@@ -1,3 +1,5 @@
+import csv
+from io import StringIO
 from typing import Optional
 
 import asyncpg
@@ -8,8 +10,9 @@ from stustapay.core.config import Config
 from stustapay.core.schema.account import UserTagDetail
 from stustapay.core.schema.audit_logs import AuditType
 from stustapay.core.schema.tree import Node, ObjectType
-from stustapay.core.schema.user import CurrentUser, Privilege
+from stustapay.core.schema.user import CurrentUser, NodePrivilege
 from stustapay.core.schema.user_tag import NewUserTag, NewUserTagSecret, UserTagSecret
+from stustapay.core.schema.user_tag_variant import NewUserTagVariant, UserTagVariant
 from stustapay.core.service.auth import AuthService
 from stustapay.core.service.common.audit_logs import create_audit_log
 from stustapay.core.service.common.decorators import requires_node, requires_user
@@ -48,18 +51,65 @@ async def create_user_tag_secret(conn: Connection, node_id: int, secret: NewUser
     return result
 
 
-async def create_user_tags(conn: Connection, node_id: int, tags: list[NewUserTag]):
+async def resolve_user_tag_variant_ids(
+    conn: Connection, node_id: int, variant_ids: list[int], variant_names: list[str]
+) -> list[int]:
+    resolved_ids = set(variant_ids)
+
+    for variant_name in variant_names:
+        name = variant_name.strip()
+        if name == "":
+            continue
+        variant_id = await conn.fetchval(
+            "select id from user_tag_variant where node_id = $1 and variant_name = $2",
+            node_id,
+            name,
+        )
+        if variant_id is None:
+            raise InvalidArgument(f"Unknown user tag variant name: {name}")
+        resolved_ids.add(variant_id)
+
+    for variant_id in resolved_ids:
+        exists = await conn.fetchval(
+            "select exists(select from user_tag_variant where id = $1 and node_id = $2)",
+            variant_id,
+            node_id,
+        )
+        if not exists:
+            raise InvalidArgument(f"Unknown user tag variant id: {variant_id}")
+
+    return sorted(resolved_ids)
+
+
+async def assign_user_tag_variants(conn: Connection, user_tag_id: int, variant_ids: list[int]) -> None:
+    await conn.execute("delete from user_tag_to_variant where user_tag_id = $1", user_tag_id)
+    for variant_id in variant_ids:
+        await conn.execute(
+            "insert into user_tag_to_variant (user_tag_id, variant_id) values ($1, $2) on conflict do nothing",
+            user_tag_id,
+            variant_id,
+        )
+
+
+async def create_user_tags(conn: Connection, event_node_id: int, tags: list[NewUserTag]):
     if len(tags) == 0:
         raise InvalidArgument("List of tags to create is empty")
 
     for tag in tags:
-        await conn.execute(
-            "insert into user_tag (node_id, pin, restriction, secret_id) values ($1, $2, $3, $4)",
-            node_id,
+        variant_ids = await resolve_user_tag_variant_ids(
+            conn=conn,
+            node_id=event_node_id,
+            variant_ids=tag.variant_ids,
+            variant_names=tag.variant_names,
+        )
+
+        user_tag_id = await conn.fetchval(
+            "insert into user_tag (node_id, pin, secret_id) values ($1, $2, $3) returning id",
+            event_node_id,
             tag.pin,
-            tag.restriction.value if tag.restriction is not None else None,
             tag.secret_id,
         )
+        await assign_user_tag_variants(conn=conn, user_tag_id=user_tag_id, variant_ids=variant_ids)
 
 
 async def get_or_assign_user_tag(conn: Connection, node: Node, pin: Optional[str], uid: int) -> int:
@@ -83,6 +133,15 @@ async def get_or_assign_user_tag(conn: Connection, node: Node, pin: Optional[str
     return user_tag_id
 
 
+async def _fetch_user_tag_variant(*, conn: Connection, node: Node, user_tag_variant_id: int) -> UserTagVariant | None:
+    return await conn.fetch_maybe_one(
+        UserTagVariant,
+        "select * from user_tag_variant where id = $1 and node_id = any($2)",
+        user_tag_variant_id,
+        node.ids_to_event_node,
+    )
+
+
 class UserTagService(Service[Config]):
     def __init__(self, db_pool: asyncpg.Pool, config: Config, auth_service: AuthService):
         super().__init__(db_pool, config)
@@ -90,7 +149,7 @@ class UserTagService(Service[Config]):
 
     @with_db_transaction
     @requires_node(event_only=True, object_types=[ObjectType.user_tag])
-    @requires_user([Privilege.node_administration])
+    @requires_user(node_privileges=[NodePrivilege.node_administration])
     async def create_user_tag_secret(
         self, *, conn: Connection, node: Node, current_user: CurrentUser, new_secret: NewUserTagSecret
     ) -> UserTagSecret:
@@ -106,7 +165,7 @@ class UserTagService(Service[Config]):
 
     @with_db_transaction(read_only=True)
     @requires_node(event_only=True, object_types=[ObjectType.user_tag])
-    @requires_user([Privilege.node_administration])
+    @requires_user(node_privileges=[NodePrivilege.node_administration])
     async def list_user_tag_secrets(self, *, conn: Connection, node: Node) -> list[UserTagSecret]:
         return await conn.fetch_many(
             UserTagSecret,
@@ -117,7 +176,7 @@ class UserTagService(Service[Config]):
 
     @with_db_transaction
     @requires_node(event_only=True, object_types=[ObjectType.user_tag])
-    @requires_user([Privilege.node_administration])
+    @requires_user(node_privileges=[NodePrivilege.node_administration])
     async def create_user_tags(
         self, *, conn: Connection, node: Node, current_user: CurrentUser, new_user_tags: list[NewUserTag]
     ):
@@ -128,11 +187,11 @@ class UserTagService(Service[Config]):
             user_id=current_user.id,
             node_id=node.id,
         )
-        return await create_user_tags(conn=conn, node_id=node.id, tags=new_user_tags)
+        return await create_user_tags(conn=conn, event_node_id=node.id, tags=new_user_tags)
 
     @with_db_transaction(read_only=True)
     @requires_node(event_only=True, object_types=[ObjectType.user_tag])
-    @requires_user([Privilege.node_administration])
+    @requires_user(node_privileges=[NodePrivilege.node_administration])
     async def get_user_tag_detail(self, *, conn: Connection, node: Node, user_tag_id: int) -> Optional[UserTagDetail]:
         return await conn.fetch_maybe_one(
             UserTagDetail,
@@ -143,7 +202,7 @@ class UserTagService(Service[Config]):
 
     @with_db_transaction
     @requires_node(event_only=True)
-    @requires_user([Privilege.node_administration])
+    @requires_user(node_privileges=[NodePrivilege.node_administration])
     async def update_user_tag_comment(
         self, *, conn: Connection, node: Node, current_user: CurrentUser, user_tag_id: int, comment: str
     ) -> UserTagDetail:
@@ -171,8 +230,13 @@ class UserTagService(Service[Config]):
 
     @with_db_transaction(read_only=True)
     @requires_node(event_only=True)
-    @requires_user([Privilege.node_administration])
+    @requires_user(node_privileges=[NodePrivilege.node_administration])
     async def find_user_tags(self, *, conn: Connection, node: Node, search_term: str) -> list[UserTagDetail]:
+        search_term = search_term.strip()
+        search_term = search_term.lstrip("0")
+        if not search_term:
+            return []
+
         return await conn.fetch_many(
             UserTagDetail,
             "select * from user_tag_with_history utwh "
@@ -180,3 +244,144 @@ class UserTagService(Service[Config]):
             f"%{search_term.lower()}%",
             node.ids_to_event_node,
         )
+
+    @with_db_transaction(read_only=True)
+    @requires_node(event_only=True, object_types=[ObjectType.user_tag])
+    @requires_user(node_privileges=[NodePrivilege.node_administration])
+    async def get_user_tags_csv(
+        self, *, conn: Connection, node: Node, exclude_activated: bool, variant_ids: list[int]
+    ) -> str:
+        for variant_id in variant_ids:
+            exists = await conn.fetchval(
+                "select exists(select from user_tag_variant where id = $1 and node_id = any($2))",
+                variant_id,
+                node.ids_to_event_node,
+            )
+            if not exists:
+                raise InvalidArgument(f"Unknown user tag variant id: {variant_id}")
+
+        rows = await conn.fetch(
+            "select ut.pin, coalesce(string_agg(utv.variant_name, ',' order by utv.priority, utv.variant_name), '') "
+            "as variants "
+            "from user_tag ut "
+            "left join user_tag_to_variant uttv on ut.id = uttv.user_tag_id "
+            "left join user_tag_variant utv on uttv.variant_id = utv.id "
+            "where ut.node_id = any($1) "
+            " and (ut.uid is null or not $2) "
+            " and ("
+            "cardinality($3::bigint[]) = 0 "
+            "or exists ("
+            "select from user_tag_to_variant uttv_filter "
+            "where uttv_filter.user_tag_id = ut.id and uttv_filter.variant_id = any($3)"
+            ")"
+            ") "
+            "group by ut.id, ut.pin "
+            "order by ut.pin",
+            node.ids_to_event_node,
+            exclude_activated,
+            variant_ids,
+        )
+
+        output = StringIO()
+        writer = csv.writer(output)
+        writer.writerow(["pin", "variants"])
+        for row in rows:
+            writer.writerow([row["pin"], row["variants"]])
+        return output.getvalue()
+
+    @with_db_transaction(read_only=True)
+    @requires_node(event_only=True)
+    @requires_user()
+    async def list_user_tag_variants(self, *, conn: Connection, node: Node) -> list[UserTagVariant]:
+        return await conn.fetch_many(
+            UserTagVariant,
+            "select * from user_tag_variant where node_id = any($1) order by priority, variant_name",
+            node.ids_to_event_node,
+        )
+
+    @with_db_transaction(read_only=True)
+    @requires_node(event_only=True)
+    @requires_user()
+    async def get_user_tag_variant(
+        self, *, conn: Connection, node: Node, user_tag_variant_id: int
+    ) -> UserTagVariant | None:
+        return await _fetch_user_tag_variant(conn=conn, node=node, user_tag_variant_id=user_tag_variant_id)
+
+    @with_db_transaction
+    @requires_node(event_only=True, object_types=[ObjectType.user_tag])
+    @requires_user(node_privileges=[NodePrivilege.node_administration])
+    async def create_user_tag_variant(
+        self, *, conn: Connection, node: Node, current_user: CurrentUser, user_tag_variant: NewUserTagVariant
+    ) -> UserTagVariant:
+        user_tag_variant_id = await conn.fetchval(
+            "insert into user_tag_variant (node_id, variant_name, description, priority) "
+            "values ($1, $2, $3, $4) returning id",
+            node.id,
+            user_tag_variant.variant_name,
+            user_tag_variant.description,
+            user_tag_variant.priority,
+        )
+        created = await _fetch_user_tag_variant(conn=conn, node=node, user_tag_variant_id=user_tag_variant_id)
+        assert created is not None
+        await create_audit_log(
+            conn=conn,
+            log_type=AuditType.user_tag_variant_created,
+            content=created,
+            user_id=current_user.id,
+            node_id=node.id,
+        )
+        return created
+
+    @with_db_transaction
+    @requires_node(event_only=True, object_types=[ObjectType.user_tag])
+    @requires_user(node_privileges=[NodePrivilege.node_administration])
+    async def update_user_tag_variant(
+        self,
+        *,
+        conn: Connection,
+        node: Node,
+        current_user: CurrentUser,
+        user_tag_variant_id: int,
+        user_tag_variant: NewUserTagVariant,
+    ) -> UserTagVariant:
+        updated_id = await conn.fetchval(
+            "update user_tag_variant set variant_name = $1, description = $2, priority = $3 "
+            "where id = $4 and node_id = any($5) returning id",
+            user_tag_variant.variant_name,
+            user_tag_variant.description,
+            user_tag_variant.priority,
+            user_tag_variant_id,
+            node.ids_to_event_node,
+        )
+        if updated_id is None:
+            raise NotFound(element_type="user_tag_variant", element_id=user_tag_variant_id)
+        updated = await _fetch_user_tag_variant(conn=conn, node=node, user_tag_variant_id=user_tag_variant_id)
+        assert updated is not None
+        await create_audit_log(
+            conn=conn,
+            log_type=AuditType.user_tag_variant_updated,
+            content=updated,
+            user_id=current_user.id,
+            node_id=node.id,
+        )
+        return updated
+
+    @with_db_transaction
+    @requires_node(event_only=True, object_types=[ObjectType.user_tag])
+    @requires_user(node_privileges=[NodePrivilege.node_administration])
+    async def delete_user_tag_variant(
+        self, *, conn: Connection, node: Node, current_user: CurrentUser, user_tag_variant_id: int
+    ) -> bool:
+        result = await conn.execute(
+            "delete from user_tag_variant where id = $1 and node_id = any($2)",
+            user_tag_variant_id,
+            node.ids_to_event_node,
+        )
+        await create_audit_log(
+            conn=conn,
+            log_type=AuditType.user_tag_variant_deleted,
+            content={"id": user_tag_variant_id},
+            user_id=current_user.id,
+            node_id=node.id,
+        )
+        return result != "DELETE 0"

@@ -1,14 +1,16 @@
-import { TaxRate, selectTaxRateAll, useDeleteTaxRateMutation, useListTaxRatesQuery } from "@/api";
-import { TaxRateRoutes } from "@/app/routes";
-import { ListLayout } from "@/components";
-import { useCurrentNode, useCurrentUserHasPrivilegeAtNode, useRenderNode } from "@/hooks";
 import { Delete as DeleteIcon, Edit as EditIcon } from "@mui/icons-material";
 import { DataGrid, GridActionsCellItem, GridColDef } from "@stustapay/framework";
-import { Loading } from "@stustapay/components";
 import { useOpenModal } from "@stustapay/modal-provider";
+import { useLiveQuery } from "@tanstack/react-db";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
+
+import { TaxRate } from "@/api";
+import { TaxRateRoutes } from "@/app/routes";
+import { ListLayout } from "@/components";
+import { getTaxRateCollection } from "@/db/collections";
+import { useCurrentNode, useCurrentUserHasPrivilegeAtNode, useRenderNode } from "@/hooks";
 
 export const TaxRateList: React.FC = () => {
   const { t } = useTranslation();
@@ -17,21 +19,11 @@ export const TaxRateList: React.FC = () => {
   const canManageTaxRatesAtNode = useCurrentUserHasPrivilegeAtNode(TaxRateRoutes.privilege);
   const openModal = useOpenModal();
 
-  const { taxRates, isLoading } = useListTaxRatesQuery(
-    { nodeId: currentNode.id },
-    {
-      selectFromResult: ({ data, ...rest }) => ({
-        ...rest,
-        taxRates: data ? selectTaxRateAll(data) : undefined,
-      }),
-    }
+  const { data: taxRates, isLoading } = useLiveQuery(
+    (q) => q.from({ taxRates: getTaxRateCollection(currentNode.id) }),
+    [currentNode.id]
   );
-  const [deleteTaxRate] = useDeleteTaxRateMutation();
   const { dataGridNodeColumn } = useRenderNode();
-
-  if (isLoading) {
-    return <Loading />;
-  }
 
   const openConfirmDeleteDialog = (taxRateId: number) => {
     openModal({
@@ -39,9 +31,7 @@ export const TaxRateList: React.FC = () => {
       title: t("deleteTaxRate"),
       content: t("deleteTaxRateDescription"),
       onConfirm: () => {
-        deleteTaxRate({ nodeId: currentNode.id, taxRateId })
-          .unwrap()
-          .catch(() => undefined);
+        getTaxRateCollection(currentNode.id).delete(taxRateId);
         return true;
       },
     });
@@ -95,11 +85,12 @@ export const TaxRateList: React.FC = () => {
     <ListLayout title={t("taxRates")} routes={TaxRateRoutes}>
       <DataGrid
         autoHeight
+        loading={isLoading}
         getRowId={(row) => row.name}
         rows={taxRates ?? []}
         columns={columns}
         disableRowSelectionOnClick
-        sx={{ p: 1, boxShadow: (theme) => theme.shadows[1] }}
+        sx={{ boxShadow: (theme) => theme.shadows[1] }}
       />
     </ListLayout>
   );

@@ -1,8 +1,3 @@
-import { useLoginMutation } from "@/api";
-import { config } from "@/api/common";
-import PinUidHowToImg from "@/assets/img/pin_uid_howto.svg";
-import { usePublicConfig } from "@/hooks";
-import { selectIsAuthenticated, useAppSelector } from "@/store";
 import { LockOutlined as LockOutlinedIcon } from "@mui/icons-material";
 import { Avatar, Box, Button, Container, CssBaseline, LinearProgress, Stack, Typography } from "@mui/material";
 import { FormTextField } from "@stustapay/form-components";
@@ -14,8 +9,15 @@ import { Navigate, useSearchParams } from "react-router-dom";
 import { toast } from "react-toastify";
 import { z } from "zod";
 
+import { useLoginMutation, useLogoutMutation } from "@/api";
+import { config } from "@/api/common";
+import PinUidHowToImg from "@/assets/img/pin_uid_howto.svg";
+import { usePublicConfig } from "@/hooks";
+import i18n from "@/i18n";
+import { selectIsAuthenticated, useAppSelector } from "@/store";
+
 const validationSchema = z.object({
-  userTagPin: z.string(),
+  userTagPin: z.string({ error: i18n.t("pinRequired") }),
 });
 
 type FormSchema = z.infer<typeof validationSchema>;
@@ -34,26 +36,43 @@ const getBlobUrl = (blobId?: string | null) => {
 export const Login: React.FC = () => {
   const { t } = useTranslation();
   const isLoggedIn = useAppSelector(selectIsAuthenticated);
-  const [query] = useSearchParams();
+  const [query, setQuery] = useSearchParams();
   const [login] = useLoginMutation();
+  const [logout] = useLogoutMutation();
   const publicConfig = usePublicConfig();
   const customerLogoUrl = getBlobUrl(publicConfig.event_design?.customer_logo_blob_id);
   const wristbandGuideUrl = getBlobUrl(publicConfig.event_design?.wristband_guide_blob_id);
 
-  const ticketVoucher = query.get("ticketVoucher");
+  // direct login from POST parameters (wristband QR code scan or ticket shop)
+  const loginToken = query.get("pin") ?? query.get("ticketVoucher");
   React.useEffect(() => {
-    if (isLoggedIn || !ticketVoucher) {
+    if (!loginToken) {
+      return;
+    }
+    if (isLoggedIn) {
+      logout()
+        .unwrap()
+        .catch((err) => {
+          console.error("Failed to logout before login with new token", err);
+        });
       return;
     }
 
-    login({ loginPayload: { pin: ticketVoucher, node_id: config.apiConfig.node_id } })
+    setQuery((prev) => {
+      prev.delete("pin");
+      prev.delete("ticketVoucher");
+      return prev;
+    });
+
+    login({ loginPayload: { pin: loginToken, node_id: config.apiConfig.node_id } })
       .unwrap()
+      .then(() => {})
       .catch((err) => {
         toast.error(t("loginFailed", { reason: err.error }));
       });
-  }, [query, isLoggedIn, ticketVoucher, login, t]);
+  }, [query, isLoggedIn, loginToken, login, logout, setQuery, t]);
 
-  if (isLoggedIn) {
+  if (isLoggedIn && !loginToken) {
     const next = query.get("next");
     const redirectUrl = next != null ? next : "/";
     return <Navigate to={redirectUrl} />;
@@ -76,7 +95,7 @@ export const Login: React.FC = () => {
   return (
     <Container component="main" maxWidth="xs">
       <CssBaseline />
-      <Stack alignItems="center" justifyContent="center">
+      <Stack sx={{ alignItems: "center", justifyContent: "center" }}>
         {customerLogoUrl ? (
           <img
             src={customerLogoUrl}

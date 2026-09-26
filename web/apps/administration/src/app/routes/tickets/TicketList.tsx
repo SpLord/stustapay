@@ -1,23 +1,18 @@
-import {
-  Ticket,
-  selectTaxRateById,
-  selectTicketAll,
-  useDeleteTicketMutation,
-  useListTaxRatesQuery,
-  useListTicketsQuery,
-  useUpdateTicketMutation,
-} from "@/api";
-import { TicketRoutes } from "@/app/routes";
-import { ListLayout } from "@/components";
-import { useCurrentNode, useCurrentUserHasPrivilege, useCurrentUserHasPrivilegeAtNode, useRenderNode } from "@/hooks";
-import { Delete as DeleteIcon, Edit as EditIcon, Lock as LockIcon } from "@mui/icons-material";
+import { Delete as DeleteIcon, Edit as EditIcon, Lock as LockIcon, LockOpen as UnlockIcon } from "@mui/icons-material";
 import { Link, Tooltip } from "@mui/material";
 import { DataGrid, GridActionsCellItem, GridColDef } from "@stustapay/framework";
-import { Loading } from "@stustapay/components";
 import { useOpenModal } from "@stustapay/modal-provider";
+import { ArrayElement } from "@stustapay/utils";
+import { useLiveQuery } from "@tanstack/react-db";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 import { Link as RouterLink, useNavigate } from "react-router-dom";
+
+import { TicketRoutes } from "@/app/routes";
+import { ListLayout } from "@/components";
+import { TaxRateCell } from "@/components/table/TaxRateCell";
+import { getTicketCollection, getUserTagVariantCollection } from "@/db/collections";
+import { useCurrentNode, useCurrentUserHasPrivilege, useCurrentUserHasPrivilegeAtNode, useRenderNode } from "@/hooks";
 
 export const TicketList: React.FC = () => {
   const { t } = useTranslation();
@@ -27,23 +22,20 @@ export const TicketList: React.FC = () => {
   const navigate = useNavigate();
   const openModal = useOpenModal();
 
-  const { tickets, isLoading: isTicketsLoading } = useListTicketsQuery(
-    { nodeId: currentNode.id },
-    {
-      selectFromResult: ({ data, ...rest }) => ({
-        ...rest,
-        tickets: data ? selectTicketAll(data) : undefined,
-      }),
-    }
+  const { data: tickets, isLoading: isTicketsLoading } = useLiveQuery(
+    (q) => q.from({ tickets: getTicketCollection(currentNode.id) }),
+    [currentNode.id]
   );
-  const { data: taxRates } = useListTaxRatesQuery({ nodeId: currentNode.id });
-  const [updateTicket] = useUpdateTicketMutation();
-  const [deleteTicket] = useDeleteTicketMutation();
+  const { data: userTagVariants, isLoading: isUserTagVariantsLoading } = useLiveQuery(
+    (q) => q.from({ userTagVariants: getUserTagVariantCollection(currentNode.id) }),
+    [currentNode.id]
+  );
+  const userTagVariantById = React.useMemo(
+    () => new Map((userTagVariants ?? []).map((variant) => [variant.id, variant])),
+    [userTagVariants]
+  );
+  const isLoading = isTicketsLoading || isUserTagVariantsLoading;
   const { dataGridNodeColumn } = useRenderNode();
-
-  if (isTicketsLoading) {
-    return <Loading />;
-  }
 
   const openConfirmDeleteDialog = (ticketId: number) => {
     openModal({
@@ -51,36 +43,19 @@ export const TicketList: React.FC = () => {
       title: t("ticket.delete"),
       content: t("ticket.deleteDescription"),
       onConfirm: () => {
-        deleteTicket({ nodeId: currentNode.id, ticketId })
-          .unwrap()
-          .catch(() => undefined);
+        getTicketCollection(currentNode.id).delete(ticketId);
         return true;
       },
     });
   };
 
-  const handleLockTicket = (ticket: Ticket) => {
-    updateTicket({ nodeId: currentNode.id, ticketId: ticket.id, newTicket: { ...ticket, is_locked: true } });
+  const handleToggleLockTicket = (ticket: ArrayElement<NonNullable<typeof tickets>>) => {
+    getTicketCollection(currentNode.id).update(ticket.id, (draft) => {
+      draft.is_locked = !draft.is_locked;
+    });
   };
 
-  const renderTaxRate = (id: number) => {
-    if (!taxRates) {
-      return "";
-    }
-
-    const tax = selectTaxRateById(taxRates, id);
-    if (!tax) {
-      return "";
-    }
-
-    return (
-      <Tooltip title={tax.description}>
-        <span>{(tax.rate * 100).toFixed(0)} %</span>
-      </Tooltip>
-    );
-  };
-
-  const columns: GridColDef<Ticket>[] = [
+  const columns: GridColDef<ArrayElement<NonNullable<typeof tickets>>>[] = [
     {
       field: "name",
       headerName: t("ticket.name"),
@@ -110,7 +85,7 @@ export const TicketList: React.FC = () => {
       field: "tax_rate_id",
       headerName: t("ticket.taxRate"),
       align: "right",
-      renderCell: (params) => renderTaxRate(params.row.tax_rate_id),
+      renderCell: (params) => <TaxRateCell taxRateId={params.row.tax_rate_id} />,
     },
     {
       field: "total_price",
@@ -118,8 +93,15 @@ export const TicketList: React.FC = () => {
       type: "currency",
     },
     {
-      field: "restrictions",
+      field: "userTagVariant",
       headerName: t("ticket.restriction"),
+      valueGetter: (_, row) => {
+        const variantId = row.user_tag_variant_ids[0];
+        if (variantId == null) {
+          return "";
+        }
+        return userTagVariantById.get(variantId)?.variant_name ?? String(variantId);
+      },
       width: 150,
     },
     dataGridNodeColumn,
@@ -141,15 +123,25 @@ export const TicketList: React.FC = () => {
                 onClick={() => navigate(TicketRoutes.edit(params.row.id))}
               />,
               <GridActionsCellItem
-                icon={<LockIcon />}
+                icon={
+                  params.row.is_locked ? (
+                    <Tooltip title={t("ticket.unlock")}>
+                      <UnlockIcon />
+                    </Tooltip>
+                  ) : (
+                    <Tooltip title={t("ticket.lock")}>
+                      <LockIcon />
+                    </Tooltip>
+                  )
+                }
                 color="primary"
-                disabled={params.row.is_locked}
                 label={t("ticket.lock")}
-                onClick={() => handleLockTicket(params.row)}
+                onClick={() => handleToggleLockTicket(params.row)}
               />,
               <GridActionsCellItem
                 icon={<DeleteIcon color="error" />}
                 label={t("delete")}
+                disabled={params.row.is_locked}
                 onClick={() => openConfirmDeleteDialog(params.row.id)}
               />,
             ]
@@ -161,10 +153,11 @@ export const TicketList: React.FC = () => {
     <ListLayout title={t("tickets")} routes={TicketRoutes}>
       <DataGrid
         autoHeight
+        loading={isLoading}
         rows={tickets ?? []}
         columns={columns}
         disableRowSelectionOnClick
-        sx={{ p: 1, boxShadow: (theme) => theme.shadows[1] }}
+        sx={{ boxShadow: (theme) => theme.shadows[1] }}
       />
     </ListLayout>
   );

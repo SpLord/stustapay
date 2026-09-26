@@ -1,20 +1,23 @@
+import { Link } from "@mui/material";
+import { DataGrid, GridColDef } from "@stustapay/framework";
+import { NodePrivilege } from "@stustapay/models";
+import * as React from "react";
+import { useTranslation } from "react-i18next";
+import { Link as RouterLink } from "react-router-dom";
+
 import { SumUpTransaction, useListSumupTransactionsQuery } from "@/api";
 import { withPrivilegeGuard } from "@/app/layout";
 import { ProductRoutes, SumUpTransactionRoutes } from "@/app/routes";
 import { ListLayout } from "@/components";
 import { useCurrentNode } from "@/hooks";
-import { Link } from "@mui/material";
-import { DataGrid, GridColDef } from "@stustapay/framework";
-import { Privilege } from "@stustapay/models";
-import * as React from "react";
-import { useTranslation } from "react-i18next";
-import { Link as RouterLink } from "react-router-dom";
 
-export const SumUpTransactionList: React.FC = withPrivilegeGuard(Privilege.node_administration, () => {
+export const SumUpTransactionList: React.FC = withPrivilegeGuard(NodePrivilege.node_administration, () => {
   const { t } = useTranslation();
   const { currentNode } = useCurrentNode();
 
-  const { data: checkouts } = useListSumupTransactionsQuery({ nodeId: currentNode.id });
+  const { data: checkouts, isLoading } = useListSumupTransactionsQuery({
+    nodeId: currentNode.id,
+  });
 
   const columns: GridColDef<SumUpTransaction>[] = [
     {
@@ -43,6 +46,7 @@ export const SumUpTransactionList: React.FC = withPrivilegeGuard(Privilege.node_
     <ListLayout title={t("sumup.transactions")} routes={ProductRoutes}>
       <DataGrid
         autoHeight
+        loading={isLoading}
         rows={checkouts ?? []}
         columns={columns}
         disableRowSelectionOnClick
@@ -51,7 +55,7 @@ export const SumUpTransactionList: React.FC = withPrivilegeGuard(Privilege.node_
             sortModel: [{ field: "timestamp", sort: "desc" }],
           },
         }}
-        sx={{ p: 1, boxShadow: (theme) => theme.shadows[1] }}
+        sx={{ boxShadow: (theme) => theme.shadows[1] }}
       />
     </ListLayout>
   );

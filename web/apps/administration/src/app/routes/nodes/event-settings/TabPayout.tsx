@@ -1,4 +1,3 @@
-import { RestrictedEventSettings, useUpdateEventMutation } from "@/api";
 import { Button, LinearProgress, Stack } from "@mui/material";
 import { FormSelect, FormSwitch, FormTextField, zodExtension } from "@stustapay/form-components";
 import { toFormikValidationSchema } from "@stustapay/utils";
@@ -8,6 +7,8 @@ import * as React from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "react-toastify";
 import { z } from "zod";
+
+import { RestrictedEventSettings, useUpdateEventMutation } from "@/api";
 import i18n from "@/i18n";
 
 const requiredIssue = {
@@ -37,7 +38,7 @@ export const PayoutSettingsSchema = z
     payout_done_message: zodExtension.undefineableString(),
     payout_registered_subject: zodExtension.undefineableString(),
     payout_registered_message: zodExtension.undefineableString(),
-    payout_sender: z.string().email().optional(),
+    payout_sender: z.string().email({ pattern: z.regexes.html5Email }).optional(),
   })
   .superRefine((data, ctx) => {
     if (!data.sepa_enabled) {

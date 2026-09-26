@@ -1,10 +1,11 @@
-import { CashierRevenueReportRow, useGetCashierRevenueReportQuery } from "@/api";
-import { useCurrentNode, useCurrencyFormatter } from "@/hooks";
 import { Card, CardContent, Stack, Typography } from "@mui/material";
-import { DataGrid, GridColDef } from "@stustapay/framework";
 import { Loading } from "@stustapay/components";
+import { DataGrid, GridColDef } from "@stustapay/framework";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
+
+import { useGetCashierRevenueReportQuery } from "@/api";
+import { useCurrentNode, useCurrencyFormatter } from "@/hooks";
 
 interface CashierSummary {
   id: number;
@@ -24,7 +25,7 @@ export const CashierRevenueReport: React.FC = () => {
   if (isLoading) return <Loading />;
   if (!data || data.length === 0) return null;
 
-  const rows = data.map((r, i) => ({
+  const rows = data.map((r) => ({
     ...r,
     id: `${r.cashier_id}-${r.product_id}`,
   }));

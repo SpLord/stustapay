@@ -1,8 +1,3 @@
-import { findNode, useGetTreeForCurrentUserQuery, useLogoutMutation, useTreeForCurrentUser } from "@/api";
-import { config } from "@/api/common";
-import { AppBar, DrawerHeader, Main } from "@/components";
-import { drawerWidth } from "@/components/layouts/constants";
-import { selectCurrentUser, useAppSelector } from "@/store";
 import {
   ChevronLeft as ChevronLeftIcon,
   ChevronRight as ChevronRightIcon,
@@ -25,12 +20,20 @@ import {
   Typography,
 } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
+import useMediaQuery from "@mui/material/useMediaQuery";
 import { Loading, TestModeDisclaimer } from "@stustapay/components";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 import { Navigate, Outlet, Link as RouterLink, useLocation, useNavigate } from "react-router-dom";
-import { NavigationTree } from "./navigation-tree";
+
+import { findNode, useGetTreeForCurrentUserQuery, useLogoutMutation, useTreeForCurrentUser } from "@/api";
+import { config } from "@/api/common";
+import { AppBar, DrawerHeader, Main } from "@/components";
+import { drawerWidth } from "@/components/layouts/constants";
 import { useCurrentNode } from "@/hooks";
+import { selectCurrentUser, useAppSelector } from "@/store";
+
+import { NavigationTree } from "./navigation-tree";
 
 const BreadcrumbHeader: React.FC = () => {
   const { t } = useTranslation();
@@ -44,7 +47,22 @@ const BreadcrumbHeader: React.FC = () => {
     }
     const idsToUserRoot = currentNode.parent_ids.slice(idxOfUserRoot);
     return [...idsToUserRoot.map((nodeId) => findNode(nodeId, tree)), currentNode];
-  }, [currentNode]);
+  }, [currentNode, tree]);
+
+  React.useEffect(() => {
+    let filteredNodes = [...nodes];
+    if (currentNode.event_node_id != null) {
+      const indexOfEventNode = filteredNodes.findIndex((node) => node?.id === currentNode.event_node_id);
+      if (indexOfEventNode >= 0) {
+        filteredNodes = filteredNodes.slice(indexOfEventNode);
+      }
+    }
+    const breadcrumbPath = filteredNodes
+      .map((node) => node?.name)
+      .filter(Boolean)
+      .join(" / ");
+    document.title = breadcrumbPath ? `SSP - ${breadcrumbPath}` : t("StuStaPay");
+  }, [nodes, t, currentNode.event_node_id]);
 
   return (
     <Stack sx={{ flexGrow: 1, alignItems: "center" }} direction="row" spacing={3}>
@@ -69,7 +87,8 @@ const BreadcrumbHeader: React.FC = () => {
 export const AuthenticatedRoot: React.FC = () => {
   const { t } = useTranslation();
   const theme = useTheme();
-  const [open, setOpen] = React.useState(true);
+  const isDesktop = useMediaQuery(theme.breakpoints.up("md"));
+  const [open, setOpen] = React.useState(false);
   const location = useLocation();
   const [logout] = useLogoutMutation();
   const navigate = useNavigate();
@@ -77,6 +96,16 @@ export const AuthenticatedRoot: React.FC = () => {
   const user = useAppSelector(selectCurrentUser);
 
   const { isLoading: isTreeLoading, error: treeError } = useGetTreeForCurrentUserQuery();
+
+  React.useEffect(() => {
+    setOpen(isDesktop);
+  }, [isDesktop]);
+
+  React.useEffect(() => {
+    if (!isDesktop) {
+      setOpen(false);
+    }
+  }, [location.pathname, isDesktop]);
 
   if (!user) {
     const next = location.pathname !== "/logout" ? `?next=${location.pathname}` : "";
@@ -103,26 +132,18 @@ export const AuthenticatedRoot: React.FC = () => {
   return (
     <Box sx={{ display: "flex" }}>
       <CssBaseline />
-      <AppBar position="fixed" open={open}>
+      <AppBar position="fixed" open={open} isDesktop={isDesktop}>
         <Toolbar>
           <IconButton
             color="inherit"
             aria-label="open drawer"
             onClick={handleDrawerOpen}
             edge="start"
-            sx={{ mr: 2, ...(open && { display: "none" }) }}
+            sx={{ mr: 2, ...(isDesktop && open && { display: "none" }) }}
           >
             <MenuIcon />
           </IconButton>
-          {isTreeLoading ? (
-            <Loading />
-          ) : treeError ? (
-            <Alert severity="error">
-              <AlertTitle>Error loading tree data</AlertTitle>
-            </Alert>
-          ) : (
-            <BreadcrumbHeader />
-          )}
+          {!isTreeLoading && !treeError && isDesktop && <BreadcrumbHeader />}
           <Button component={RouterLink} color="inherit" to="/profile">
             {t("auth.profile")}
           </Button>
@@ -140,9 +161,11 @@ export const AuthenticatedRoot: React.FC = () => {
             boxSizing: "border-box",
           },
         }}
-        variant="persistent"
+        variant={isDesktop ? "persistent" : "temporary"}
         anchor="left"
         open={open}
+        onClose={handleDrawerClose}
+        ModalProps={{ keepMounted: true }}
       >
         <DrawerHeader>
           <IconButton onClick={handleDrawerClose}>
@@ -161,7 +184,7 @@ export const AuthenticatedRoot: React.FC = () => {
           <NavigationTree />
         )}
       </Drawer>
-      <Main open={open}>
+      <Main open={open} isDesktop={isDesktop}>
         <DrawerHeader />
         <TestModeDisclaimer testMode={config.testMode} testModeMessage={config.testModeMessage} />
         <React.Suspense fallback={<CircularProgress />}>

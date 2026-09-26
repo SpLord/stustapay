@@ -11,7 +11,7 @@ from stustapay.core.schema.audit_logs import AuditType
 from stustapay.core.schema.customer import Customer
 from stustapay.core.schema.order import NewFreeTicketGrant
 from stustapay.core.schema.tree import Node
-from stustapay.core.schema.user import CurrentUser, Privilege, User, format_user_tag_uid
+from stustapay.core.schema.user import CurrentUser, EventPrivilege, NodePrivilege, User, format_user_tag_uid
 from stustapay.core.service.auth import AuthService
 from stustapay.core.service.common.audit_logs import create_audit_log
 from stustapay.core.service.common.decorators import (
@@ -25,9 +25,9 @@ from stustapay.core.service.transaction import book_transaction
 
 
 class DepositOverview(BaseModel):
-    total_deposit_charged: float = 0.0
-    total_deposit_returned: float = 0.0
-    deposit_balance: float = 0.0
+    total_deposit_charged: float
+    total_deposit_returned: float
+    deposit_balance: float
 
 
 class MoneyOverview(BaseModel):
@@ -93,13 +93,17 @@ class AccountService(Service[Config]):
 
     @with_db_transaction(read_only=True)
     @requires_node(event_only=True)
-    @requires_user([Privilege.node_administration, Privilege.customer_management])
+    @requires_user(
+        node_privileges=[NodePrivilege.node_administration], event_privileges=[EventPrivilege.customer_management]
+    )
     async def get_customer(self, *, conn: Connection, node: Node, customer_id: int) -> Customer:
         return await fetch_customer(conn=conn, node=node, customer_id=customer_id)
 
     @with_db_transaction(read_only=True)
     @requires_node(event_only=True)
-    @requires_user([Privilege.node_administration, Privilege.customer_management])
+    @requires_user(
+        node_privileges=[NodePrivilege.node_administration], event_privileges=[EventPrivilege.customer_management]
+    )
     async def get_customers_with_blocked_payout(self, *, conn: Connection, node: Node) -> list[Customer]:
         return await conn.fetch_many(
             Customer,
@@ -109,27 +113,34 @@ class AccountService(Service[Config]):
 
     @with_db_transaction(read_only=True)
     @requires_node(event_only=True)
-    @requires_user([Privilege.node_administration, Privilege.customer_management])
+    @requires_user(
+        node_privileges=[NodePrivilege.node_administration], event_privileges=[EventPrivilege.customer_management]
+    )
     async def find_customers(self, *, conn: Connection, node: Node, search_term: str) -> list[Customer]:
+        search_term = search_term.strip()
+        search_term_numeric = search_term.lstrip("0")
+        if not search_term:
+            return []
         return await conn.fetch_many(
             Customer,
             "select c.* from customer c "
-            "where c.node_id = any ($2) and "
+            "where c.node_id = any ($3) and "
             "   (c.name like $1 "
             "   or c.comment like $1 "
-            "   or (c.user_tag_pin is not null and lower(c.user_tag_pin) like $1) "
-            "   or (c.user_tag_uid is not null and to_hex(c.user_tag_uid::bigint) like $1) "
+            "   or (c.user_tag_pin is not null and lower(c.user_tag_pin) like $2) "
+            "   or (c.user_tag_uid is not null and to_hex(c.user_tag_uid::bigint) like $2) "
             "   or lower(c.email) like $1 "
-            "   or c.account_name @@ $3 "
+            "   or c.account_name @@ $4 "
             "   or lower(c.iban) like $1)",
             f"%{search_term.lower()}%",
+            f"%{search_term_numeric.lower()}%",
             node.ids_to_root,
             search_term.lower(),
         )
 
     @with_db_transaction(read_only=True)
     @requires_node(event_only=True)
-    @requires_user([Privilege.node_administration])
+    @requires_user(node_privileges=[NodePrivilege.node_administration])
     async def list_system_accounts(self, *, conn: Connection, node: Node) -> list[Account]:
         return await conn.fetch_many(
             Account,
@@ -139,7 +150,7 @@ class AccountService(Service[Config]):
 
     @with_db_transaction(read_only=True)
     @requires_node(event_only=True)
-    @requires_user([Privilege.node_administration])
+    @requires_user(node_privileges=[NodePrivilege.node_administration, NodePrivilege.view_node_stats])
     async def get_money_overview(self, *, conn: Connection, node: Node) -> MoneyOverview:
         system_accounts = await conn.fetch_many(
             Account,
@@ -182,7 +193,7 @@ class AccountService(Service[Config]):
 
     @with_db_transaction(read_only=True)
     @requires_node(event_only=True)
-    @requires_user([Privilege.node_administration])
+    @requires_user(node_privileges=[NodePrivilege.node_administration])
     async def get_account(self, *, conn: Connection, node: Node, account_id: int) -> Account:
         account = await get_account_by_id(conn=conn, node=node, account_id=account_id)
         if account is None:
@@ -191,29 +202,13 @@ class AccountService(Service[Config]):
 
     @with_db_transaction(read_only=True)
     @requires_node(event_only=True)
-    @requires_user([Privilege.node_administration])
+    @requires_user(node_privileges=[NodePrivilege.node_administration])
     async def get_account_by_tag_id(self, *, conn: Connection, node: Node, user_tag_id: int) -> Optional[Account]:
         return await get_account_by_tag_id(conn=conn, node=node, tag_id=user_tag_id)
 
     @with_db_transaction(read_only=True)
     @requires_node(event_only=True)
-    @requires_user([Privilege.node_administration])
-    async def find_accounts(self, *, conn: Connection, node: Node, search_term: str) -> list[Account]:
-        return await conn.fetch_many(
-            Account,
-            "select * from account_with_history a "
-            "where a.node_id = any ($2) and "
-            "   (a.name like $1 "
-            "   or a.comment like $1 "
-            "   or (a.user_tag_pin is not null and a.user_tag_pin like $1)) "
-            "   or (a.user_tag_uid is not null and to_hex(a.user_tag_uid::bigint) like $1) ",
-            f"%{search_term.lower()}%",
-            node.ids_to_root,
-        )
-
-    @with_db_transaction
-    @requires_node(event_only=True)
-    @requires_user([Privilege.node_administration])
+    @requires_user(node_privileges=[NodePrivilege.node_administration])
     async def disable_account(self, *, conn: Connection, node: Node, current_user: CurrentUser, account_id: int):
         row = await conn.fetchval(
             "update account set user_tag_id = null where id = $1 and node_id = any($2) returning id",
@@ -233,7 +228,7 @@ class AccountService(Service[Config]):
 
     @with_db_transaction
     @requires_node(event_only=True)
-    @requires_user([Privilege.node_administration])
+    @requires_user(node_privileges=[NodePrivilege.node_administration])
     async def update_account_balance(
         self, *, conn: Connection, current_user: User, account_id: int, new_balance: float
     ) -> bool:
@@ -241,7 +236,7 @@ class AccountService(Service[Config]):
 
     @with_db_transaction(read_only=True)
     @requires_node(event_only=True)
-    @requires_user([Privilege.node_administration])
+    @requires_user(node_privileges=[NodePrivilege.node_administration])
     async def update_account_vouchers(
         self, *, conn: Connection, current_user: User, node: Node, account_id: int, new_voucher_amount: int
     ) -> bool:
@@ -267,7 +262,7 @@ class AccountService(Service[Config]):
         return True
 
     @with_db_transaction
-    @requires_terminal([Privilege.grant_vouchers], requires_till=False)
+    @requires_terminal(event_privileges=[EventPrivilege.grant_vouchers], requires_till=False)
     async def grant_vouchers(
         self,
         *,
@@ -305,7 +300,7 @@ class AccountService(Service[Config]):
         return account
 
     @with_db_transaction
-    @requires_terminal([Privilege.grant_free_tickets], requires_till=False)
+    @requires_terminal(event_privileges=[EventPrivilege.grant_free_tickets], requires_till=False)
     async def grant_free_tickets(
         self,
         *,
@@ -328,7 +323,7 @@ class AccountService(Service[Config]):
 
         # create a new customer account for the given tag
         account_id = await conn.fetchval(
-            "insert into account (node_id, user_tag_id, type) values ($1, $2, 'private') returning id",
+            "insert into account (node_id, user_tag_id, type, activated_at) values ($1, $2, 'private', now()) returning id",
             node.event_node_id,
             user_tag["user_tag_id"],
         )
@@ -350,13 +345,20 @@ class AccountService(Service[Config]):
                 conducting_user_id=current_user.id,
             )
 
+        await conn.execute(
+            "insert into free_ticket_grant (event_node_id, account_id, conducting_user_id) values ($1, $2, $3)",
+            node.event_node_id,
+            account_id,
+            current_user.id,
+        )
+
         account = await get_account_by_id(conn=conn, node=node, account_id=account_id)
         assert account is not None
         return account
 
     @with_db_transaction
     @requires_node(event_only=True)
-    @requires_user([Privilege.node_administration])
+    @requires_user(node_privileges=[NodePrivilege.node_administration])
     async def update_account_comment(
         self, *, conn: Connection, node: Node, current_user: CurrentUser, account_id: int, comment: str
     ) -> Account:
@@ -381,14 +383,14 @@ class AccountService(Service[Config]):
         return acc
 
     @staticmethod
-    async def _switch_account_tag_uid(
+    async def _switch_account_tag(
         *,
         conn: Connection,
         node: Node,
         old_user_tag_pin: str,
         new_user_tag_pin: str,
-        new_user_tag_uid: int,
         comment: Optional[str],
+        new_user_tag_uid: Optional[int] = None,
     ):
         row = await conn.fetchrow(
             "select a.id as account_id, u.id as user_tag_id "
@@ -422,11 +424,40 @@ class AccountService(Service[Config]):
         await conn.fetchval(
             "update account set user_tag_id = $2 where id = $1 returning id", account_id, new_user_tag_id
         )
-        await conn.execute("update user_tag set uid = $2 where id = $1", new_user_tag_id, new_user_tag_uid)
+        if new_user_tag_uid is not None:
+            await conn.execute("update user_tag set uid = $2 where id = $1", new_user_tag_id, new_user_tag_uid)
         await conn.execute("update user_tag set comment = $2 where id = $1", old_user_tag_id, comment)
 
     @with_db_transaction
-    @requires_terminal([Privilege.customer_management], requires_till=False)
+    @requires_node(event_only=True)
+    @requires_user(event_privileges=[EventPrivilege.customer_management])
+    async def switch_customer_tag(
+        self,
+        *,
+        conn: Connection,
+        node: Node,
+        current_user: CurrentUser,
+        old_user_tag_pin: str,
+        new_user_tag_pin: str,
+        comment: Optional[str],
+    ):
+        await self._switch_account_tag(
+            conn=conn,
+            node=node,
+            old_user_tag_pin=old_user_tag_pin,
+            new_user_tag_pin=new_user_tag_pin,
+            comment=comment,
+        )
+        await create_audit_log(
+            conn=conn,
+            log_type=AuditType.account_user_tag_changed,
+            content={"old_user_tag_pin": old_user_tag_pin, "new_user_tag_pin": new_user_tag_pin, "comment": comment},
+            user_id=current_user.id,
+            node_id=node.id,
+        )
+
+    @with_db_transaction
+    @requires_terminal(event_privileges=[EventPrivilege.customer_management], requires_till=False)
     async def switch_account_tag_uid_terminal(
         self,
         *,
@@ -438,7 +469,7 @@ class AccountService(Service[Config]):
         new_user_tag_uid: int,
         comment: Optional[str],
     ):
-        await self._switch_account_tag_uid(
+        await self._switch_account_tag(
             conn=conn,
             node=node,
             old_user_tag_pin=old_user_tag_pin,

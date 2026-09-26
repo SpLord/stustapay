@@ -1,10 +1,11 @@
-import { usePendingPayoutDetailQuery } from "@/api";
-import { DetailField, DetailNumberField, DetailView } from "@/components";
-import { useCurrentNode } from "@/hooks";
 import { Typography } from "@mui/material";
 import { Loading } from "@stustapay/components";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
+
+import { usePendingPayoutDetailQuery } from "@/api";
+import { DetailField, DetailNumberField, DetailView } from "@/components";
+import { useCurrentNode } from "@/hooks";
 
 export const PendingPayoutDetail: React.FC = () => {
   const { t } = useTranslation();
@@ -25,6 +26,11 @@ export const PendingPayoutDetail: React.FC = () => {
             label={t("payoutRun.totalPayoutAmount")}
             type="currency"
             value={pendingPayoutDetail.total_payout_amount}
+          />
+          <DetailNumberField
+            label={t("payoutRun.totalUnclaimedPayoutAmount")}
+            type="currency"
+            value={pendingPayoutDetail.total_unclaimed_payout_amount}
           />
           <DetailField label={t("payoutRun.nPayouts")} value={pendingPayoutDetail.n_payouts} />
         </>

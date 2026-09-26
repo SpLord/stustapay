@@ -1,14 +1,4 @@
-import * as React from "react";
-import { UserTagSecret, useCreateUserTagsMutation, useListUserTagSecretsQuery } from "@/api";
-import { UserTagRoutes } from "@/app/routes";
-import { CreateLayout } from "@/components";
-import { useCurrentNode } from "@/hooks";
-import { ProductRestrictionSchema } from "@stustapay/models";
-import { useTranslation } from "react-i18next";
-import { z } from "zod";
-import { RestrictionSelect } from "@/components/features";
-import { FormikProps } from "formik";
-import { Select } from "@stustapay/components";
+import { CloudUpload as CloudUploadIcon } from "@mui/icons-material";
 import {
   Alert,
   Box,
@@ -22,9 +12,21 @@ import {
   Typography,
   styled,
 } from "@mui/material";
-import { CloudUpload as CloudUploadIcon } from "@mui/icons-material";
-import { toast } from "react-toastify";
+import { Select } from "@stustapay/components";
+import { useLiveQuery } from "@tanstack/react-db";
+import { FormikProps } from "formik";
 import * as Papa from "papaparse";
+import * as React from "react";
+import { useTranslation } from "react-i18next";
+import { toast } from "react-toastify";
+import { z } from "zod";
+
+import { UserTagSecret, useCreateUserTagsMutation, useListUserTagSecretsQuery } from "@/api";
+import { UserTagRoutes } from "@/app/routes";
+import { CreateLayout } from "@/components";
+import { UserTagVariantSelect } from "@/components/features";
+import { getUserTagVariantCollection } from "@/db/collections";
+import { useCurrentNode } from "@/hooks";
 
 const VisuallyHiddenInput = styled("input")({
   clip: "rect(0 0 0 0)",
@@ -41,12 +43,13 @@ const VisuallyHiddenInput = styled("input")({
 const CsvTagsSchema = z.array(
   z.object({
     pin: z.string(),
+    variants: z.string().optional(),
   })
 );
 
 const NewUserTagsSchema = z.object({
   secret_id: z.number().int(),
-  restriction: ProductRestrictionSchema.nullable(),
+  variant_ids: z.array(z.number().int()),
   tags: CsvTagsSchema,
 });
 
@@ -55,11 +58,11 @@ type NewUserTags = z.infer<typeof NewUserTagsSchema>;
 const initialValues: NewUserTags = {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   secret_id: null as any,
-  restriction: null,
+  variant_ids: [],
   tags: [],
 };
 
-const parseCsv = (csvContent: string): Array<{ pin: string }> | null => {
+const parseCsv = (csvContent: string): Array<{ pin: string; variants?: string }> | null => {
   const parsed = Papa.parse(csvContent, {
     delimiter: ",",
     header: true,
@@ -69,7 +72,6 @@ const parseCsv = (csvContent: string): Array<{ pin: string }> | null => {
     toast.error(`There was an error in the csv file: ${parsed.errors.join(", ")}`);
     return null;
   }
-  console.log(parsed.data);
   const validated = CsvTagsSchema.safeParse(parsed.data);
   if (!validated.success) {
     toast.error(`There was an error in the csv file: ${validated.error.issues}`);
@@ -78,11 +80,21 @@ const parseCsv = (csvContent: string): Array<{ pin: string }> | null => {
   return validated.data;
 };
 
+const parseVariantNames = (value?: string) =>
+  (value ?? "")
+    .split(",")
+    .map((name) => name.trim())
+    .filter((name) => name.length > 0);
+
 const TagsForm: React.FC<FormikProps<NewUserTags>> = (props) => {
   const { currentNode } = useCurrentNode();
   const { t } = useTranslation();
   const { values, setFieldValue } = props;
   const { data: userTagsSecrets, error } = useListUserTagSecretsQuery({ nodeId: currentNode.id });
+  const { data: userTagVariants } = useLiveQuery(
+    (q) => q.from({ userTagVariants: getUserTagVariantCollection(currentNode.id) }),
+    [currentNode.id]
+  );
 
   if (error) {
     return <Alert severity="error">{`Error loading user tag secrets: ${error}`}</Alert>;
@@ -100,7 +112,7 @@ const TagsForm: React.FC<FormikProps<NewUserTags>> = (props) => {
     const file = event.target.files[0];
 
     const reader = new FileReader();
-    reader.onload = (loadedFile) => {
+    reader.addEventListener("load", (loadedFile) => {
       const res = loadedFile.target?.result;
       if (!res) {
         toast.error("Error uploading file");
@@ -114,17 +126,28 @@ const TagsForm: React.FC<FormikProps<NewUserTags>> = (props) => {
       if (tags) {
         setFieldValue("tags", tags);
       }
-    };
+    });
     reader.readAsText(file);
+  };
+
+  const resolveVariantNames = (rowVariants?: string) => {
+    const rowNames = parseVariantNames(rowVariants);
+    if (rowNames.length > 0) {
+      return rowNames;
+    }
+    return (userTagVariants ?? [])
+      .filter((variant) => values.variant_ids.includes(variant.id))
+      .map((variant) => variant.variant_name);
   };
 
   return (
     <>
-      <RestrictionSelect
-        label={t("userTag.restriction")}
-        value={values.restriction}
-        onChange={(val) => setFieldValue("restriction", val)}
-        multiple={false}
+      <UserTagVariantSelect
+        label={t("userTag.variants")}
+        helperText={t("userTag.batchVariantsDescription")}
+        value={values.variant_ids}
+        onChange={(val) => setFieldValue("variant_ids", val)}
+        multiple={true}
       />
       <Select
         label={t("userTag.secret")}
@@ -134,7 +157,6 @@ const TagsForm: React.FC<FormikProps<NewUserTags>> = (props) => {
         formatOption={(secret: UserTagSecret) => secret.description}
         onChange={(secret) => secret && setFieldValue("secret_id", secret.id)}
       />
-
       <Typography>{t("userTag.uploadPinCsvDescription")}</Typography>
 
       <Button
@@ -145,7 +167,7 @@ const TagsForm: React.FC<FormikProps<NewUserTags>> = (props) => {
         sx={{ maxWidth: 400 }}
       >
         {t("userTag.uploadPinCsv")}
-        <VisuallyHiddenInput type="file" onChange={(event) => handleCsvUpload(event)} />
+        <VisuallyHiddenInput type="file" accept="text/csv" onChange={(event) => handleCsvUpload(event)} />
       </Button>
 
       {values.tags.length > 0 && (
@@ -157,12 +179,14 @@ const TagsForm: React.FC<FormikProps<NewUserTags>> = (props) => {
               <TableHead>
                 <TableRow>
                   <TableCell>{t("userTag.pin")}</TableCell>
+                  <TableCell>{t("userTag.variants")}</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {values.tags.slice(0, 10).map((t) => (
-                  <TableRow key={t.pin}>
-                    <TableCell>{t.pin}</TableCell>
+                {values.tags.slice(0, 10).map((tag) => (
+                  <TableRow key={tag.pin}>
+                    <TableCell>{tag.pin}</TableCell>
+                    <TableCell>{resolveVariantNames(tag.variants).join(", ")}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -188,10 +212,11 @@ export const UserTagsCreate: React.FC = () => {
       onSubmit={(userTags) =>
         createUserTags({
           nodeId: currentNode.id,
-          newUserTags: userTags.tags.map((t) => ({
-            pin: t.pin,
+          newUserTags: userTags.tags.map((tag) => ({
+            pin: tag.pin,
             secret_id: userTags.secret_id,
-            restriction: userTags.restriction,
+            variant_ids: userTags.variant_ids,
+            variant_names: parseVariantNames(tag.variants),
           })),
         })
       }

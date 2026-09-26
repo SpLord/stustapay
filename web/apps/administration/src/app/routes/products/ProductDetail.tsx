@@ -1,5 +1,18 @@
-import { useDeleteProductMutation, useGetProductQuery, useUpdateProductMutation } from "@/api";
-import { ProductRoutes } from "@/app/routes";
+import {
+  Delete as DeleteIcon,
+  Edit as EditIcon,
+  Lock as LockIcon,
+  LockOpen as UnlockIcon,
+  SmartButton as SmartButtonIcon,
+} from "@mui/icons-material";
+import { Loading } from "@stustapay/components";
+import { useOpenModal } from "@stustapay/modal-provider";
+import { eq, inArray, useLiveQuery } from "@tanstack/react-db";
+import * as React from "react";
+import { useTranslation } from "react-i18next";
+import { Navigate, useNavigate, useParams } from "react-router-dom";
+
+import { ProductRoutes, tillButtonCreateFromProduct, TillButtonsRoutes } from "@/app/routes";
 import {
   DetailBoolField,
   DetailField,
@@ -8,48 +21,60 @@ import {
   DetailNumberField,
   DetailView,
 } from "@/components";
-import { useCurrentNode } from "@/hooks";
-import { Delete as DeleteIcon, Edit as EditIcon, Lock as LockIcon } from "@mui/icons-material";
-import { Loading } from "@stustapay/components";
-import { useOpenModal } from "@stustapay/modal-provider";
-import * as React from "react";
-import { useTranslation } from "react-i18next";
-import { Navigate, useNavigate, useParams } from "react-router-dom";
+import { getProductCollection, getUserTagVariantCollection } from "@/db/collections";
+import { useCurrentNode, useCurrentUserHasPrivilegeAtNode } from "@/hooks";
 
 export const ProductDetail: React.FC = () => {
   const { t } = useTranslation();
   const { currentNode } = useCurrentNode();
   const { productId } = useParams();
   const navigate = useNavigate();
-  const [deleteProduct] = useDeleteProductMutation();
-  const { data: product, error } = useGetProductQuery({ nodeId: currentNode.id, productId: Number(productId) });
-  const [updateProduct] = useUpdateProductMutation();
-  const openModal = useOpenModal();
 
-  if (error) {
+  const {
+    data: product,
+    isLoading: isProductLoading,
+    isError,
+  } = useLiveQuery(
+    (q) =>
+      q
+        .from({ products: getProductCollection(currentNode.id) })
+        .where(({ products }) => eq(products.id, Number(productId)))
+        .findOne(),
+    [currentNode.id, productId]
+  );
+  const { data: userTagVariants, isLoading: isUserTagVariantsLoading } = useLiveQuery(
+    (q) =>
+      q
+        .from({ userTagVariants: getUserTagVariantCollection(currentNode.id) })
+        .where(({ userTagVariants }) => inArray(userTagVariants.id, product?.user_tag_variant_ids ?? [])),
+    [currentNode.id, product?.user_tag_variant_ids]
+  );
+  const openModal = useOpenModal();
+  const canCreateTillButtonAtNode = useCurrentUserHasPrivilegeAtNode(TillButtonsRoutes.privilege);
+
+  if (isError) {
     return <Navigate to={ProductRoutes.list()} />;
   }
 
+  if (isProductLoading || isUserTagVariantsLoading || !product) {
+    return <Loading />;
+  }
   const openConfirmDeleteDialog = () => {
     openModal({
       type: "confirm",
       title: t("product.delete"),
       content: t("product.deleteDescription"),
       onConfirm: () => {
-        deleteProduct({ nodeId: currentNode.id, productId: Number(productId) }).then(() =>
-          navigate(ProductRoutes.list())
-        );
+        getProductCollection(currentNode.id).delete(product.id);
         return true;
       },
     });
   };
 
-  if (product === undefined) {
-    return <Loading />;
-  }
-
-  const handleLockProduct = () => {
-    updateProduct({ nodeId: currentNode.id, productId: product.id, newProduct: { ...product, is_locked: true } });
+  const handleToggleLockProduct = () => {
+    getProductCollection(currentNode.id).update(product.id, (draft) => {
+      draft.is_locked = !draft.is_locked;
+    });
   };
 
   return (
@@ -64,12 +89,24 @@ export const ProductDetail: React.FC = () => {
           color: "primary",
           icon: <EditIcon />,
         },
+        ...(canCreateTillButtonAtNode(product.node_id)
+          ? [
+              {
+                label: t("product.createTillButton"),
+                onClick: () => {
+                  const { to, state } = tillButtonCreateFromProduct(product);
+                  navigate(to, { state });
+                },
+                color: "primary" as const,
+                icon: <SmartButtonIcon />,
+              },
+            ]
+          : []),
         {
-          label: t("product.lock"),
-          disabled: product.is_locked,
-          onClick: handleLockProduct,
+          label: product.is_locked ? t("product.unlock") : t("product.lock"),
+          onClick: handleToggleLockProduct,
           color: "error",
-          icon: <LockIcon />,
+          icon: product.is_locked ? <UnlockIcon /> : <LockIcon />,
         },
         {
           label: t("delete"),
@@ -85,7 +122,10 @@ export const ProductDetail: React.FC = () => {
         <DetailBoolField label={t("product.isLocked")} value={product.is_locked} />
         <DetailBoolField label={t("product.isReturnable")} value={product.is_returnable} />
         <DetailBoolField label={t("product.isFixedPrice")} value={product.fixed_price} />
-        <DetailListField label={t("product.restrictions")} value={product?.restrictions} />
+        <DetailListField
+          label={t("product.userTagVariants")}
+          value={userTagVariants.map((variant) => variant.variant_name)}
+        />
         <DetailNumberField label={t("product.price")} type="currency" value={product.price} />
         <DetailField label={t("product.priceInVouchers")} value={product.price_in_vouchers} />
         <DetailField

@@ -2,18 +2,21 @@ from typing import Optional
 
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel
+from sftkit.error import InvalidArgument
 
 from stustapay.core.http.auth_user import CurrentAuthToken
 from stustapay.core.http.context import ContextUserService
-from stustapay.core.http.normalize_data import NormalizedList, normalize_list
 from stustapay.core.schema.user import (
+    EventPrivilege,
     NewUser,
     NewUserRole,
     NewUserToRoles,
-    Privilege,
+    NodePrivilege,
     User,
     UserRole,
+    UserRoleAssignment,
     UserToRoles,
+    UserVoucherGrantStats,
 )
 
 router = APIRouter(
@@ -26,16 +29,14 @@ user_role_router = APIRouter(prefix="/user-roles", tags=["user-roles"])
 user_to_role_router = APIRouter(prefix="/user-to-roles", tags=["user-to-roles"])
 
 
-@user_router.get("", response_model=NormalizedList[User, int])
+@user_router.get("", response_model=list[User])
 async def list_users(
     token: CurrentAuthToken,
     user_service: ContextUserService,
     node_id: int,
-    filter_privilege: Privilege | None = None,
+    filter_privilege: EventPrivilege | NodePrivilege | None = None,
 ):
-    return normalize_list(
-        await user_service.list_users(token=token, node_id=node_id, filter_privilege=filter_privilege)
-    )
+    return await user_service.list_users(token=token, node_id=node_id, filter_privilege=filter_privilege)
 
 
 class UpdateUserPayload(BaseModel):
@@ -57,11 +58,15 @@ async def create_user(
     user_service: ContextUserService,
     node_id: int,
 ):
-    user_tag_uid = (
-        int(new_user.user_tag_uid_hex, 16)
-        if new_user.user_tag_uid_hex is not None and new_user.user_tag_uid_hex != ""
-        else None
-    )
+    user_tag_uid = None
+    if new_user.user_tag_uid_hex:
+        try:
+            user_tag_uid = int(new_user.user_tag_uid_hex, 16)
+        except ValueError as e:
+            raise InvalidArgument(
+                f"Invalid user tag uid: {new_user.user_tag_uid_hex}. Expected a hexadecimal number."
+            ) from e
+
     return await user_service.create_user(
         token=token,
         new_user=NewUser(
@@ -76,13 +81,18 @@ async def create_user(
     )
 
 
-@user_router.get("/{user_id}", response_model=User)
-async def get_user(user_id: int, token: CurrentAuthToken, user_service: ContextUserService, node_id: int):
-    user = await user_service.get_user(token=token, user_id=user_id, node_id=node_id)
-    if user is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+@user_router.get("/{user_id}/voucher-grant-stats", response_model=UserVoucherGrantStats)
+async def get_user_voucher_grant_stats(
+    user_id: int, token: CurrentAuthToken, user_service: ContextUserService, node_id: int
+):
+    return await user_service.get_user_voucher_grant_stats(token=token, user_id=user_id, node_id=node_id)
 
-    return user
+
+@user_router.get("/{user_id}/role-assignments", response_model=list[UserRoleAssignment])
+async def list_user_role_assignments(
+    user_id: int, token: CurrentAuthToken, user_service: ContextUserService, node_id: int
+):
+    return await user_service.list_role_assignments_for_user(token=token, user_id=user_id, node_id=node_id)
 
 
 @user_router.post("/{user_id}", response_model=User)
@@ -93,9 +103,15 @@ async def update_user(
     user_service: ContextUserService,
     node_id: int,
 ):
-    user_tag_uid = (
-        int(user.user_tag_uid_hex, 16) if user.user_tag_uid_hex is not None and user.user_tag_uid_hex != "" else None
-    )
+    user_tag_uid = None
+    if user.user_tag_uid_hex:
+        try:
+            user_tag_uid = int(user.user_tag_uid_hex, 16)
+        except ValueError as e:
+            raise InvalidArgument(
+                f"Invalid user tag uid: {user.user_tag_uid_hex}. Expected a hexadecimal number."
+            ) from e
+
     updated_user = await user_service.update_user(
         token=token,
         user_id=user_id,
@@ -141,9 +157,9 @@ async def delete_user(user_id: int, token: CurrentAuthToken, user_service: Conte
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
 
 
-@user_role_router.get("", response_model=NormalizedList[UserRole, int])
+@user_role_router.get("", response_model=list[UserRole])
 async def list_user_roles(token: CurrentAuthToken, user_service: ContextUserService, node_id: int):
-    return normalize_list(await user_service.list_user_roles(token=token, node_id=node_id))
+    return await user_service.list_user_roles(token=token, node_id=node_id)
 
 
 @user_role_router.post("", response_model=UserRole)
@@ -154,8 +170,10 @@ async def create_user_role(
 
 
 class UpdateUserRolePrivilegesPayload(BaseModel):
-    is_privileged: bool
-    privileges: list[Privilege]
+    can_assign_all_roles: bool
+    assignable_role_ids: list[int]
+    event_privileges: list[EventPrivilege]
+    node_privileges: list[NodePrivilege]
 
 
 @user_role_router.post("/{user_role_id}", response_model=UserRole)
@@ -169,8 +187,10 @@ async def update_user_role(
     role = await user_service.update_user_role_privileges(
         token=token,
         role_id=user_role_id,
-        is_privileged=updated_role.is_privileged,
-        privileges=updated_role.privileges,
+        can_assign_all_roles=updated_role.can_assign_all_roles,
+        assignable_role_ids=updated_role.assignable_role_ids,
+        event_privileges=updated_role.event_privileges,
+        node_privileges=updated_role.node_privileges,
         node_id=node_id,
     )
     if role is None:

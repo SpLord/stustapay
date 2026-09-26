@@ -1,56 +1,49 @@
-import {
-  AuditLog,
-  Terminal,
-  selectTerminalAll,
-  selectTillById,
-  selectUserById,
-  useDeleteTerminalMutation,
-  useGetAuditLogQuery,
-  useListAuditLogsQuery,
-  useListTerminalsQuery,
-  useListTillsQuery,
-  useListUsersQuery,
-} from "@/api";
-import { TerminalRoutes, TillRoutes, UserRoutes } from "@/app/routes";
-import { DetailField, DetailLayout, DetailView, ListLayout } from "@/components";
-import { useCurrentNode, useCurrentUserHasPrivilege, useCurrentUserHasPrivilegeAtNode, useRenderNode } from "@/hooks";
-import { Delete as DeleteIcon, Edit as EditIcon } from "@mui/icons-material";
-import { Link, ListItem, Tooltip } from "@mui/material";
-import { DataGrid, GridActionsCellItem, GridColDef } from "@stustapay/framework";
+import { ListItem } from "@mui/material";
 import { Loading } from "@stustapay/components";
-import { useOpenModal } from "@stustapay/modal-provider";
+import { eq, useLiveQuery } from "@tanstack/react-db";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
-import { Link as RouterLink, useNavigate, useParams } from "react-router-dom";
-import { getUserName } from "@stustapay/models";
+import { Navigate, useParams } from "react-router-dom";
+
+import { AuditLogRoutes } from "@/app/routes";
+import { DetailField, DetailLayout, DetailView, UserDetailField } from "@/components";
+import { getAuditLogCollection, getUserCollection } from "@/db/collections";
+import { useCurrentNode } from "@/hooks";
 
 export const AuditLogDetail: React.FC = () => {
   const { t } = useTranslation();
   const { currentNode } = useCurrentNode();
   const { auditLogId } = useParams();
 
-  const { data: auditLog } = useGetAuditLogQuery({
-    nodeId: currentNode.id,
-    auditLogId: Number(auditLogId),
-  });
-  const { data: users } = useListUsersQuery({ nodeId: currentNode.id });
-  const { dataGridNodeColumn } = useRenderNode();
+  const {
+    data: auditLog,
+    isLoading,
+    isError,
+  } = useLiveQuery(
+    (q) =>
+      q
+        .from({ auditLogs: getAuditLogCollection(currentNode.id) })
+        .where(({ auditLogs }) => eq(auditLogs.id, Number(auditLogId)))
+        .join({ users: getUserCollection(currentNode.id) }, ({ auditLogs, users }) =>
+          eq(auditLogs.originating_user_id, users.id)
+        )
+        .select(({ auditLogs, users }) => ({
+          ...auditLogs,
+          originatingUser: users,
+        }))
+        .findOne(),
+    [currentNode.id, auditLogId]
+  );
 
-  if (!auditLog || !users) {
+  if (isError) {
+    return <Navigate to={AuditLogRoutes.list()} />;
+  }
+
+  if (isLoading || !auditLog) {
     return <Loading />;
   }
-  const renderUser = (id: number | null) => {
-    if (!id || !users) {
-      return "";
-    }
 
-    const user = selectUserById(users, id);
-    if (!user) {
-      return "";
-    }
-
-    return getUserName(user);
-  };
+  const originatingUser = auditLog.originatingUser;
 
   return (
     <DetailLayout title={t("auditLog.auditLogs")}>
@@ -58,13 +51,13 @@ export const AuditLogDetail: React.FC = () => {
         <DetailField label={t("common.id")} value={auditLog.id} />
         <DetailField label={t("auditLog.logType")} value={auditLog.log_type} />
         <DetailField label={t("common.createdAt")} value={auditLog.created_at} />
-        <DetailField
+        <UserDetailField
           label={t("auditLog.originatingUser")}
-          linkTo={UserRoutes.detail(auditLog.originating_user_id)}
-          value={renderUser(auditLog.originating_user_id)}
+          user={originatingUser}
+          fallbackNodeId={auditLog.node_id}
         />
 
-        {auditLog.content && (
+        {Object.keys(auditLog.content).length > 0 && (
           <ListItem>
             <pre>{JSON.stringify(auditLog.content, null, 2)}</pre>
           </ListItem>

@@ -13,6 +13,7 @@ import com.ionspin.kotlin.bignum.integer.toBigInteger
 import de.stustapay.api.models.PendingLineItem
 import de.stustapay.api.models.Product
 import de.stustapay.api.models.ProductType
+import de.stustapay.api.models.TaxType
 import de.stustapay.libssp.ui.theme.ProductConfirmItemBigStyle
 import de.stustapay.libssp.ui.theme.ProductConfirmItemStyle
 import de.stustapay.libssp.util.formatCurrencyValue
@@ -33,15 +34,17 @@ fun PreviewProductConfirmLineItem() {
                 isLocked = true,
                 isReturnable = false,
                 nodeId = 0.toBigInteger(),
-                restrictions = listOf(),
+                userTagVariantIds = listOf(),
                 taxRateId = 0.toBigInteger(),
+                taxType = TaxType.regular_vat,
                 type = ProductType.user_defined
             ),
             taxName = "eust",
             productPrice = 13.37,
             taxRate = 0.19,
             totalPrice = 13.37,
-            taxRateId = 0.toBigInteger()
+            taxRateId = 0.toBigInteger(),
+            vouchersRedeemed = 0.toBigInteger(),
         )
     )
 }

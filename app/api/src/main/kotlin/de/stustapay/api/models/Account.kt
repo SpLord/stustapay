@@ -8,15 +8,22 @@
 
 @file:Suppress(
     "ArrayInDataClass",
+    "DuplicatedCode",
     "EnumEntryName",
     "RemoveRedundantQualifierName",
-    "UnusedImport"
+    "RemoveRedundantCallsOfConversionMethods",
+    "REDUNDANT_CALL_OF_CONVERSION_METHOD",
+    "RedundantUnitReturnType",
+    "RemoveEmptyClassBody",
+    "UnnecessaryVariable",
+    "UnusedImport",
+    "UnnecessaryVariable",
+    "unused"
 )
 
 package de.stustapay.api.models
 
 import de.stustapay.api.models.AccountType
-import de.stustapay.api.models.ProductRestriction
 import de.stustapay.api.models.UserTagHistoryEntry
 
 import kotlinx.serialization.Serializable
@@ -24,21 +31,23 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Contextual
 
 /**
- * 
  *
- * @param nodeId 
- * @param id 
- * @param type 
- * @param name 
- * @param comment 
- * @param balance 
- * @param vouchers 
- * @param userTagId 
- * @param userTagUid 
- * @param restriction 
- * @param tagHistory 
- * @param userTagUidHex 
- * @param userTagComment 
+ *
+ * @param nodeId
+ * @param id
+ * @param type
+ * @param name
+ * @param comment
+ * @param balance
+ * @param vouchers
+ * @param userTagId
+ * @param userTagUid
+ * @param tagHistory
+ * @param userTagUidHex
+ * @param activatedAt
+ * @param userTagComment
+ * @param userTagVariantIds
+ * @param userTagVariantNames
  */
 @Serializable
 
@@ -71,20 +80,25 @@ data class Account (
     @SerialName(value = "user_tag_uid")
     val userTagUid: @Contextual com.ionspin.kotlin.bignum.integer.BigInteger?,
 
-    @Contextual @SerialName(value = "restriction")
-    val restriction: ProductRestriction?,
-
     @SerialName(value = "tag_history")
     val tagHistory: kotlin.collections.List<UserTagHistoryEntry>,
 
     @SerialName(value = "user_tag_uid_hex")
     val userTagUidHex: kotlin.String?,
 
+    @Contextual @SerialName(value = "activated_at")
+    val activatedAt: java.time.OffsetDateTime? = null,
+
     @SerialName(value = "user_tag_comment")
-    val userTagComment: kotlin.String? = null
+    val userTagComment: kotlin.String? = null,
+
+    @SerialName(value = "user_tag_variant_ids")
+    val userTagVariantIds: kotlin.collections.List<@Contextual com.ionspin.kotlin.bignum.integer.BigInteger>? = null,
+
+    @SerialName(value = "user_tag_variant_names")
+    val userTagVariantNames: kotlin.collections.List<kotlin.String>? = null
 
 ) {
 
 
 }
-

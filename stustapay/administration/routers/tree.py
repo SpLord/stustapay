@@ -5,8 +5,8 @@ from pydantic import BaseModel
 
 from stustapay.bon.bon import BonJson
 from stustapay.core.http.auth_user import CurrentAuthToken
-from stustapay.core.http.context import ContextTreeService, ContextWebhookService
-from stustapay.core.schema.audit_logs import AuditLog, AuditLogDetail
+from stustapay.core.http.context import ContextDsfinvkService, ContextTreeService, ContextWebhookService
+from stustapay.core.schema.audit_logs import AuditLogDetail
 from stustapay.core.schema.media import EventDesign, NewBlob
 from stustapay.core.schema.tree import (
     NewEvent,
@@ -271,6 +271,42 @@ async def generate_payout_report(token: CurrentAuthToken, tree_service: ContextT
     return Response(content, headers=headers, media_type="application/pdf")
 
 
+@router.post(
+    "/events/{node_id}/export-dsfinvk",
+    responses={
+        "200": {
+            "description": "Successful Response",
+            "content": {"application/zip": {}},
+        }
+    },
+)
+async def export_dsfinvk(token: CurrentAuthToken, dsfinvk_service: ContextDsfinvkService, node_id: int):
+    content = await dsfinvk_service.export_dsfinvk(token=token, node_id=node_id)
+    headers = {"Content-Disposition": 'attachment; filename="dsfinV_k.zip"'}
+    return Response(content, headers=headers, media_type="application/zip")
+
+
+class Ao146aExportPayload(BaseModel):
+    shutdown_date: date | None = None
+
+
+@router.post(
+    "/events/{node_id}/export-ao146a",
+    responses={
+        "200": {
+            "description": "Successful Response",
+            "content": {"application/xml": {}},
+        }
+    },
+)
+async def export_ao146a(
+    token: CurrentAuthToken, dsfinvk_service: ContextDsfinvkService, node_id: int, payload: Ao146aExportPayload
+):
+    content = await dsfinvk_service.export_ao146a(token=token, node_id=node_id, shutdown_date=payload.shutdown_date)
+    headers = {"Content-Disposition": 'attachment; filename="ao146a.xml"'}
+    return Response(content, headers=headers, media_type="application/xml")
+
+
 class SumUpTokenPayload(BaseModel):
     authorization_code: str
 
@@ -287,16 +323,6 @@ async def configure_sumup_token(
     )
 
 
-@router.get("/nodes/{node_id}/audit-logs", response_model=list[AuditLog])
+@router.get("/nodes/{node_id}/audit-logs", response_model=list[AuditLogDetail])
 async def list_audit_logs(token: CurrentAuthToken, tree_service: ContextTreeService, node_id: int):
     return await tree_service.list_audit_logs(token=token, node_id=node_id)
-
-
-@router.get("/nodes/{node_id}/audit-logs/{audit_log_id}", response_model=AuditLogDetail)
-async def get_audit_log(
-    token: CurrentAuthToken,
-    tree_service: ContextTreeService,
-    node_id: int,
-    audit_log_id: int,
-):
-    return await tree_service.get_audit_log(token=token, node_id=node_id, audit_log_id=audit_log_id)

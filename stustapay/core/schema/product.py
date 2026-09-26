@@ -3,10 +3,7 @@ from typing import Optional
 
 from pydantic import BaseModel
 
-
-class ProductRestriction(enum.Enum):
-    under_16 = "under_16"
-    under_18 = "under_18"
+from stustapay.core.schema.tax_type import TaxType
 
 
 class ProductType(enum.Enum):
@@ -25,7 +22,7 @@ class NewProduct(BaseModel):
     fixed_price: bool = True
     price_in_vouchers: Optional[int] = None
     tax_rate_id: int
-    restrictions: list[ProductRestriction] = []
+    user_tag_variant_ids: list[int] = []
     is_locked: bool = False
     is_returnable: bool = False
     is_deposit: bool = False
@@ -38,9 +35,11 @@ class Product(NewProduct):
     id: int
     tax_name: str
     tax_rate: float
+    tax_type: TaxType
     fixed_price: bool
     type: ProductType
     price_per_voucher: Optional[float] = None
-    restrictions: list[ProductRestriction]
+    user_tag_variant_ids: list[int]
     is_locked: bool
     is_returnable: bool
+    is_deposit: bool

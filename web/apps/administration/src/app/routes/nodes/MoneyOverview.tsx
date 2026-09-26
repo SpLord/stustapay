@@ -1,11 +1,12 @@
-import { Account, AccountRead, AccountType, DepositOverview, useGetMoneyOverviewQuery } from "@/api";
-import { AccountRoutes } from "@/app/routes";
-import { ButtonLink } from "@/components";
-import { useCurrencyFormatter, useCurrentNode } from "@/hooks";
-import { Card, CardActions, CardContent, Grid, Stack, Typography, useTheme } from "@mui/material";
+import { Box, Card, CardActions, CardContent, Grid, Stack, Typography, useTheme } from "@mui/material";
 import { Loading } from "@stustapay/components";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
+
+import { Account, AccountRead, AccountType, useGetMoneyOverviewQuery } from "@/api";
+import { SystemAccountRoutes } from "@/app/routes";
+import { ButtonLink } from "@/components";
+import { useCurrencyFormatter, useCurrentNode } from "@/hooks";
 
 interface BalanceCardProps {
   amount: number;
@@ -14,13 +15,20 @@ interface BalanceCardProps {
 }
 
 const BalanceCard: React.FC<BalanceCardProps> = ({ amount, label, actions }) => {
-  const { t } = useTranslation();
   const formatCurrency = useCurrencyFormatter();
 
   return (
     <Card>
       <CardContent>
-        <Grid container alignItems="center" justifyContent="center" direction="column">
+        <Grid
+          container
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flexDirection: "column",
+          }}
+        >
           <Grid>
             <Typography variant="h6" component="div">
               {label}
@@ -54,7 +62,7 @@ const AccountBalanceCard: React.FC<AccountBalanceCardProps> = ({ account }) => {
       amount={account.balance}
       label={account.name}
       actions={
-        <ButtonLink size="small" to={AccountRoutes.detail(account.id)}>
+        <ButtonLink size="small" to={SystemAccountRoutes.detail(account.id)}>
           {t("overview.showDetails")}
         </ButtonLink>
       }
@@ -91,15 +99,21 @@ export const MoneyOverview: React.FC = () => {
             </Typography>
             <Grid container spacing={2}>
               <Grid size={4}>
-                <Typography variant="body2" color="text.secondary">{t("overview.depositCharged", "Charged")}</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {t("overview.depositCharged", "Charged")}
+                </Typography>
                 <Typography variant="h5">{formatCurrency(deposit.total_deposit_charged)}</Typography>
               </Grid>
               <Grid size={4}>
-                <Typography variant="body2" color="text.secondary">{t("overview.depositReturned", "Returned")}</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {t("overview.depositReturned", "Returned")}
+                </Typography>
                 <Typography variant="h5">{formatCurrency(deposit.total_deposit_returned)}</Typography>
               </Grid>
               <Grid size={4}>
-                <Typography variant="body2" color="text.secondary">{t("overview.depositOutstanding", "Outstanding")}</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {t("overview.depositOutstanding", "Outstanding")}
+                </Typography>
                 <Typography variant="h5" color={deposit.deposit_balance > 0 ? "success.main" : "error.main"}>
                   {formatCurrency(deposit.deposit_balance)}
                 </Typography>
@@ -108,7 +122,13 @@ export const MoneyOverview: React.FC = () => {
           </CardContent>
         </Card>
       )}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: theme.spacing(1) }}>
+      <Box
+        sx={{
+          display: "grid",
+          gridTemplateColumns: { xs: "repeat(2, 1fr)", md: "repeat(6, 1fr)" },
+          gap: theme.spacing(1),
+        }}
+      >
         <AccountBalanceCard account={selectAccountByType("cash_vault")} />
         <AccountBalanceCard account={selectAccountByType("sumup_entry")} />
         <AccountBalanceCard account={selectAccountByType("sumup_online_entry")} />
@@ -120,7 +140,7 @@ export const MoneyOverview: React.FC = () => {
         <AccountBalanceCard account={selectAccountByType("donation_exit")} />
         <BalanceCard label="Customer balance" amount={moneyOverviewData.total_customer_account_balance} />
         <BalanceCard label="Cash registers" amount={moneyOverviewData.total_cash_register_balance} />
-      </div>
+      </Box>
     </Stack>
   );
 };

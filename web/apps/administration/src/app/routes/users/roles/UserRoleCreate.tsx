@@ -1,30 +1,43 @@
-import { useCreateUserRoleMutation } from "@/api";
-import { UserRoleRoutes } from "@/app/routes";
-import { CreateLayout } from "@/components";
-import { useCurrentNode } from "@/hooks";
 import { NewUserRole, NewUserRoleSchema } from "@stustapay/models";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
-import { UserRoleForm } from "./UserRoleForm";
+
 import { withPrivilegeGuard } from "@/app/layout";
+import { UserRoleRoutes } from "@/app/routes";
+import { CreateLayoutV2 } from "@/components";
+import { generateId, getUserRoleCollection } from "@/db/collections";
+import { useCurrentNode } from "@/hooks";
+
+import { UserRoleForm } from "./UserRoleForm";
 
 const initialValues: NewUserRole = {
   name: "",
-  is_privileged: false,
-  privileges: [],
+  can_assign_all_roles: false,
+  assignable_role_ids: [],
+  event_privileges: [],
+  node_privileges: [],
 };
 
-export const UserRoleCreate: React.FC = withPrivilegeGuard("user_management", () => {
+export const UserRoleCreate: React.FC = withPrivilegeGuard("node_administration", () => {
   const { t } = useTranslation();
   const { currentNode } = useCurrentNode();
-  const [createUserRole] = useCreateUserRoleMutation();
 
   return (
-    <CreateLayout
+    <CreateLayoutV2
       title={t("userRole.create")}
       initialValues={initialValues}
       successRoute={UserRoleRoutes.list()}
-      onSubmit={(r) => createUserRole({ nodeId: currentNode.id, newUserRole: r })}
+      onSubmit={(role) =>
+        getUserRoleCollection(currentNode.id).insert({
+          name: role.name,
+          can_assign_all_roles: role.can_assign_all_roles ?? false,
+          assignable_role_ids: role.assignable_role_ids ?? [],
+          event_privileges: role.event_privileges,
+          node_privileges: role.node_privileges,
+          id: generateId(),
+          node_id: currentNode.id,
+        })
+      }
       validationSchema={NewUserRoleSchema}
       form={UserRoleForm}
     />

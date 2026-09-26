@@ -1,5 +1,6 @@
+import asyncio
 import logging
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Optional
 
 import asyncpg
@@ -11,10 +12,16 @@ from stustapay.core.config import Config
 from stustapay.core.schema.audit_logs import AuditType
 from stustapay.core.schema.terminal import (
     CurrentTerminal,
+    MdmDevice,
+    MdmDeviceLocation,
+    MdmDeviceMapping,
+    MdmDeviceMappingWithTerminal,
+    MdmDeviceWithMapping,
     NewTerminal,
     Terminal,
     TerminalButton,
     TerminalConfig,
+    TerminalLocation,
     TerminalRegistrationSuccess,
     TerminalSumupSecrets,
     TerminalTillConfig,
@@ -25,7 +32,8 @@ from stustapay.core.schema.till import Till, TillProfile, UserInfo, UserRoleInfo
 from stustapay.core.schema.tree import Node, ObjectType, RestrictedEventSettings
 from stustapay.core.schema.user import (
     CurrentUser,
-    Privilege,
+    EventPrivilege,
+    NodePrivilege,
     UserRole,
     UserTag,
     format_user_tag_uid,
@@ -38,6 +46,11 @@ from stustapay.core.service.common.decorators import (
     requires_user,
 )
 from stustapay.core.service.common.error import AccessDenied
+from stustapay.core.service.common.privileges import (
+    fetch_user_privileges_at_node,
+    fetch_user_privileges_at_node_for_role,
+)
+from stustapay.core.service.common.role_assignment import user_can_assign_roles_at_node
 from stustapay.core.service.till.till import (
     assign_cash_register_to_till_if_available,
     assign_till_to_terminal,
@@ -46,20 +59,75 @@ from stustapay.core.service.till.till import (
 )
 from stustapay.core.service.tree.common import (
     fetch_event_design,
-    fetch_event_node_for_node,
     fetch_node,
     fetch_restricted_event_settings_for_node,
 )
-from stustapay.core.service.user import list_assignable_roles_for_user_at_node
+from stustapay.core.service.user import list_assignable_roles_by_node_for_user
+from stustapay.mdm.cache import MdmCache
+from stustapay.mdm.headwind_provider import HeadwindProvider
+from stustapay.mdm.mdm_provider import DeviceInfo, MdmProvider
 from stustapay.payment.sumup.api import SumUpOAuthToken, fetch_new_oauth_token
 
 logger = logging.getLogger(__name__)
 
 
+def _is_mdm_configured(settings: RestrictedEventSettings) -> bool:
+    return (
+        settings.headwind_enabled
+        and settings.headwind_url is not None
+        and settings.headwind_username is not None
+        and settings.headwind_password is not None
+    )
+
+
+def _create_mdm_provider(settings: RestrictedEventSettings) -> MdmProvider:
+    assert settings.headwind_url is not None
+    assert settings.headwind_username is not None
+    assert settings.headwind_password is not None
+    return HeadwindProvider(
+        url=settings.headwind_url,
+        username=settings.headwind_username,
+        password=settings.headwind_password,
+    )
+
+
+def _device_info_to_mdm_device(
+    device: DeviceInfo,
+    *,
+    location_last_update: datetime | None = None,
+) -> MdmDevice:
+    return MdmDevice(
+        device_id=device.device_id,
+        serial=device.serial,
+        imei=device.imei,
+        description=device.description,
+        last_update=device.last_update,
+        ip_address=device.ip_address,
+        model=device.model,
+        status=device.status,
+        location_last_update=location_last_update,
+    )
+
+
+async def _fetch_mdm_mappings(conn: Connection, node: Node) -> list[MdmDeviceMappingWithTerminal]:
+    return await conn.fetch_many(
+        MdmDeviceMappingWithTerminal,
+        "select tdm.*, t.name as terminal_name, t.description as terminal_description "
+        "from terminal_mdm_device_mapping tdm "
+        "join terminal t on t.id = tdm.terminal_id "
+        "join node n on t.node_id = n.id "
+        "where n.id = any($1)",
+        node.ids_to_root,
+    )
+
+
 async def _fetch_terminal(conn: Connection, node: Node, terminal_id: int) -> Terminal | None:
     return await conn.fetch_maybe_one(
         Terminal,
-        "select t.*, till.id as till_id from terminal t left join till on t.id = till.terminal_id "
+        "select t.*, till.id as till_id, tdm.mdm_device_id "
+        "from terminal t "
+        "left join till on t.id = till.terminal_id "
+        "left join terminal_mdm_device_mapping tdm on tdm.terminal_id = t.id "
         "where t.id = $1 and t.node_id = any($2)",
         terminal_id,
         node.ids_to_root,
@@ -72,10 +140,11 @@ class TerminalService(Service[Config]):
         self.auth_service = auth_service
 
         self.sumup_oauth_cache: dict[int, SumUpOAuthToken] = {}
+        self.mdm_cache = MdmCache()
 
     @with_db_transaction
     @requires_node(object_types=[ObjectType.terminal])
-    @requires_user([Privilege.node_administration])
+    @requires_user(node_privileges=[NodePrivilege.node_administration])
     async def create_terminal(
         self,
         *,
@@ -103,24 +172,27 @@ class TerminalService(Service[Config]):
 
     @with_db_transaction(read_only=True)
     @requires_node()
-    @requires_user([Privilege.node_administration])
+    @requires_user(node_privileges=[NodePrivilege.node_administration])
     async def list_terminals(self, *, conn: Connection, node: Node) -> list[Terminal]:
         return await conn.fetch_many(
             Terminal,
-            "select t.*, till.id as till_id from terminal t left join till on t.id = till.terminal_id "
+            "select t.*, till.id as till_id, tdm.mdm_device_id "
+            "from terminal t "
+            "left join till on t.id = till.terminal_id "
+            "left join terminal_mdm_device_mapping tdm on tdm.terminal_id = t.id "
             "where t.node_id = any($1) order by t.name",
             node.ids_to_root,
         )
 
     @with_db_transaction(read_only=True)
     @requires_node()
-    @requires_user([Privilege.node_administration])
+    @requires_user(node_privileges=[NodePrivilege.node_administration])
     async def get_terminal(self, *, conn: Connection, node: Node, terminal_id: int) -> Optional[Terminal]:
         return await _fetch_terminal(conn=conn, node=node, terminal_id=terminal_id)
 
     @with_db_transaction
     @requires_node(object_types=[ObjectType.terminal])
-    @requires_user([Privilege.node_administration])
+    @requires_user(node_privileges=[NodePrivilege.node_administration])
     async def update_terminal(
         self,
         *,
@@ -152,7 +224,7 @@ class TerminalService(Service[Config]):
 
     @with_db_transaction
     @requires_node(object_types=[ObjectType.terminal])
-    @requires_user([Privilege.node_administration])
+    @requires_user(node_privileges=[NodePrivilege.node_administration])
     async def delete_terminal(
         self,
         *,
@@ -205,7 +277,7 @@ class TerminalService(Service[Config]):
 
     @with_db_transaction
     @requires_node(object_types=[ObjectType.terminal])
-    @requires_user([Privilege.node_administration])
+    @requires_user(node_privileges=[NodePrivilege.node_administration])
     async def logout_terminal_id(self, *, conn: Connection, node: Node, terminal_id: int) -> bool:
         row = await conn.fetchrow(
             "update terminal set registration_uuid = gen_random_uuid(), session_uuid = null "
@@ -225,7 +297,7 @@ class TerminalService(Service[Config]):
 
     @with_db_transaction
     @requires_node(object_types=[ObjectType.terminal])
-    @requires_user([Privilege.node_administration])
+    @requires_user(node_privileges=[NodePrivilege.node_administration])
     async def switch_till(
         self,
         *,
@@ -241,6 +313,8 @@ class TerminalService(Service[Config]):
         if terminal.till_id is not None:
             till_node_id = await conn.fetchval("select node_id from till where id = $1", terminal.till_id)
             await remove_terminal_from_till(conn=conn, node_id=till_node_id, till_id=terminal.till_id)
+        else:
+            await logout_user_from_terminal(conn=conn, node_id=None, terminal_id=terminal_id)
 
         await assign_till_to_terminal(conn=conn, node=node, till_id=new_till_id, terminal_id=terminal_id)
         await create_audit_log(
@@ -297,7 +371,7 @@ class TerminalService(Service[Config]):
         if new_token is None:
             return None
 
-        self.sumup_oauth_cache[node.id] = new_token
+        self.sumup_oauth_cache[event_node_id] = new_token
         return new_token
 
     async def _get_terminal_till_config(
@@ -388,34 +462,22 @@ class TerminalService(Service[Config]):
             user_tag_secret=user_tag_secret,
         )
 
-    @staticmethod
-    async def _get_assignable_roles_for_user_at_node(conn: Connection, current_terminal: CurrentTerminal):
-        available_roles = []
-        if current_terminal.till is not None:
-            node = await fetch_node(conn=conn, node_id=current_terminal.till.node_id)
-        else:
-            node = await fetch_node(conn=conn, node_id=current_terminal.node_id)
-        assert node is not None
-
-        if current_terminal.active_user_id is not None:
-            available_roles = await list_assignable_roles_for_user_at_node(
-                conn=conn, node=node, user_id=current_terminal.active_user_id
-            )
-        return available_roles
-
     @with_db_transaction(read_only=True)
     @requires_terminal(requires_till=False)
     async def get_terminal_config(
-        self, *, conn: Connection, current_terminal: CurrentTerminal
+        self, *, conn: Connection, event_node: Node, current_terminal: CurrentTerminal
     ) -> TerminalConfig | None:
-        event_node = await fetch_event_node_for_node(conn=conn, node_id=current_terminal.node_id)
-        assert event_node is not None
-
-        user_privileges = await conn.fetchval(
-            "select privileges_at_node as privileges from user_privileges_at_node($1) where node_id = $2",
-            current_terminal.active_user_id,
-            current_terminal.node_id,
-        )
+        if current_terminal.active_user_id is None or current_terminal.active_user_role_id is None:
+            event_privileges: set[EventPrivilege] = set()
+            node_privileges: set[NodePrivilege] = set()
+        else:
+            event_privileges, node_privileges = await fetch_user_privileges_at_node_for_role(
+                conn=conn,
+                user_id=current_terminal.active_user_id,
+                role_id=current_terminal.active_user_role_id,
+                event_node_id=event_node.id,
+                node_id=current_terminal.till.node_id if current_terminal.till is not None else None,
+            )
 
         secrets = await self._get_terminal_secrets(conn=conn, event_node=event_node)
 
@@ -427,9 +489,14 @@ class TerminalService(Service[Config]):
                 till=current_terminal.till,
                 event_node=event_node,
             )
-        available_roles = await self._get_assignable_roles_for_user_at_node(
-            conn=conn, current_terminal=current_terminal
-        )
+        available_roles_by_node = []
+        if current_terminal.active_user_id is not None and current_terminal.active_user_role_id is not None:
+            available_roles_by_node = await list_assignable_roles_by_node_for_user(
+                conn=conn,
+                event_node=event_node,
+                user_id=current_terminal.active_user_id,
+                active_role_id=current_terminal.active_user_role_id,
+            )
 
         app_logo_url = None
         event_design = await fetch_event_design(conn=conn, node_id=event_node.id)
@@ -442,8 +509,9 @@ class TerminalService(Service[Config]):
             name=current_terminal.name,
             event_name=event_node.name,
             description=current_terminal.description,
-            user_privileges=user_privileges,
-            available_roles=available_roles,
+            user_event_privileges=event_privileges,
+            user_node_privileges=node_privileges,
+            available_roles_by_node=available_roles_by_node,
             active_user_id=current_terminal.active_user_id,
             secrets=secrets,
             till=till_config,
@@ -457,8 +525,10 @@ class TerminalService(Service[Config]):
     async def check_user_login(
         self,
         *,
+        event_node: Node,
         node: Node,
         conn: Connection,
+        current_terminal: CurrentTerminal,
         current_user: CurrentUser,
         user_tag: UserTag,
     ) -> list[UserRole]:
@@ -467,39 +537,54 @@ class TerminalService(Service[Config]):
         """
 
         # we fetch all roles that contain either the terminal login or supervised terminal login privilege
-        available_roles = await conn.fetch_many(
-            UserRole,
-            "select urwp.* "
-            "from user_role_with_privileges urwp "
-            "join user_to_role urt on urwp.id = urt.role_id "
-            "join usr on urt.user_id = usr.id "
-            "join user_tag ut on usr.user_tag_id = ut.id "
-            "where ut.uid = $1 "
-            "   and ($2 = any(urwp.privileges) or $3 = any(urwp.privileges)) "
-            "   and urt.node_id = any($4)",
-            user_tag.uid,
-            Privilege.terminal_login.name,
-            Privilege.supervised_terminal_login.name,
-            node.ids_to_root,
-        )
-        if len(available_roles) == 0:
-            raise AccessDenied(
-                "User is not known or does not have any assigned roles or the user does not "
-                "have permission to login at a terminal"
-            )
-
         new_user_id = await conn.fetchval("select id from user_with_tag where user_tag_uid = $1", user_tag.uid)
-        assert new_user_id is not None
+        if new_user_id is None:
+            raise InvalidArgument(f"User with tag {format_user_tag_uid(user_tag.uid)} is not known")
 
-        new_user_is_supervisor = await conn.fetchval(
-            "select true from user_privileges_at_node($1) where $2 = any(privileges_at_node) and node_id = $3",
-            new_user_id,
-            Privilege.terminal_login.name,
-            node.id,
+        event_privileges, _ = await fetch_user_privileges_at_node(
+            conn=conn, user_id=new_user_id, event_node_id=event_node.id, node_id=node.id
         )
-        if not new_user_is_supervisor:
-            if current_user is None or Privilege.terminal_login not in current_user.privileges:
+        has_terminal_login_privilege = EventPrivilege.terminal_login in event_privileges
+        has_supervised_terminal_login_privilege = EventPrivilege.supervised_terminal_login in event_privileges
+
+        if not has_terminal_login_privilege and not has_supervised_terminal_login_privilege:
+            raise AccessDenied("User does not have permission to login at a terminal")
+
+        if not has_terminal_login_privilege and has_supervised_terminal_login_privilege:
+            if current_user is None or EventPrivilege.terminal_login not in current_user.event_privileges:
                 raise AccessDenied("You can only be logged in by a supervisor")
+
+        # TODO: Distinguish between non-till mode and till mode.
+        # In non-till mode all roles should be available. In till mode only roles which are visible at the till node should be available.
+        if current_terminal.till is not None:
+            available_roles = await conn.fetch_many(
+                UserRole,
+                "select urwp.* "
+                "from user_role_with_privileges urwp "
+                "join user_to_role urt on urwp.id = urt.role_id "
+                "where urt.user_id = $1 "
+                "   and ($2 = any(urwp.event_privileges) or $3 = any(urwp.event_privileges)) "
+                "   and urt.node_id = any($4)",
+                new_user_id,
+                EventPrivilege.terminal_login.name,
+                EventPrivilege.supervised_terminal_login.name,
+                node.ids_to_event_node,  # node is the till node here
+            )
+        else:
+            available_roles = await conn.fetch_many(
+                UserRole,
+                "select urwp.* "
+                "from user_role_with_privileges urwp "
+                "join user_to_role urt on urwp.id = urt.role_id "
+                "join node n on urt.node_id = n.id "
+                "where urt.user_id = $1 "
+                "   and ($2 = any(urwp.event_privileges) or $3 = any(urwp.event_privileges)) "
+                "   and ($4 = any(n.parent_ids) or $4 = n.id)",
+                new_user_id,
+                EventPrivilege.terminal_login.name,
+                EventPrivilege.supervised_terminal_login.name,
+                node.id,  # node is the event node here
+            )
 
         return available_roles
 
@@ -516,12 +601,6 @@ class TerminalService(Service[Config]):
     ) -> CurrentUser:
         """
         Login a User to the terminal, but only if the correct permissions exists:
-        wants to log in | allowed to log in
-        official        | always
-        cashier         | only if official is logged in
-
-        where officials are admins and finanzorgas
-
         returns the newly logged-in User if successful
         """
         available_roles = await self.check_user_login(  # pylint: disable=missing-kwoa,unexpected-keyword-arg
@@ -593,7 +672,7 @@ class TerminalService(Service[Config]):
 
     @with_db_transaction
     @requires_node(object_types=[ObjectType.till])
-    @requires_user([Privilege.node_administration])
+    @requires_user(node_privileges=[NodePrivilege.node_administration])
     async def force_logout_user(self, *, conn: Connection, node: Node, terminal_id: int):
         terminal = await _fetch_terminal(conn=conn, node=node, terminal_id=terminal_id)
         if terminal is None:
@@ -615,10 +694,16 @@ class TerminalService(Service[Config]):
         node: Node,
         user_tag_uid: int,
     ) -> UserInfo:
+        can_assign_roles = await user_can_assign_roles_at_node(
+            conn=conn,
+            user_id=current_user.id,
+            node=node,
+            active_role_id=current_user.active_role_id,
+        )
         if (
-            Privilege.node_administration not in current_user.privileges
-            and Privilege.user_management not in current_user.privileges
-            and Privilege.create_user not in current_user.privileges
+            NodePrivilege.node_administration not in current_user.node_privileges
+            and EventPrivilege.create_user not in current_user.event_privileges
+            and not can_assign_roles
             and user_tag_uid != current_user.user_tag_uid
         ):
             raise AccessDenied("cannot retrieve user info for someone other than yourself")
@@ -651,11 +736,264 @@ class TerminalService(Service[Config]):
             "from user_role_with_privileges ur "
             "join user_to_role utr on ur.id = utr.role_id "
             "join node n on utr.node_id = n.id "
-            "where n.id = any($2) and utr.user_id = $1",
+            "where n.event_node_id = $2 and utr.user_id = $1 "
+            "order by n.path",
             info.id,
-            node.ids_to_root,
+            node.event_node_id,
             node.id,
         )
 
         info.assigned_roles = assigned_roles
         return info
+
+    async def _require_mdm_event_node_id(self, conn: Connection, node: Node) -> int:
+        event_settings = await fetch_restricted_event_settings_for_node(conn=conn, node_id=node.id)
+        if not _is_mdm_configured(event_settings):
+            raise InvalidArgument("No MDM provider configured for this node")
+        if node.event_node_id is None:
+            raise InvalidArgument("No MDM provider configured for this node")
+        return node.event_node_id
+
+    async def _fetch_mdm_event_node_ids(self, *, conn: Connection) -> list[int]:
+        event_node_ids: list[int] | None = await conn.fetchval(
+            "select array_agg(n.id) "
+            "from node n "
+            "join event e on n.event_id = e.id "
+            "where not n.read_only "
+            "  and e.headwind_enabled "
+            "  and e.headwind_url is not null "
+            "  and e.headwind_username is not null "
+            "  and e.headwind_password is not null"
+        )
+        return event_node_ids or []
+
+    async def _poll_mdm_for_event(self, *, conn: Connection, event_node_id: int) -> None:
+        logger.debug("Polling MDM for event node %s", event_node_id)
+        event_settings = await fetch_restricted_event_settings_for_node(conn=conn, node_id=event_node_id)
+        if not _is_mdm_configured(event_settings):
+            return
+
+        provider = _create_mdm_provider(event_settings)
+        try:
+            devices_list = await provider.list_devices()
+            devices = {device.device_id: device for device in devices_list}
+            await self.mdm_cache.update_devices(event_node_id, devices=devices, last_error=None)
+        except Exception as exc:
+            logger.exception("Failed to poll MDM devices for event node %s", event_node_id)
+            await self.mdm_cache.set_last_error(event_node_id, str(exc))
+            return
+
+        for device_id in devices:
+            try:
+                location = await provider.get_device_location(device_id)
+                await self.mdm_cache.update_device_location(event_node_id, device_id, location)
+            except Exception:
+                logger.warning("Failed to fetch location for MDM device %s", device_id, exc_info=True)
+
+    async def run_mdm_polling(self) -> None:
+        logger.info("Starting periodic MDM polling")
+        interval = int(self.config.core.mdm_synchronization_interval.total_seconds())
+        while True:
+            try:
+                async with self.db_pool.acquire() as conn:
+                    event_node_ids = await self._fetch_mdm_event_node_ids(conn=conn)
+                    for event_node_id in event_node_ids:
+                        await self._poll_mdm_for_event(conn=conn, event_node_id=event_node_id)
+            except Exception:
+                logger.exception("MDM polling iteration failed")
+            await asyncio.sleep(interval)
+
+    @with_db_transaction(read_only=True)
+    @requires_node()
+    @requires_user(node_privileges=[NodePrivilege.node_administration])
+    async def list_mdm_devices_with_mappings(self, *, conn: Connection, node: Node) -> list[MdmDeviceWithMapping]:
+        event_node_id = await self._require_mdm_event_node_id(conn=conn, node=node)
+        snapshot = self.mdm_cache.get_snapshot(event_node_id)
+        devices = list(snapshot.devices.values()) if snapshot is not None else []
+        locations = snapshot.locations if snapshot is not None else {}
+
+        mdm_mappings = await _fetch_mdm_mappings(conn=conn, node=node)
+        mdm_mappings_by_device_id = {m.mdm_device_id: m for m in mdm_mappings}
+        return [
+            MdmDeviceWithMapping(
+                device=_device_info_to_mdm_device(
+                    device,
+                    location_last_update=locations[device.device_id].last_update
+                    if device.device_id in locations
+                    else None,
+                ),
+                mapping=mdm_mappings_by_device_id.get(device.device_id),
+            )
+            for device in devices
+        ]
+
+    @with_db_transaction(read_only=True)
+    @requires_node()
+    @requires_user(node_privileges=[NodePrivilege.node_administration])
+    async def get_mdm_device_location(self, *, conn: Connection, node: Node, mdm_device_id: str) -> MdmDeviceLocation:
+        event_node_id = await self._require_mdm_event_node_id(conn=conn, node=node)
+        snapshot = self.mdm_cache.get_snapshot(event_node_id)
+        if snapshot is None:
+            raise NotFound(element_type="mdm_device", element_id=mdm_device_id)
+
+        location = snapshot.locations.get(mdm_device_id)
+        if location is None:
+            raise NotFound(element_type="mdm_device", element_id=mdm_device_id)
+
+        return MdmDeviceLocation(
+            latitude=location.latitude,
+            longitude=location.longitude,
+            last_update=location.last_update,
+        )
+
+    @with_db_transaction(read_only=True)
+    @requires_node()
+    @requires_user(node_privileges=[NodePrivilege.node_administration])
+    async def list_terminal_locations(self, *, conn: Connection, node: Node) -> list[TerminalLocation]:
+        event_node_id = await self._require_mdm_event_node_id(conn=conn, node=node)
+        snapshot = self.mdm_cache.get_snapshot(event_node_id)
+        locations_by_device = snapshot.locations if snapshot is not None else {}
+
+        mdm_mappings = await _fetch_mdm_mappings(conn=conn, node=node)
+        return [
+            TerminalLocation(
+                terminal_id=mapping.terminal_id,
+                terminal_name=mapping.terminal_name,
+                mdm_device_id=mapping.mdm_device_id,
+                latitude=location.latitude,
+                longitude=location.longitude,
+                last_update=location.last_update,
+            )
+            for mapping in mdm_mappings
+            if (location := locations_by_device.get(mapping.mdm_device_id)) is not None
+        ]
+
+    @with_db_transaction
+    @requires_node(object_types=[ObjectType.terminal])
+    @requires_user(node_privileges=[NodePrivilege.node_administration])
+    async def change_mdm_device_to_terminal_mapping(
+        self,
+        *,
+        conn: Connection,
+        node: Node,
+        mdm_device_id: str,
+        terminal_id: int,
+    ):
+        terminal = await _fetch_terminal(conn=conn, node=node, terminal_id=terminal_id)
+        if terminal is None:
+            raise NotFound(element_type="terminal", element_id=terminal_id)
+
+        existing_for_device = await conn.fetch_maybe_one(
+            MdmDeviceMapping,
+            "select * from terminal_mdm_device_mapping where mdm_device_id = $1",
+            mdm_device_id,
+        )
+        if existing_for_device and existing_for_device.terminal_id == terminal_id:
+            return
+
+        existing_for_terminal = await conn.fetch_maybe_one(
+            MdmDeviceMapping,
+            "select * from terminal_mdm_device_mapping where terminal_id = $1",
+            terminal_id,
+        )
+
+        if existing_for_device:
+            await conn.execute(
+                "delete from terminal_mdm_device_mapping where mdm_device_id = $1",
+                mdm_device_id,
+            )
+        if existing_for_terminal and (
+            existing_for_device is None or existing_for_terminal.terminal_id != existing_for_device.terminal_id
+        ):
+            await conn.execute(
+                "delete from terminal_mdm_device_mapping where terminal_id = $1",
+                terminal_id,
+            )
+
+        await conn.fetchrow(
+            "insert into terminal_mdm_device_mapping (terminal_id, mdm_device_id, type) values ($1, $2, 'headwind') returning *",
+            terminal_id,
+            mdm_device_id,
+        )
+
+    @with_db_transaction
+    @requires_node(object_types=[ObjectType.terminal])
+    @requires_user(node_privileges=[NodePrivilege.node_administration])
+    async def delete_mdm_mapping(self, *, conn: Connection, node: Node, terminal_id: int) -> bool:
+        mapping = await conn.fetch_maybe_one(
+            MdmDeviceMapping,
+            "select tdm.* "
+            "from terminal_mdm_device_mapping tdm "
+            "join terminal t on t.id = tdm.terminal_id "
+            "join node n on t.node_id = n.id "
+            "where tdm.terminal_id = $1 and n.id = any($2)",
+            terminal_id,
+            node.ids_to_root,
+        )
+        if mapping is None:
+            return False
+        deleted = await conn.fetchrow(
+            "delete from terminal_mdm_device_mapping where id = $1 returning id",
+            mapping.id,
+        )
+        return deleted is not None
+
+    @with_db_transaction
+    @requires_node(object_types=[ObjectType.terminal])
+    @requires_user(node_privileges=[NodePrivilege.node_administration])
+    async def issue_mdm_terminal_token(self, *, conn: Connection, node: Node, terminal_id: int) -> tuple[str, Terminal]:
+        terminal = await _fetch_terminal(conn=conn, node=node, terminal_id=terminal_id)
+        if terminal is None:
+            raise NotFound(element_type="terminal", element_id=terminal_id)
+
+        session_uuid = await conn.fetchval(
+            "update terminal set session_uuid = gen_random_uuid(), registration_uuid = null "
+            "where id = $1 returning session_uuid",
+            terminal_id,
+        )
+        if session_uuid is None:
+            raise NotFound(element_type="terminal", element_id=terminal_id)
+
+        token = self.auth_service.create_terminal_access_token(
+            TerminalTokenMetadata(terminal_id=terminal_id, session_uuid=session_uuid)
+        )
+        return token, terminal
+
+    @with_db_transaction
+    @requires_node(object_types=[ObjectType.terminal])
+    @requires_user(node_privileges=[NodePrivilege.node_administration])
+    async def record_mdm_push_result(
+        self,
+        *,
+        conn: Connection,
+        node: Node,
+        mapping_id: int,
+        success: bool,
+        error_message: str | None,
+    ) -> MdmDeviceMapping:
+        status = "success" if success else "error"
+        mapping = await conn.fetch_maybe_one(
+            MdmDeviceMapping,
+            "select tdm.* "
+            "from terminal_mdm_device_mapping tdm "
+            "join terminal t on t.id = tdm.terminal_id "
+            "join node n on t.node_id = n.id "
+            "where tdm.id = $1 and n.id = any($2)",
+            mapping_id,
+            node.ids_to_root,
+        )
+        if mapping is None:
+            raise NotFound(element_type="headwind_mapping", element_id=mapping_id)
+        return await conn.fetch_one(
+            MdmDeviceMapping,
+            "update terminal_mdm_device_mapping "
+            "set last_token_pushed_at = now(), "
+            "    last_push_status = $2, "
+            "    last_push_error = $3, "
+            "    updated_at = now() "
+            "where id = $1 "
+            "returning *",
+            mapping.id,
+            status,
+            error_message,
+        )

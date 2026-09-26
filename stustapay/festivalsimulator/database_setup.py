@@ -3,6 +3,7 @@ import logging
 import math
 import random
 import secrets
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional
 
@@ -11,8 +12,9 @@ from sftkit.database import Connection
 
 from stustapay.core.config import Config
 from stustapay.core.database import get_database, reset_schema
-from stustapay.core.schema.product import NewProduct, ProductRestriction
+from stustapay.core.schema.product import NewProduct
 from stustapay.core.schema.tax_rate import NewTaxRate, TaxRate
+from stustapay.core.schema.tax_type import TaxType
 from stustapay.core.schema.terminal import NewTerminal
 from stustapay.core.schema.ticket import NewTicket
 from stustapay.core.schema.till import (
@@ -27,9 +29,10 @@ from stustapay.core.schema.tree import ROOT_NODE_ID, NewEvent, NewNode, Node, Ob
 from stustapay.core.schema.tse import NewTse, TseType
 from stustapay.core.schema.user import (
     ADMIN_ROLE_ID,
+    EventPrivilege,
     NewUser,
     NewUserRole,
-    Privilege,
+    NodePrivilege,
     RoleToNode,
     User,
     UserRole,
@@ -53,8 +56,22 @@ CUSTOMER_TAG_START = 100000
 logger = logging.getLogger(__name__)
 
 
-async def _create_tags_and_users(conn: Connection, user_service: UserService, event_node: Node, n_customer_tags: int):
-    logger.info(f"Creating {n_customer_tags} tags")
+@dataclass
+class TagEntryCustom:
+    login: str | None
+    pin: str
+    uid: int | None
+    roles: list[str]
+
+
+async def _create_tags_and_users(
+    conn: Connection,
+    user_service: UserService,
+    event_node: Node,
+    n_customer_tags: int,
+    custom_tags: Optional[list[TagEntryCustom]] = None,
+):
+    logger.info("Creating demo event & admin privileges")
     root_node = await fetch_node(conn=conn, node_id=ROOT_NODE_ID)
     assert root_node is not None and event_node is not None
 
@@ -81,6 +98,7 @@ async def _create_tags_and_users(conn: Connection, user_service: UserService, ev
             description="dummy simulator event key",
         ),
     )
+    logger.info("Creating admin and orga tags")
 
     finanzorga_role: UserRole = await user_service.create_user_role(
         conn=conn,
@@ -88,46 +106,60 @@ async def _create_tags_and_users(conn: Connection, user_service: UserService, ev
         node_id=event_node.id,
         new_role=NewUserRole(
             name="finanzorga",
-            is_privileged=True,
-            privileges=[
-                Privilege.terminal_login,
-                Privilege.node_administration,
-                Privilege.cash_transport,
-                Privilege.grant_vouchers,
-                Privilege.user_management,
-                Privilege.grant_free_tickets,
-                Privilege.customer_management,
+            can_assign_all_roles=True,
+            event_privileges=[
+                EventPrivilege.terminal_login,
+                EventPrivilege.cash_transport,
+                EventPrivilege.grant_vouchers,
+                EventPrivilege.grant_free_tickets,
+                EventPrivilege.customer_management,
+                EventPrivilege.payout_management,
+            ],
+            node_privileges=[
+                NodePrivilege.node_administration,
+                NodePrivilege.view_node_stats,
             ],
         ),
     )
 
-    admin_tag = NewUserTag(pin="admin", secret_id=secret.id)
-    await create_user_tags(conn=conn, node_id=event_node.id, tags=[admin_tag])
-    node_admin = await user_service.create_user_no_auth(
+    godmode: UserRole = await user_service.create_user_role(
         conn=conn,
+        token=admin_token,
         node_id=event_node.id,
-        new_user=NewUser(
-            login="admin", display_name="", user_tag_pin=admin_tag.pin, user_tag_uid=random.randint(1, 100000)
+        new_role=NewUserRole(
+            name="godmode",
+            event_privileges=list(EventPrivilege),
+            node_privileges=list(NodePrivilege),
         ),
-        password="admin",
-    )
-    await associate_user_to_role(
-        conn=conn,
-        node=event_node,
-        current_user_id=global_admin.id,
-        user_id=node_admin.id,
-        role_id=ADMIN_ROLE_ID,
-    )
-    await associate_user_to_role(
-        conn=conn,
-        node=event_node,
-        current_user_id=global_admin.id,
-        user_id=node_admin.id,
-        role_id=finanzorga_role.id,
     )
 
+    admin_tags = [
+        ("admin", NewUserTag(pin="admin", secret_id=secret.id), None, [ADMIN_ROLE_ID, finanzorga_role.id]),
+    ]
+    await create_user_tags(conn=conn, event_node_id=event_node.id, tags=[tag[1] for tag in admin_tags])
+    for admin_name, admin_tag, admin_uid, admin_roles in admin_tags:
+        node_admin = await user_service.create_user_no_auth(
+            conn=conn,
+            node_id=event_node.id,
+            new_user=NewUser(
+                login=admin_name,
+                display_name="",
+                user_tag_pin=admin_tag.pin,
+                user_tag_uid=admin_uid or random.randint(1, 100000),
+            ),
+            password="admin",
+        )
+        for admin_role_id in admin_roles:
+            await associate_user_to_role(
+                conn=conn,
+                node=event_node,
+                current_user_id=global_admin.id,
+                user_id=node_admin.id,
+                role_id=admin_role_id,
+            )
+
     finanzorga_tags = [NewUserTag(pin=secrets.token_hex(16), secret_id=secret.id) for _ in range(10, 16)]
-    await create_user_tags(conn=conn, node_id=event_node.id, tags=finanzorga_tags)
+    await create_user_tags(conn=conn, event_node_id=event_node.id, tags=finanzorga_tags)
     for i, finanzorga_tag in enumerate(finanzorga_tags):
         finanzorga_user = await user_service.create_user_no_auth(
             conn=conn,
@@ -148,8 +180,53 @@ async def _create_tags_and_users(conn: Connection, user_service: UserService, ev
             role_id=finanzorga_role.id,
         )
 
+    logger.info(f"Creating {n_customer_tags} tags")
     customer_tags = [NewUserTag(pin=secrets.token_hex(16), secret_id=secret.id) for _ in range(n_customer_tags)]
-    await create_user_tags(conn=conn, node_id=event_node.id, tags=customer_tags)
+
+    if custom_tags is not None:
+        logger.info(f"Adding {len(custom_tags)} tags")
+        customer_tags.extend([NewUserTag(pin=entry.pin, secret_id=secret.id) for entry in custom_tags])
+
+    await create_user_tags(conn=conn, event_node_id=event_node.id, tags=customer_tags)
+
+    if custom_tags:
+        role_map = {
+            "admin": ADMIN_ROLE_ID,
+            "finanzorga": finanzorga_role.id,
+            "godmode": godmode.id,
+        }
+        for hwtag_id, entry in enumerate(custom_tags):
+            if entry.uid is None or not entry.roles:
+                continue
+
+            role_ids = []
+            for role_name in entry.roles:
+                if role_name not in role_map:
+                    raise ValueError(
+                        f"Unknown role '{role_name}' for tag {entry.pin}. Known roles: {list(role_map.keys())}"
+                    )
+                role_ids.append(role_map[role_name])
+
+            if role_ids:
+                tag_user = await user_service.create_user_no_auth(
+                    conn=conn,
+                    node_id=event_node.id,
+                    new_user=NewUser(
+                        login=entry.login or f"tag-{hwtag_id}",
+                        display_name="",
+                        user_tag_pin=entry.pin,
+                        user_tag_uid=entry.uid,
+                    ),
+                    password="user",
+                )
+            for role_id in role_ids:
+                await associate_user_to_role(
+                    conn=conn,
+                    node=event_node,
+                    current_user_id=global_admin.id,
+                    user_id=tag_user.id,
+                    role_id=role_id,
+                )
 
     return global_admin, admin_token
 
@@ -205,6 +282,22 @@ async def _create_admin_tills(
         )
 
 
+async def _ensure_standard_user_tag_variants(conn: Connection, event_node_id: int) -> tuple[int, int]:
+    under_16_id = await conn.fetchval(
+        "insert into user_tag_variant (node_id, variant_name, description, priority) "
+        "values ($1, 'under_16', 'User tag holder under 16 years', 1) "
+        "on conflict (node_id, variant_name) do update set variant_name = excluded.variant_name returning id",
+        event_node_id,
+    )
+    under_18_id = await conn.fetchval(
+        "insert into user_tag_variant (node_id, variant_name, description, priority) "
+        "values ($1, 'under_18', 'User tag holder under 18 years', 2) "
+        "on conflict (node_id, variant_name) do update set variant_name = excluded.variant_name returning id",
+        event_node_id,
+    )
+    return under_16_id, under_18_id
+
+
 async def _create_beverage_tills(
     conn: Connection,
     event_node_id: int,
@@ -219,6 +312,7 @@ async def _create_beverage_tills(
     karussel_node: Node,
     insel_node: Node,
 ):
+    under_16_id, under_18_id = await _ensure_standard_user_tag_variants(conn=conn, event_node_id=event_node_id)
     beer_products = [
         NewProduct(
             name="Helles 1.0l",
@@ -226,7 +320,7 @@ async def _create_beverage_tills(
             price_in_vouchers=2,
             tax_rate_id=tax_rate_ust.id,
             is_locked=True,
-            restrictions=[ProductRestriction.under_16],
+            user_tag_variant_ids=[under_16_id],
         ),
         NewProduct(
             name="Helles 0.5l",
@@ -234,7 +328,7 @@ async def _create_beverage_tills(
             price_in_vouchers=1,
             tax_rate_id=tax_rate_ust.id,
             is_locked=True,
-            restrictions=[ProductRestriction.under_16],
+            user_tag_variant_ids=[under_16_id],
         ),
         NewProduct(
             name="Weißbier 1.0l",
@@ -242,7 +336,7 @@ async def _create_beverage_tills(
             price_in_vouchers=2,
             tax_rate_id=tax_rate_ust.id,
             is_locked=True,
-            restrictions=[ProductRestriction.under_16],
+            user_tag_variant_ids=[under_16_id],
         ),
         NewProduct(
             name="Weißbier 0.5l",
@@ -250,7 +344,7 @@ async def _create_beverage_tills(
             price_in_vouchers=1,
             tax_rate_id=tax_rate_ust.id,
             is_locked=True,
-            restrictions=[ProductRestriction.under_16],
+            user_tag_variant_ids=[under_16_id],
         ),
         NewProduct(
             name="Radler 1.0l",
@@ -258,7 +352,7 @@ async def _create_beverage_tills(
             price_in_vouchers=2,
             tax_rate_id=tax_rate_ust.id,
             is_locked=True,
-            restrictions=[ProductRestriction.under_16],
+            user_tag_variant_ids=[under_16_id],
         ),
         NewProduct(
             name="Radler 0.5l",
@@ -266,7 +360,7 @@ async def _create_beverage_tills(
             price_in_vouchers=1,
             tax_rate_id=tax_rate_ust.id,
             is_locked=True,
-            restrictions=[ProductRestriction.under_16],
+            user_tag_variant_ids=[under_16_id],
         ),
         NewProduct(
             name="Russ 1.0l",
@@ -274,7 +368,7 @@ async def _create_beverage_tills(
             price_in_vouchers=2,
             tax_rate_id=tax_rate_ust.id,
             is_locked=True,
-            restrictions=[ProductRestriction.under_16],
+            user_tag_variant_ids=[under_16_id],
         ),
         NewProduct(
             name="Russ 0.5l",
@@ -282,7 +376,7 @@ async def _create_beverage_tills(
             price_in_vouchers=1,
             tax_rate_id=tax_rate_ust.id,
             is_locked=True,
-            restrictions=[ProductRestriction.under_16],
+            user_tag_variant_ids=[under_16_id],
         ),
         NewProduct(
             name="Limonade 1.0l",
@@ -299,7 +393,7 @@ async def _create_beverage_tills(
             price_in_vouchers=10,
             tax_rate_id=tax_rate_ust.id,
             is_locked=True,
-            restrictions=[ProductRestriction.under_16, ProductRestriction.under_18],
+            user_tag_variant_ids=[under_16_id, under_18_id],
         ),
     ]
     node = await fetch_node(conn=conn, node_id=event_node_id)
@@ -451,7 +545,7 @@ async def _create_ticket_tills(
             tax_rate_id=tax_rate_ust.id,
             initial_top_up_amount=0,
             is_locked=True,
-            restrictions=[],
+            user_tag_variant_ids=[],
         ),
     )
     layout = await till_service.layout.create_layout(
@@ -552,6 +646,7 @@ class DatabaseSetup:
         n_topup_tills: int,
         n_beer_tills: int,
         n_cocktail_tills: int,
+        custom_tags: Optional[list[TagEntryCustom]] = None,
     ):
         self.config = config
         self.n_cashiers = n_cashiers or int((n_topup_tills + n_beer_tills + n_cocktail_tills + n_entry_tills) * 1.5)
@@ -560,6 +655,7 @@ class DatabaseSetup:
         self.n_topup_tills = n_topup_tills
         self.n_beer_tills = n_beer_tills
         self.n_cocktail_tills = n_cocktail_tills
+        self.custom_tags = custom_tags
 
         self.event_node_id: int = None  # type: ignore # initialized at the start of run()
         self.event_node: Node = None  # type: ignore # initialized at the start of run()
@@ -648,8 +744,8 @@ class DatabaseSetup:
             node_id=self.event_node_id,
             new_role=NewUserRole(
                 name="cashier",
-                is_privileged=False,
-                privileges=[Privilege.supervised_terminal_login, Privilege.can_book_orders],
+                event_privileges=[EventPrivilege.supervised_terminal_login],
+                node_privileges=[NodePrivilege.can_book_orders],
             ),
         )
         for i in range(n_cashiers):
@@ -705,7 +801,7 @@ class DatabaseSetup:
 
         auth_service = AuthService(db_pool=self.db_pool, config=self.config)
         user_service = UserService(db_pool=self.db_pool, config=self.config, auth_service=auth_service)
-        tax_service = TaxRateService(db_pool=self.db_pool, config=self.config, auth_service=auth_service)
+        tax_rate_service = TaxRateService(db_pool=self.db_pool, config=self.config, auth_service=auth_service)
 
         async with self.db_pool.acquire() as conn:
             simulated_folder_node = await create_node(
@@ -739,7 +835,10 @@ class DatabaseSetup:
                     ],
                     ust_id="UST ID",
                     bon_issuer="Issuer",
-                    bon_address="Street 12\n81321 City",
+                    bon_street="Street 12",
+                    bon_zip="81321",
+                    bon_city="City",
+                    bon_country="DEU",
                     bon_title="Title",
                     sepa_enabled=True,
                     sepa_sender_name="Organizer",
@@ -812,13 +911,17 @@ class DatabaseSetup:
             self.event_node = event_node
 
             admin, admin_token = await _create_tags_and_users(
-                conn=conn, user_service=user_service, event_node=self.event_node, n_customer_tags=self.n_tags
+                conn=conn,
+                user_service=user_service,
+                event_node=self.event_node,
+                n_customer_tags=self.n_tags,
+                custom_tags=self.custom_tags,
             )
-            tax_rate_ust = await tax_service.create_tax_rate(
+            tax_rate_ust = await tax_rate_service.create_tax_rate(
                 conn=conn,
                 token=admin_token,
                 node_id=self.event_node_id,
-                tax_rate=NewTaxRate(name="ust", description="Umsatzsteuer", rate=0.19),
+                tax_rate=NewTaxRate(name="ust", description="Umsatzsteuer", rate=0.19, tax_type=TaxType.regular_vat),
             )
             await self._create_tills(
                 conn=conn,

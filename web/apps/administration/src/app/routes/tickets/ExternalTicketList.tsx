@@ -1,25 +1,26 @@
-import { ExternalTicket, useListExternalTicketsQuery } from "@/api";
-import { CustomerRoutes } from "@/app/routes";
-import { ListLayout } from "@/components";
-import { useCurrentNode } from "@/hooks";
-import { Link } from "@mui/material";
-import { Loading } from "@stustapay/components";
+import { Link, Tooltip } from "@mui/material";
 import { DataGrid, GridColDef } from "@stustapay/framework";
+import { ArrayElement } from "@stustapay/utils";
+import { useLiveQuery } from "@tanstack/react-db";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 import { Link as RouterLink } from "react-router-dom";
+
+import { CustomerRoutes } from "@/app/routes";
+import { ListLayout } from "@/components";
+import { getExternalTicketCollection } from "@/db/collections";
+import { useCurrentNode } from "@/hooks";
 
 export const ExternalTicketList: React.FC = () => {
   const { t } = useTranslation();
   const { currentNode } = useCurrentNode();
 
-  const { data: tickets, isLoading: isTicketsLoading } = useListExternalTicketsQuery({ nodeId: currentNode.id });
+  const { data: tickets, isLoading: isTicketsLoading } = useLiveQuery(
+    (q) => q.from({ tickets: getExternalTicketCollection(currentNode.id) }),
+    [currentNode.id]
+  );
 
-  if (isTicketsLoading) {
-    return <Loading />;
-  }
-
-  const columns: GridColDef<ExternalTicket>[] = [
+  const columns: GridColDef<ArrayElement<NonNullable<typeof tickets>>>[] = [
     {
       field: "id",
       headerName: t("common.id"),
@@ -28,7 +29,7 @@ export const ExternalTicketList: React.FC = () => {
     {
       field: "external_reference",
       headerName: t("externalTicket.externalReference"),
-      type: "boolean",
+      type: "string",
       flex: 1,
       renderCell: ({ row: { external_reference, external_link } }) => {
         if (external_link) {
@@ -40,6 +41,20 @@ export const ExternalTicketList: React.FC = () => {
         }
         return external_reference;
       },
+    },
+    {
+      field: "token",
+      headerName: t("externalTicket.token"),
+      renderCell: ({ row: { token } }) => (
+        <Tooltip title={token}>
+          <span>{token}</span>
+        </Tooltip>
+      ),
+    },
+    {
+      field: "ticket_type",
+      headerName: t("externalTicket.type"),
+      type: "string",
     },
     {
       field: "created_at",
@@ -96,10 +111,11 @@ export const ExternalTicketList: React.FC = () => {
   return (
     <ListLayout title={t("externalTicket.presaleTickets")}>
       <DataGrid
+        loading={isTicketsLoading}
         rows={tickets ?? []}
         columns={columns}
         disableRowSelectionOnClick
-        sx={{ p: 1, boxShadow: (theme) => theme.shadows[1] }}
+        sx={{ boxShadow: (theme) => theme.shadows[1] }}
       />
     </ListLayout>
   );

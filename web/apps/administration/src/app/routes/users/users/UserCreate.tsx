@@ -1,12 +1,14 @@
-import { useCreateUserMutation } from "@/api";
-import { UserRoutes } from "@/app/routes";
-import { CreateLayout } from "@/components";
-import { useCurrentNode } from "@/hooks";
 import { NewUser, NewUserSchema } from "@stustapay/models";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
-import { UserCreateForm } from "./UserCreateForm";
+
 import { withPrivilegeGuard } from "@/app/layout";
+import { UserRoutes } from "@/app/routes";
+import { CreateLayoutV2 } from "@/components";
+import { generateId, getUserCollection } from "@/db/collections";
+import { useCurrentNode } from "@/hooks";
+
+import { UserCreateForm } from "./UserCreateForm";
 
 const initialValues: NewUser = {
   login: "",
@@ -17,18 +19,30 @@ const initialValues: NewUser = {
   user_tag_pin: undefined,
 };
 
-export const UserCreate: React.FC = withPrivilegeGuard("user_management", () => {
+export const UserCreate: React.FC = withPrivilegeGuard("node_administration", () => {
   const { t } = useTranslation();
   const { currentNode } = useCurrentNode();
-  const [createUser] = useCreateUserMutation();
 
   return (
-    <CreateLayout
+    <CreateLayoutV2
       title={t("createUser")}
       initialValues={initialValues}
       validationSchema={NewUserSchema}
       successRoute={UserRoutes.list()}
-      onSubmit={(u) => createUser({ nodeId: currentNode.id, createUserPayload: u })}
+      onSubmit={(user) =>
+        getUserCollection(currentNode.id).insert({
+          ...user,
+          id: generateId(),
+          node_id: currentNode.id,
+          user_tag_id: null,
+          user_tag_uid: null,
+          user_tag_uid_hex: null,
+          transport_account_id: null,
+          cash_register_id: null,
+          cash_drawer_balance: null,
+          terminal_ids: [],
+        })
+      }
       form={UserCreateForm}
     />
   );

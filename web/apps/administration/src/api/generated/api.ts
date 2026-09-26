@@ -55,15 +55,6 @@ const injectedRtkApi = api
         }),
         invalidatesTags: ["products"],
       }),
-      getProduct: build.query<GetProductApiResponse, GetProductApiArg>({
-        query: (queryArg) => ({
-          url: `/products/${queryArg.productId}`,
-          params: {
-            node_id: queryArg.nodeId,
-          },
-        }),
-        providesTags: ["products"],
-      }),
       updateProduct: build.mutation<UpdateProductApiResponse, UpdateProductApiArg>({
         query: (queryArg) => ({
           url: `/products/${queryArg.productId}`,
@@ -106,9 +97,18 @@ const injectedRtkApi = api
         }),
         invalidatesTags: ["users"],
       }),
-      getUser: build.query<GetUserApiResponse, GetUserApiArg>({
+      getUserVoucherGrantStats: build.query<GetUserVoucherGrantStatsApiResponse, GetUserVoucherGrantStatsApiArg>({
         query: (queryArg) => ({
-          url: `/users/${queryArg.userId}`,
+          url: `/users/${queryArg.userId}/voucher-grant-stats`,
+          params: {
+            node_id: queryArg.nodeId,
+          },
+        }),
+        providesTags: ["users"],
+      }),
+      listUserRoleAssignments: build.query<ListUserRoleAssignmentsApiResponse, ListUserRoleAssignmentsApiArg>({
+        query: (queryArg) => ({
+          url: `/users/${queryArg.userId}/role-assignments`,
           params: {
             node_id: queryArg.nodeId,
           },
@@ -228,15 +228,6 @@ const injectedRtkApi = api
         }),
         invalidatesTags: ["tax-rates"],
       }),
-      getTaxRate: build.query<GetTaxRateApiResponse, GetTaxRateApiArg>({
-        query: (queryArg) => ({
-          url: `/tax-rates/${queryArg.taxRateId}`,
-          params: {
-            node_id: queryArg.nodeId,
-          },
-        }),
-        providesTags: ["tax-rates"],
-      }),
       updateTaxRate: build.mutation<UpdateTaxRateApiResponse, UpdateTaxRateApiArg>({
         query: (queryArg) => ({
           url: `/tax-rates/${queryArg.taxRateId}`,
@@ -263,11 +254,7 @@ const injectedRtkApi = api
         invalidatesTags: ["auth"],
       }),
       changePassword: build.mutation<ChangePasswordApiResponse, ChangePasswordApiArg>({
-        query: (queryArg) => ({
-          url: `/auth/change-password`,
-          method: "POST",
-          body: queryArg.changePasswordPayload,
-        }),
+        query: (queryArg) => ({ url: `/auth/change-password`, method: "POST", body: queryArg.changePasswordPayload }),
         invalidatesTags: ["auth"],
       }),
       logout: build.mutation<LogoutApiResponse, LogoutApiArg>({
@@ -293,15 +280,6 @@ const injectedRtkApi = api
           },
         }),
         invalidatesTags: ["tills"],
-      }),
-      getTill: build.query<GetTillApiResponse, GetTillApiArg>({
-        query: (queryArg) => ({
-          url: `/tills/${queryArg.tillId}`,
-          params: {
-            node_id: queryArg.nodeId,
-          },
-        }),
-        providesTags: ["tills"],
       }),
       updateTill: build.mutation<UpdateTillApiResponse, UpdateTillApiArg>({
         query: (queryArg) => ({
@@ -365,15 +343,6 @@ const injectedRtkApi = api
         }),
         invalidatesTags: ["till-layouts"],
       }),
-      getTillLayout: build.query<GetTillLayoutApiResponse, GetTillLayoutApiArg>({
-        query: (queryArg) => ({
-          url: `/till-layouts/${queryArg.layoutId}`,
-          params: {
-            node_id: queryArg.nodeId,
-          },
-        }),
-        providesTags: ["till-layouts"],
-      }),
       updateTillLayout: build.mutation<UpdateTillLayoutApiResponse, UpdateTillLayoutApiArg>({
         query: (queryArg) => ({
           url: `/till-layouts/${queryArg.layoutId}`,
@@ -415,15 +384,6 @@ const injectedRtkApi = api
         }),
         invalidatesTags: ["till-profiles"],
       }),
-      getTillProfile: build.query<GetTillProfileApiResponse, GetTillProfileApiArg>({
-        query: (queryArg) => ({
-          url: `/till-profiles/${queryArg.profileId}`,
-          params: {
-            node_id: queryArg.nodeId,
-          },
-        }),
-        providesTags: ["till-profiles"],
-      }),
       updateTillProfile: build.mutation<UpdateTillProfileApiResponse, UpdateTillProfileApiArg>({
         query: (queryArg) => ({
           url: `/till-profiles/${queryArg.profileId}`,
@@ -464,15 +424,6 @@ const injectedRtkApi = api
           },
         }),
         invalidatesTags: ["till-buttons"],
-      }),
-      getTillButton: build.query<GetTillButtonApiResponse, GetTillButtonApiArg>({
-        query: (queryArg) => ({
-          url: `/till-buttons/${queryArg.buttonId}`,
-          params: {
-            node_id: queryArg.nodeId,
-          },
-        }),
-        providesTags: ["till-buttons"],
       }),
       updateTillButton: build.mutation<UpdateTillButtonApiResponse, UpdateTillButtonApiArg>({
         query: (queryArg) => ({
@@ -556,14 +507,16 @@ const injectedRtkApi = api
         }),
         invalidatesTags: ["till-registers"],
       }),
-      getCashRegisterAdmin: build.query<GetCashRegisterAdminApiResponse, GetCashRegisterAdminApiArg>({
+      transferRegister: build.mutation<TransferRegisterApiResponse, TransferRegisterApiArg>({
         query: (queryArg) => ({
-          url: `/till-registers/${queryArg.registerId}`,
+          url: `/till-registers/transfer-register`,
+          method: "POST",
+          body: queryArg.transferRegisterPayload,
           params: {
             node_id: queryArg.nodeId,
           },
         }),
-        providesTags: ["till-registers"],
+        invalidatesTags: ["till-registers"],
       }),
       updateRegister: build.mutation<UpdateRegisterApiResponse, UpdateRegisterApiArg>({
         query: (queryArg) => ({
@@ -586,49 +539,9 @@ const injectedRtkApi = api
         }),
         invalidatesTags: ["till-registers"],
       }),
-      getCashierShiftsForRegister: build.query<
-        GetCashierShiftsForRegisterApiResponse,
-        GetCashierShiftsForRegisterApiArg
-      >({
-        query: (queryArg) => ({
-          url: `/till-registers/${queryArg.registerId}/cashier-shifts`,
-          params: {
-            node_id: queryArg.nodeId,
-          },
-        }),
-        providesTags: ["till-registers"],
-      }),
-      listTransactions: build.query<ListTransactionsApiResponse, ListTransactionsApiArg>({
-        query: (queryArg) => ({
-          url: `/till-registers/${queryArg.registerId}/transactions`,
-          params: {
-            node_id: queryArg.nodeId,
-          },
-        }),
-        providesTags: ["till-registers"],
-      }),
-      transferRegister: build.mutation<TransferRegisterApiResponse, TransferRegisterApiArg>({
-        query: (queryArg) => ({
-          url: `/till-registers/transfer-register`,
-          method: "POST",
-          body: queryArg.transferRegisterPayload,
-          params: {
-            node_id: queryArg.nodeId,
-          },
-        }),
-        invalidatesTags: ["till-registers"],
-      }),
       getPublicConfig: build.query<GetPublicConfigApiResponse, GetPublicConfigApiArg>({
         query: () => ({ url: `/public-config` }),
         providesTags: ["config"],
-      }),
-      listConfigEntries: build.query<ListConfigEntriesApiResponse, ListConfigEntriesApiArg>({
-        query: () => ({ url: `/config` }),
-        providesTags: ["config"],
-      }),
-      setConfigEntry: build.mutation<SetConfigEntryApiResponse, SetConfigEntryApiArg>({
-        query: (queryArg) => ({ url: `/config`, method: "POST", body: queryArg.configEntry }),
-        invalidatesTags: ["config"],
       }),
       listSystemAccounts: build.query<ListSystemAccountsApiResponse, ListSystemAccountsApiArg>({
         query: (queryArg) => ({
@@ -647,17 +560,6 @@ const injectedRtkApi = api
           },
         }),
         providesTags: ["accounts"],
-      }),
-      findAccounts: build.mutation<FindAccountsApiResponse, FindAccountsApiArg>({
-        query: (queryArg) => ({
-          url: `/accounts/find-accounts`,
-          method: "POST",
-          body: queryArg.findAccountPayload,
-          params: {
-            node_id: queryArg.nodeId,
-          },
-        }),
-        invalidatesTags: ["accounts"],
       }),
       getAccount: build.query<GetAccountApiResponse, GetAccountApiArg>({
         query: (queryArg) => ({
@@ -711,21 +613,15 @@ const injectedRtkApi = api
         }),
         invalidatesTags: ["accounts"],
       }),
-      listOrdersByTill: build.query<ListOrdersByTillApiResponse, ListOrdersByTillApiArg>({
-        query: (queryArg) => ({
-          url: `/orders/by-till/${queryArg.tillId}`,
-          params: {
-            node_id: queryArg.nodeId,
-          },
-        }),
-        providesTags: ["orders"],
-      }),
       listOrders: build.query<ListOrdersApiResponse, ListOrdersApiArg>({
         query: (queryArg) => ({
           url: `/orders`,
           params: {
             node_id: queryArg.nodeId,
             customer_account_id: queryArg.customerAccountId,
+            till_id: queryArg.tillId,
+            offset: queryArg.offset,
+            limit: queryArg.limit,
           },
         }),
         providesTags: ["orders"],
@@ -764,29 +660,14 @@ const injectedRtkApi = api
         }),
         invalidatesTags: ["orders"],
       }),
-      listCashiers: build.query<ListCashiersApiResponse, ListCashiersApiArg>({
+      listCashierShifts: build.query<ListCashierShiftsApiResponse, ListCashierShiftsApiArg>({
         query: (queryArg) => ({
-          url: `/cashiers`,
+          url: `/cashiers/shifts`,
           params: {
             node_id: queryArg.nodeId,
-          },
-        }),
-        providesTags: ["cashiers"],
-      }),
-      getCashier: build.query<GetCashierApiResponse, GetCashierApiArg>({
-        query: (queryArg) => ({
-          url: `/cashiers/${queryArg.cashierId}`,
-          params: {
-            node_id: queryArg.nodeId,
-          },
-        }),
-        providesTags: ["cashiers"],
-      }),
-      getCashierShifts: build.query<GetCashierShiftsApiResponse, GetCashierShiftsApiArg>({
-        query: (queryArg) => ({
-          url: `/cashiers/${queryArg.cashierId}/shifts`,
-          params: {
-            node_id: queryArg.nodeId,
+            cashier_id: queryArg.cashierId,
+            cash_register_id: queryArg.cashRegisterId,
+            shift_id: queryArg.shiftId,
           },
         }),
         providesTags: ["cashiers"],
@@ -801,10 +682,12 @@ const injectedRtkApi = api
         }),
         providesTags: ["cashiers"],
       }),
-      getCashierRevenueReport: build.query<CashierRevenueReportApiResponse, CashierRevenueReportApiArg>({
+      getCashierRevenueReport: build.query<GetCashierRevenueReportApiResponse, GetCashierRevenueReportApiArg>({
         query: (queryArg) => ({
           url: `/cashiers/revenue-report`,
-          params: { node_id: queryArg.nodeId },
+          params: {
+            node_id: queryArg.nodeId,
+          },
         }),
         providesTags: ["cashiers"],
       }),
@@ -874,6 +757,28 @@ const injectedRtkApi = api
         }),
         providesTags: ["stats"],
       }),
+      getPaymentMethodStats: build.query<GetPaymentMethodStatsApiResponse, GetPaymentMethodStatsApiArg>({
+        query: (queryArg) => ({
+          url: `/stats/payment-methods`,
+          params: {
+            node_id: queryArg.nodeId,
+            to_timestamp: queryArg.toTimestamp,
+            from_timestamp: queryArg.fromTimestamp,
+          },
+        }),
+        providesTags: ["stats"],
+      }),
+      getFreeTicketStats: build.query<GetFreeTicketStatsApiResponse, GetFreeTicketStatsApiArg>({
+        query: (queryArg) => ({
+          url: `/stats/free-tickets`,
+          params: {
+            node_id: queryArg.nodeId,
+            to_timestamp: queryArg.toTimestamp,
+            from_timestamp: queryArg.fromTimestamp,
+          },
+        }),
+        providesTags: ["stats"],
+      }),
       listTickets: build.query<ListTicketsApiResponse, ListTicketsApiArg>({
         query: (queryArg) => ({
           url: `/tickets`,
@@ -903,9 +808,9 @@ const injectedRtkApi = api
         }),
         providesTags: ["tickets"],
       }),
-      getTicket: build.query<GetTicketApiResponse, GetTicketApiArg>({
+      getPresaleStats: build.query<GetPresaleStatsApiResponse, GetPresaleStatsApiArg>({
         query: (queryArg) => ({
-          url: `/tickets/${queryArg.ticketId}`,
+          url: `/tickets/stats/presale`,
           params: {
             node_id: queryArg.nodeId,
           },
@@ -964,6 +869,17 @@ const injectedRtkApi = api
         }),
         invalidatesTags: ["user_tags"],
       }),
+      userTagsCsvExport: build.mutation<UserTagsCsvExportApiResponse, UserTagsCsvExportApiArg>({
+        query: (queryArg) => ({
+          url: `/user-tags/csv-export`,
+          method: "POST",
+          body: queryArg.userTagsCsvExportPayload,
+          params: {
+            node_id: queryArg.nodeId,
+          },
+        }),
+        invalidatesTags: ["user_tags"],
+      }),
       findUserTags: build.mutation<FindUserTagsApiResponse, FindUserTagsApiArg>({
         query: (queryArg) => ({
           url: `/user-tags/find-user-tags`,
@@ -989,6 +905,56 @@ const injectedRtkApi = api
           url: `/user-tags/${queryArg.userTagId}/update-comment`,
           method: "POST",
           body: queryArg.updateCommentPayload,
+          params: {
+            node_id: queryArg.nodeId,
+          },
+        }),
+        invalidatesTags: ["user_tags"],
+      }),
+      listUserTagVariants: build.query<ListUserTagVariantsApiResponse, ListUserTagVariantsApiArg>({
+        query: (queryArg) => ({
+          url: `/user-tag-variants`,
+          params: {
+            node_id: queryArg.nodeId,
+          },
+        }),
+        providesTags: ["user_tags"],
+      }),
+      createUserTagVariant: build.mutation<CreateUserTagVariantApiResponse, CreateUserTagVariantApiArg>({
+        query: (queryArg) => ({
+          url: `/user-tag-variants`,
+          method: "POST",
+          body: queryArg.newUserTagVariant,
+          params: {
+            node_id: queryArg.nodeId,
+          },
+        }),
+        invalidatesTags: ["user_tags"],
+      }),
+      getUserTagVariant: build.query<GetUserTagVariantApiResponse, GetUserTagVariantApiArg>({
+        query: (queryArg) => ({
+          url: `/user-tag-variants/${queryArg.userTagVariantId}`,
+          params: {
+            node_id: queryArg.nodeId,
+          },
+        }),
+        providesTags: ["user_tags"],
+      }),
+      updateUserTagVariant: build.mutation<UpdateUserTagVariantApiResponse, UpdateUserTagVariantApiArg>({
+        query: (queryArg) => ({
+          url: `/user-tag-variants/${queryArg.userTagVariantId}`,
+          method: "POST",
+          body: queryArg.newUserTagVariant,
+          params: {
+            node_id: queryArg.nodeId,
+          },
+        }),
+        invalidatesTags: ["user_tags"],
+      }),
+      deleteUserTagVariant: build.mutation<DeleteUserTagVariantApiResponse, DeleteUserTagVariantApiArg>({
+        query: (queryArg) => ({
+          url: `/user-tag-variants/${queryArg.userTagVariantId}`,
+          method: "DELETE",
           params: {
             node_id: queryArg.nodeId,
           },
@@ -1204,10 +1170,7 @@ const injectedRtkApi = api
         invalidatesTags: ["tree"],
       }),
       checkPretixConnection: build.mutation<CheckPretixConnectionApiResponse, CheckPretixConnectionApiArg>({
-        query: (queryArg) => ({
-          url: `/tree/events/${queryArg.nodeId}/check-pretix-connection`,
-          method: "POST",
-        }),
+        query: (queryArg) => ({ url: `/tree/events/${queryArg.nodeId}/check-pretix-connection`, method: "POST" }),
         invalidatesTags: ["tree"],
       }),
       fetchPretixProducts: build.mutation<FetchPretixProductsApiResponse, FetchPretixProductsApiArg>({
@@ -1231,10 +1194,7 @@ const injectedRtkApi = api
         invalidatesTags: ["tree"],
       }),
       generateRevenueReport: build.mutation<GenerateRevenueReportApiResponse, GenerateRevenueReportApiArg>({
-        query: (queryArg) => ({
-          url: `/tree/nodes/${queryArg.nodeId}/generate-revenue-report`,
-          method: "POST",
-        }),
+        query: (queryArg) => ({ url: `/tree/nodes/${queryArg.nodeId}/generate-revenue-report`, method: "POST" }),
         invalidatesTags: ["tree"],
       }),
       generateDailyReport: build.mutation<GenerateDailyReportApiResponse, GenerateDailyReportApiArg>({
@@ -1246,14 +1206,23 @@ const injectedRtkApi = api
         invalidatesTags: ["tree"],
       }),
       generateTestDailyReport: build.mutation<GenerateTestDailyReportApiResponse, GenerateTestDailyReportApiArg>({
-        query: (queryArg) => ({
-          url: `/tree/events/${queryArg.nodeId}/generate-test-daily-report`,
-          method: "POST",
-        }),
+        query: (queryArg) => ({ url: `/tree/events/${queryArg.nodeId}/generate-test-daily-report`, method: "POST" }),
         invalidatesTags: ["tree"],
       }),
       generatePayoutReport: build.mutation<GeneratePayoutReportApiResponse, GeneratePayoutReportApiArg>({
         query: (queryArg) => ({ url: `/tree/nodes/${queryArg.nodeId}/generate-payout-report`, method: "POST" }),
+        invalidatesTags: ["tree"],
+      }),
+      exportDsfinvk: build.mutation<ExportDsfinvkApiResponse, ExportDsfinvkApiArg>({
+        query: (queryArg) => ({ url: `/tree/events/${queryArg.nodeId}/export-dsfinvk`, method: "POST" }),
+        invalidatesTags: ["tree"],
+      }),
+      exportAo146A: build.mutation<ExportAo146AApiResponse, ExportAo146AApiArg>({
+        query: (queryArg) => ({
+          url: `/tree/events/${queryArg.nodeId}/export-ao146a`,
+          method: "POST",
+          body: queryArg.ao146AExportPayload,
+        }),
         invalidatesTags: ["tree"],
       }),
       configureSumupToken: build.mutation<ConfigureSumupTokenApiResponse, ConfigureSumupTokenApiArg>({
@@ -1266,10 +1235,6 @@ const injectedRtkApi = api
       }),
       listAuditLogs: build.query<ListAuditLogsApiResponse, ListAuditLogsApiArg>({
         query: (queryArg) => ({ url: `/tree/nodes/${queryArg.nodeId}/audit-logs` }),
-        providesTags: ["tree"],
-      }),
-      getAuditLog: build.query<GetAuditLogApiResponse, GetAuditLogApiArg>({
-        query: (queryArg) => ({ url: `/tree/nodes/${queryArg.nodeId}/audit-logs/${queryArg.auditLogId}` }),
         providesTags: ["tree"],
       }),
       listSumupCheckouts: build.query<ListSumupCheckoutsApiResponse, ListSumupCheckoutsApiArg>({
@@ -1351,6 +1316,17 @@ const injectedRtkApi = api
         }),
         invalidatesTags: ["accounts"],
       }),
+      switchCustomerTag: build.mutation<SwitchCustomerTagApiResponse, SwitchCustomerTagApiArg>({
+        query: (queryArg) => ({
+          url: `/customers/switch-tag`,
+          method: "POST",
+          body: queryArg.switchCustomerTagPayload,
+          params: {
+            node_id: queryArg.nodeId,
+          },
+        }),
+        invalidatesTags: ["accounts"],
+      }),
       listTerminals: build.query<ListTerminalsApiResponse, ListTerminalsApiArg>({
         query: (queryArg) => ({
           url: `/terminal`,
@@ -1371,9 +1347,38 @@ const injectedRtkApi = api
         }),
         invalidatesTags: ["terminals"],
       }),
-      getTerminal: build.query<GetTerminalApiResponse, GetTerminalApiArg>({
+      listMdmDevices: build.query<ListMdmDevicesApiResponse, ListMdmDevicesApiArg>({
         query: (queryArg) => ({
-          url: `/terminal/${queryArg.terminalId}`,
+          url: `/terminal/mdm-devices`,
+          params: {
+            node_id: queryArg.nodeId,
+          },
+        }),
+        providesTags: ["terminals"],
+      }),
+      changeMdmDeviceMapping: build.mutation<ChangeMdmDeviceMappingApiResponse, ChangeMdmDeviceMappingApiArg>({
+        query: (queryArg) => ({
+          url: `/terminal/mdm-devices/change-device-to-terminal-mapping`,
+          method: "POST",
+          body: queryArg.changeMdmDeviceMappingPayload,
+          params: {
+            node_id: queryArg.nodeId,
+          },
+        }),
+        invalidatesTags: ["terminals"],
+      }),
+      getMdmDeviceLocation: build.query<GetMdmDeviceLocationApiResponse, GetMdmDeviceLocationApiArg>({
+        query: (queryArg) => ({
+          url: `/terminal/mdm-devices/${queryArg.mdmDeviceId}/location`,
+          params: {
+            node_id: queryArg.nodeId,
+          },
+        }),
+        providesTags: ["terminals"],
+      }),
+      listTerminalLocations: build.query<ListTerminalLocationsApiResponse, ListTerminalLocationsApiArg>({
+        query: (queryArg) => ({
+          url: `/terminal/locations`,
           params: {
             node_id: queryArg.nodeId,
           },
@@ -1432,6 +1437,19 @@ const injectedRtkApi = api
         }),
         invalidatesTags: ["terminals"],
       }),
+      listTransactions: build.query<ListTransactionsApiResponse, ListTransactionsApiArg>({
+        query: (queryArg) => ({
+          url: `/transactions`,
+          params: {
+            node_id: queryArg.nodeId,
+            cash_register_id: queryArg.cashRegisterId,
+            transaction_id: queryArg.transactionId,
+            offset: queryArg.offset,
+            limit: queryArg.limit,
+          },
+        }),
+        providesTags: ["transactions"],
+      }),
       getTransaction: build.query<GetTransactionApiResponse, GetTransactionApiArg>({
         query: (queryArg) => ({
           url: `/transactions/${queryArg.transactionId}`,
@@ -1459,7 +1477,7 @@ const injectedRtkApi = api
     overrideExisting: false,
   });
 export { injectedRtkApi as api };
-export type ListProductsApiResponse = /** status 200 Successful Response */ NormalizedListProductInt;
+export type ListProductsApiResponse = /** status 200 Successful Response */ Product[];
 export type ListProductsApiArg = {
   nodeId: number;
   showAll?: any;
@@ -1468,11 +1486,6 @@ export type CreateProductApiResponse = /** status 200 Successful Response */ Pro
 export type CreateProductApiArg = {
   nodeId: number;
   newProduct: NewProduct;
-};
-export type GetProductApiResponse = /** status 200 Successful Response */ Product;
-export type GetProductApiArg = {
-  productId: number;
-  nodeId: number;
 };
 export type UpdateProductApiResponse = /** status 200 Successful Response */ Product;
 export type UpdateProductApiArg = {
@@ -1485,18 +1498,23 @@ export type DeleteProductApiArg = {
   productId: number;
   nodeId: number;
 };
-export type ListUsersApiResponse = /** status 200 Successful Response */ NormalizedListUserInt;
+export type ListUsersApiResponse = /** status 200 Successful Response */ UserRead[];
 export type ListUsersApiArg = {
   nodeId: number;
-  filterPrivilege?: Privilege | null;
+  filterPrivilege?: EventPrivilege | NodePrivilege | null;
 };
 export type CreateUserApiResponse = /** status 200 Successful Response */ UserRead;
 export type CreateUserApiArg = {
   nodeId: number;
   createUserPayload: CreateUserPayload;
 };
-export type GetUserApiResponse = /** status 200 Successful Response */ UserRead;
-export type GetUserApiArg = {
+export type GetUserVoucherGrantStatsApiResponse = /** status 200 Successful Response */ UserVoucherGrantStats;
+export type GetUserVoucherGrantStatsApiArg = {
+  userId: number;
+  nodeId: number;
+};
+export type ListUserRoleAssignmentsApiResponse = /** status 200 Successful Response */ UserRoleAssignment[];
+export type ListUserRoleAssignmentsApiArg = {
   userId: number;
   nodeId: number;
 };
@@ -1517,7 +1535,7 @@ export type ChangeUserPasswordApiArg = {
   nodeId: number;
   changeUserPasswordPayload: ChangeUserPasswordPayload;
 };
-export type ListUserRolesApiResponse = /** status 200 Successful Response */ NormalizedListUserRoleInt;
+export type ListUserRolesApiResponse = /** status 200 Successful Response */ UserRole[];
 export type ListUserRolesApiArg = {
   nodeId: number;
 };
@@ -1546,7 +1564,7 @@ export type UpdateUserToRolesApiArg = {
   nodeId: number;
   newUserToRoles: NewUserToRoles;
 };
-export type ListTaxRatesApiResponse = /** status 200 Successful Response */ NormalizedListTaxRateInt;
+export type ListTaxRatesApiResponse = /** status 200 Successful Response */ TaxRate[];
 export type ListTaxRatesApiArg = {
   nodeId: number;
 };
@@ -1554,11 +1572,6 @@ export type CreateTaxRateApiResponse = /** status 200 Successful Response */ Tax
 export type CreateTaxRateApiArg = {
   nodeId: number;
   newTaxRate: NewTaxRate;
-};
-export type GetTaxRateApiResponse = /** status 200 Successful Response */ TaxRate;
-export type GetTaxRateApiArg = {
-  taxRateId: number;
-  nodeId: number;
 };
 export type UpdateTaxRateApiResponse = /** status 200 Successful Response */ TaxRate;
 export type UpdateTaxRateApiArg = {
@@ -1581,7 +1594,7 @@ export type ChangePasswordApiArg = {
 };
 export type LogoutApiResponse = unknown;
 export type LogoutApiArg = void;
-export type ListTillsApiResponse = /** status 200 Successful Response */ NormalizedListTillInt;
+export type ListTillsApiResponse = /** status 200 Successful Response */ Till[];
 export type ListTillsApiArg = {
   nodeId: number;
 };
@@ -1589,11 +1602,6 @@ export type CreateTillApiResponse = /** status 200 Successful Response */ Till;
 export type CreateTillApiArg = {
   nodeId: number;
   newTill: NewTill;
-};
-export type GetTillApiResponse = /** status 200 Successful Response */ Till;
-export type GetTillApiArg = {
-  tillId: number;
-  nodeId: number;
 };
 export type UpdateTillApiResponse = /** status 200 Successful Response */ Till;
 export type UpdateTillApiArg = {
@@ -1617,7 +1625,7 @@ export type SwitchTerminalApiArg = {
   nodeId: number;
   switchTerminalPayload: SwitchTerminalPayload;
 };
-export type ListTillLayoutsApiResponse = /** status 200 Successful Response */ NormalizedListTillLayoutInt;
+export type ListTillLayoutsApiResponse = /** status 200 Successful Response */ TillLayout[];
 export type ListTillLayoutsApiArg = {
   nodeId: number;
 };
@@ -1625,11 +1633,6 @@ export type CreateTillLayoutApiResponse = /** status 200 Successful Response */ 
 export type CreateTillLayoutApiArg = {
   nodeId: number;
   newTillLayout: NewTillLayout;
-};
-export type GetTillLayoutApiResponse = /** status 200 Successful Response */ TillLayout;
-export type GetTillLayoutApiArg = {
-  layoutId: number;
-  nodeId: number;
 };
 export type UpdateTillLayoutApiResponse = /** status 200 Successful Response */ TillLayout;
 export type UpdateTillLayoutApiArg = {
@@ -1642,7 +1645,7 @@ export type DeleteTillLayoutApiArg = {
   layoutId: number;
   nodeId: number;
 };
-export type ListTillProfilesApiResponse = /** status 200 Successful Response */ NormalizedListTillProfileInt;
+export type ListTillProfilesApiResponse = /** status 200 Successful Response */ TillProfile[];
 export type ListTillProfilesApiArg = {
   nodeId: number;
 };
@@ -1650,11 +1653,6 @@ export type CreateTillProfileApiResponse = /** status 200 Successful Response */
 export type CreateTillProfileApiArg = {
   nodeId: number;
   newTillProfile: NewTillProfile;
-};
-export type GetTillProfileApiResponse = /** status 200 Successful Response */ TillProfile;
-export type GetTillProfileApiArg = {
-  profileId: number;
-  nodeId: number;
 };
 export type UpdateTillProfileApiResponse = /** status 200 Successful Response */ TillProfile;
 export type UpdateTillProfileApiArg = {
@@ -1667,7 +1665,7 @@ export type DeleteTillProfileApiArg = {
   profileId: number;
   nodeId: number;
 };
-export type ListTillButtonsApiResponse = /** status 200 Successful Response */ NormalizedListTillButtonInt;
+export type ListTillButtonsApiResponse = /** status 200 Successful Response */ TillButton[];
 export type ListTillButtonsApiArg = {
   nodeId: number;
 };
@@ -1675,11 +1673,6 @@ export type CreateTillButtonApiResponse = /** status 200 Successful Response */ 
 export type CreateTillButtonApiArg = {
   nodeId: number;
   newTillButton: NewTillButton;
-};
-export type GetTillButtonApiResponse = /** status 200 Successful Response */ TillButton;
-export type GetTillButtonApiArg = {
-  buttonId: number;
-  nodeId: number;
 };
 export type UpdateTillButtonApiResponse = /** status 200 Successful Response */ TillButton;
 export type UpdateTillButtonApiArg = {
@@ -1692,8 +1685,7 @@ export type DeleteTillButtonApiArg = {
   buttonId: number;
   nodeId: number;
 };
-export type ListRegisterStockingsApiResponse =
-  /** status 200 Successful Response */ NormalizedListCashRegisterStockingInt;
+export type ListRegisterStockingsApiResponse = /** status 200 Successful Response */ CashRegisterStocking[];
 export type ListRegisterStockingsApiArg = {
   nodeId: number;
 };
@@ -1713,7 +1705,7 @@ export type DeleteRegisterStockingApiArg = {
   stockingId: number;
   nodeId: number;
 };
-export type ListCashRegistersAdminApiResponse = /** status 200 Successful Response */ NormalizedListCashRegisterInt;
+export type ListCashRegistersAdminApiResponse = /** status 200 Successful Response */ CashRegister[];
 export type ListCashRegistersAdminApiArg = {
   nodeId: number;
 };
@@ -1722,10 +1714,10 @@ export type CreateRegisterApiArg = {
   nodeId: number;
   newCashRegister: NewCashRegister;
 };
-export type GetCashRegisterAdminApiResponse = /** status 200 Successful Response */ CashRegister;
-export type GetCashRegisterAdminApiArg = {
-  registerId: number;
+export type TransferRegisterApiResponse = /** status 200 Successful Response */ any;
+export type TransferRegisterApiArg = {
   nodeId: number;
+  transferRegisterPayload: TransferRegisterPayload;
 };
 export type UpdateRegisterApiResponse = /** status 200 Successful Response */ any;
 export type UpdateRegisterApiArg = {
@@ -1738,42 +1730,15 @@ export type DeleteRegisterApiArg = {
   registerId: number;
   nodeId: number;
 };
-export type GetCashierShiftsForRegisterApiResponse =
-  /** status 200 Successful Response */ NormalizedListCashierShiftInt;
-export type GetCashierShiftsForRegisterApiArg = {
-  registerId: number;
-  nodeId: number;
-};
-export type ListTransactionsApiResponse = /** status 200 Successful Response */ NormalizedListTransactionInt;
-export type ListTransactionsApiArg = {
-  registerId: number;
-  nodeId: number;
-};
-export type TransferRegisterApiResponse = /** status 200 Successful Response */ any;
-export type TransferRegisterApiArg = {
-  nodeId: number;
-  transferRegisterPayload: TransferRegisterPayload;
-};
 export type GetPublicConfigApiResponse = /** status 200 Successful Response */ Config;
 export type GetPublicConfigApiArg = void;
-export type ListConfigEntriesApiResponse = /** status 200 Successful Response */ NormalizedListConfigEntryStr;
-export type ListConfigEntriesApiArg = void;
-export type SetConfigEntryApiResponse = /** status 200 Successful Response */ ConfigEntry;
-export type SetConfigEntryApiArg = {
-  configEntry: ConfigEntry;
-};
-export type ListSystemAccountsApiResponse = /** status 200 Successful Response */ NormalizedListAccountInt;
+export type ListSystemAccountsApiResponse = /** status 200 Successful Response */ AccountRead[];
 export type ListSystemAccountsApiArg = {
   nodeId: number;
 };
 export type GetMoneyOverviewApiResponse = /** status 200 Successful Response */ MoneyOverviewRead;
 export type GetMoneyOverviewApiArg = {
   nodeId: number;
-};
-export type FindAccountsApiResponse = /** status 200 Successful Response */ NormalizedListAccountInt;
-export type FindAccountsApiArg = {
-  nodeId: number;
-  findAccountPayload: FindAccountPayload;
 };
 export type GetAccountApiResponse = /** status 200 Successful Response */ AccountRead;
 export type GetAccountApiArg = {
@@ -1803,15 +1768,13 @@ export type UpdateAccountCommentApiArg = {
   nodeId: number;
   updateAccountCommentPayload: UpdateAccountCommentPayload;
 };
-export type ListOrdersByTillApiResponse = /** status 200 Successful Response */ NormalizedListOrderInt;
-export type ListOrdersByTillApiArg = {
-  tillId: number;
-  nodeId: number;
-};
-export type ListOrdersApiResponse = /** status 200 Successful Response */ NormalizedListOrderInt;
+export type ListOrdersApiResponse = /** status 200 Successful Response */ PaginatedListOrderRead;
 export type ListOrdersApiArg = {
   nodeId: number;
-  customerAccountId: number;
+  customerAccountId?: number | null;
+  tillId?: number | null;
+  offset?: number;
+  limit?: number | null;
 };
 export type GetOrderApiResponse = /** status 200 Successful Response */ OrderRead;
 export type GetOrderApiArg = {
@@ -1833,19 +1796,12 @@ export type EditOrderApiArg = {
   nodeId: number;
   editSaleProducts: EditSaleProducts;
 };
-export type ListCashiersApiResponse = /** status 200 Successful Response */ NormalizedListCashierInt;
-export type ListCashiersApiArg = {
+export type ListCashierShiftsApiResponse = /** status 200 Successful Response */ CashierShift[];
+export type ListCashierShiftsApiArg = {
   nodeId: number;
-};
-export type GetCashierApiResponse = /** status 200 Successful Response */ CashierRead;
-export type GetCashierApiArg = {
-  cashierId: number;
-  nodeId: number;
-};
-export type GetCashierShiftsApiResponse = /** status 200 Successful Response */ NormalizedListCashierShiftInt;
-export type GetCashierShiftsApiArg = {
-  cashierId: number;
-  nodeId: number;
+  cashierId?: number | null;
+  cashRegisterId?: number | null;
+  shiftId?: number | null;
 };
 export type GetCashierShiftStatsApiResponse = /** status 200 Successful Response */ CashierShiftStatsRead;
 export type GetCashierShiftStatsApiArg = {
@@ -1853,18 +1809,11 @@ export type GetCashierShiftStatsApiArg = {
   nodeId: number;
   shiftId?: number | null;
 };
-export type CashierRevenueReportRow = {
-  cashier_id: number;
-  login: string;
-  display_name: string;
-  product_id: number;
-  product_name: string;
-  is_deposit: boolean;
-  quantity: number;
-  revenue: number;
-};
-export type CashierRevenueReportApiResponse = CashierRevenueReportRow[];
-export type CashierRevenueReportApiArg = {
+export type GetCashierRevenueReportApiResponse =
+  /** status 200 Successful Response */ {
+    [key: string]: any;
+  }[];
+export type GetCashierRevenueReportApiArg = {
   nodeId: number;
 };
 export type CloseOutCashierApiResponse = /** status 200 Successful Response */ CloseOutResult;
@@ -1903,7 +1852,19 @@ export type GetPayOutStatsApiArg = {
   toTimestamp?: string | null;
   fromTimestamp?: string | null;
 };
-export type ListTicketsApiResponse = /** status 200 Successful Response */ NormalizedListTicketInt;
+export type GetPaymentMethodStatsApiResponse = /** status 200 Successful Response */ PaymentMethodStatsResponse;
+export type GetPaymentMethodStatsApiArg = {
+  nodeId: number;
+  toTimestamp?: string | null;
+  fromTimestamp?: string | null;
+};
+export type GetFreeTicketStatsApiResponse = /** status 200 Successful Response */ FreeTicketStats;
+export type GetFreeTicketStatsApiArg = {
+  nodeId: number;
+  toTimestamp?: string | null;
+  fromTimestamp?: string | null;
+};
+export type ListTicketsApiResponse = /** status 200 Successful Response */ Ticket[];
 export type ListTicketsApiArg = {
   nodeId: number;
 };
@@ -1916,9 +1877,8 @@ export type ListExternalTicketsApiResponse = /** status 200 Successful Response 
 export type ListExternalTicketsApiArg = {
   nodeId: number;
 };
-export type GetTicketApiResponse = /** status 200 Successful Response */ Ticket;
-export type GetTicketApiArg = {
-  ticketId: number;
+export type GetPresaleStatsApiResponse = /** status 200 Successful Response */ PresaleStats;
+export type GetPresaleStatsApiArg = {
   nodeId: number;
 };
 export type UpdateTicketApiResponse = /** status 200 Successful Response */ Ticket;
@@ -1946,6 +1906,11 @@ export type CreateUserTagsApiArg = {
   nodeId: number;
   newUserTags: NewUserTag[];
 };
+export type UserTagsCsvExportApiResponse = /** status 200 Successful Response */ string;
+export type UserTagsCsvExportApiArg = {
+  nodeId: number;
+  userTagsCsvExportPayload: UserTagsCsvExportPayload;
+};
 export type FindUserTagsApiResponse = /** status 200 Successful Response */ NormalizedListUserTagDetailInt;
 export type FindUserTagsApiArg = {
   nodeId: number;
@@ -1962,7 +1927,32 @@ export type UpdateUserTagCommentApiArg = {
   nodeId: number;
   updateCommentPayload: UpdateCommentPayload;
 };
-export type ListTsesApiResponse = /** status 200 Successful Response */ NormalizedListTseInt;
+export type ListUserTagVariantsApiResponse = /** status 200 Successful Response */ UserTagVariant[];
+export type ListUserTagVariantsApiArg = {
+  nodeId: number;
+};
+export type CreateUserTagVariantApiResponse = /** status 200 Successful Response */ UserTagVariant;
+export type CreateUserTagVariantApiArg = {
+  nodeId: number;
+  newUserTagVariant: NewUserTagVariant;
+};
+export type GetUserTagVariantApiResponse = /** status 200 Successful Response */ UserTagVariant;
+export type GetUserTagVariantApiArg = {
+  userTagVariantId: number;
+  nodeId: number;
+};
+export type UpdateUserTagVariantApiResponse = /** status 200 Successful Response */ UserTagVariant;
+export type UpdateUserTagVariantApiArg = {
+  userTagVariantId: number;
+  nodeId: number;
+  newUserTagVariant: NewUserTagVariant;
+};
+export type DeleteUserTagVariantApiResponse = /** status 200 Successful Response */ any;
+export type DeleteUserTagVariantApiArg = {
+  userTagVariantId: number;
+  nodeId: number;
+};
+export type ListTsesApiResponse = /** status 200 Successful Response */ Tse[];
 export type ListTsesApiArg = {
   nodeId: number;
 };
@@ -1977,7 +1967,7 @@ export type UpdateTseApiArg = {
   nodeId: number;
   updateTse: UpdateTse;
 };
-export type ListPayoutRunsApiResponse = /** status 200 Successful Response */ NormalizedListPayoutRunWithStatsInt;
+export type ListPayoutRunsApiResponse = /** status 200 Successful Response */ PayoutRunWithStats[];
 export type ListPayoutRunsApiArg = {
   nodeId: number;
 };
@@ -2118,19 +2108,23 @@ export type GeneratePayoutReportApiResponse = /** status 200 Successful Response
 export type GeneratePayoutReportApiArg = {
   nodeId: number;
 };
+export type ExportDsfinvkApiResponse = /** status 200 Successful Response */ any;
+export type ExportDsfinvkApiArg = {
+  nodeId: number;
+};
+export type ExportAo146AApiResponse = /** status 200 Successful Response */ any;
+export type ExportAo146AApiArg = {
+  nodeId: number;
+  ao146AExportPayload: Ao146AExportPayload;
+};
 export type ConfigureSumupTokenApiResponse = /** status 200 Successful Response */ any;
 export type ConfigureSumupTokenApiArg = {
   nodeId: number;
   sumUpTokenPayload: SumUpTokenPayload;
 };
-export type ListAuditLogsApiResponse = /** status 200 Successful Response */ AuditLog[];
+export type ListAuditLogsApiResponse = /** status 200 Successful Response */ AuditLogDetail[];
 export type ListAuditLogsApiArg = {
   nodeId: number;
-};
-export type GetAuditLogApiResponse = /** status 200 Successful Response */ AuditLogDetail;
-export type GetAuditLogApiArg = {
-  nodeId: number;
-  auditLogId: number;
 };
 export type ListSumupCheckoutsApiResponse = /** status 200 Successful Response */ SumUpCheckout[];
 export type ListSumupCheckoutsApiArg = {
@@ -2169,7 +2163,12 @@ export type AllowCustomerPayoutApiArg = {
   customerId: number;
   nodeId: number;
 };
-export type ListTerminalsApiResponse = /** status 200 Successful Response */ NormalizedListTerminalInt;
+export type SwitchCustomerTagApiResponse = /** status 200 Successful Response */ any;
+export type SwitchCustomerTagApiArg = {
+  nodeId: number;
+  switchCustomerTagPayload: SwitchCustomerTagPayload;
+};
+export type ListTerminalsApiResponse = /** status 200 Successful Response */ Terminal[];
 export type ListTerminalsApiArg = {
   nodeId: number;
 };
@@ -2178,9 +2177,22 @@ export type CreateTerminalApiArg = {
   nodeId: number;
   newTerminal: NewTerminal;
 };
-export type GetTerminalApiResponse = /** status 200 Successful Response */ Terminal;
-export type GetTerminalApiArg = {
-  terminalId: number;
+export type ListMdmDevicesApiResponse = /** status 200 Successful Response */ MdmDeviceWithMapping[];
+export type ListMdmDevicesApiArg = {
+  nodeId: number;
+};
+export type ChangeMdmDeviceMappingApiResponse = /** status 200 Successful Response */ any;
+export type ChangeMdmDeviceMappingApiArg = {
+  nodeId: number;
+  changeMdmDeviceMappingPayload: ChangeMdmDeviceMappingPayload;
+};
+export type GetMdmDeviceLocationApiResponse = /** status 200 Successful Response */ MdmDeviceLocation;
+export type GetMdmDeviceLocationApiArg = {
+  mdmDeviceId: string;
+  nodeId: number;
+};
+export type ListTerminalLocationsApiResponse = /** status 200 Successful Response */ TerminalLocation[];
+export type ListTerminalLocationsApiArg = {
   nodeId: number;
 };
 export type UpdateTerminalApiResponse = /** status 200 Successful Response */ Terminal;
@@ -2210,6 +2222,14 @@ export type ForceLogoutUserApiArg = {
   terminalId: number;
   nodeId: number;
 };
+export type ListTransactionsApiResponse = /** status 200 Successful Response */ PaginatedListTransactionRead;
+export type ListTransactionsApiArg = {
+  nodeId: number;
+  cashRegisterId?: number | null;
+  transactionId?: number | null;
+  offset?: number;
+  limit?: number | null;
+};
 export type GetTransactionApiResponse = /** status 200 Successful Response */ TransactionRead;
 export type GetTransactionApiArg = {
   transactionId: number;
@@ -2223,7 +2243,7 @@ export type GetBlobApiResponse = unknown;
 export type GetBlobApiArg = {
   blobId: string;
 };
-export type ProductRestriction = "under_16" | "under_18";
+export type TaxType = "regular_vat" | "reduced_vat" | "no_tax" | "transparent";
 export type ProductType = "discount" | "topup" | "payout" | "money_transfer" | "imbalance" | "user_defined" | "ticket";
 export type Product = {
   name: string;
@@ -2231,7 +2251,7 @@ export type Product = {
   fixed_price: boolean;
   price_in_vouchers?: number | null;
   tax_rate_id: number;
-  restrictions: ProductRestriction[];
+  user_tag_variant_ids: number[];
   is_locked: boolean;
   is_returnable: boolean;
   is_deposit: boolean;
@@ -2240,14 +2260,9 @@ export type Product = {
   id: number;
   tax_name: string;
   tax_rate: number;
+  tax_type: TaxType;
   type: ProductType;
   price_per_voucher?: number | null;
-};
-export type NormalizedListProductInt = {
-  ids: number[];
-  entities: {
-    [key: string]: Product;
-  };
 };
 export type ValidationError = {
   loc: (string | number)[];
@@ -2263,7 +2278,7 @@ export type NewProduct = {
   fixed_price?: boolean;
   price_in_vouchers?: number | null;
   tax_rate_id: number;
-  restrictions?: ProductRestriction[];
+  user_tag_variant_ids?: number[];
   is_locked?: boolean;
   is_returnable?: boolean;
   is_deposit?: boolean;
@@ -2278,6 +2293,9 @@ export type User = {
   node_id: number;
   user_tag_id?: number | null;
   transport_account_id?: number | null;
+  cash_register_id?: number | null;
+  cash_drawer_balance?: number | null;
+  terminal_ids: number[];
   id: number;
 };
 export type UserRead = {
@@ -2289,29 +2307,22 @@ export type UserRead = {
   node_id: number;
   user_tag_id?: number | null;
   transport_account_id?: number | null;
+  cash_register_id?: number | null;
+  cash_drawer_balance?: number | null;
+  terminal_ids: number[];
   id: number;
   user_tag_uid_hex: string | null;
 };
-export type NormalizedListUserInt = {
-  ids: number[];
-  entities: {
-    [key: string]: User;
-  };
-};
-export type Privilege =
-  | "node_administration"
+export type EventPrivilege =
   | "customer_management"
   | "payout_management"
   | "create_user"
-  | "allow_privileged_role_assignment"
-  | "user_management"
-  | "view_node_stats"
   | "cash_transport"
   | "terminal_login"
   | "supervised_terminal_login"
-  | "can_book_orders"
   | "grant_free_tickets"
   | "grant_vouchers";
+export type NodePrivilege = "node_administration" | "view_node_stats" | "can_book_orders";
 export type CreateUserPayload = {
   login: string;
   display_name: string;
@@ -2319,6 +2330,25 @@ export type CreateUserPayload = {
   user_tag_pin?: string | null;
   user_tag_uid_hex?: string | null;
   password?: string | null;
+};
+export type UserVoucherGrantStats = {
+  vouchers_granted: number;
+};
+export type UserRole = {
+  name: string;
+  can_assign_all_roles?: boolean;
+  assignable_role_ids?: number[];
+  event_privileges: EventPrivilege[];
+  node_privileges: NodePrivilege[];
+  id: number;
+  node_id: number;
+};
+export type UserRoleAssignment = {
+  user_id: number;
+  node_id: number;
+  node_name: string;
+  role_ids: number[];
+  roles: UserRole[];
 };
 export type UpdateUserPayload = {
   login: string;
@@ -2330,56 +2360,41 @@ export type UpdateUserPayload = {
 export type ChangeUserPasswordPayload = {
   new_password: string;
 };
-export type UserRole = {
-  name: string;
-  is_privileged?: boolean;
-  privileges: Privilege[];
-  id: number;
-  node_id: number;
-};
-export type NormalizedListUserRoleInt = {
-  ids: number[];
-  entities: {
-    [key: string]: UserRole;
-  };
-};
 export type NewUserRole = {
   name: string;
-  is_privileged?: boolean;
-  privileges: Privilege[];
+  can_assign_all_roles?: boolean;
+  assignable_role_ids?: number[];
+  event_privileges: EventPrivilege[];
+  node_privileges: NodePrivilege[];
 };
 export type UpdateUserRolePrivilegesPayload = {
-  is_privileged: boolean;
-  privileges: Privilege[];
+  can_assign_all_roles: boolean;
+  assignable_role_ids: number[];
+  event_privileges: EventPrivilege[];
+  node_privileges: NodePrivilege[];
 };
 export type UserToRoles = {
   user_id: number;
   role_ids: number[];
-  terminal_only?: boolean;
   node_id: number;
 };
 export type NewUserToRoles = {
   user_id: number;
   role_ids: number[];
-  terminal_only?: boolean;
 };
 export type TaxRate = {
   name: string;
   rate: number;
   description: string;
+  tax_type: TaxType;
   id: number;
   node_id: number;
-};
-export type NormalizedListTaxRateInt = {
-  ids: number[];
-  entities: {
-    [key: string]: TaxRate;
-  };
 };
 export type NewTaxRate = {
   name: string;
   rate: number;
   description: string;
+  tax_type: TaxType;
 };
 export type CurrentUser = {
   node_id: number;
@@ -2388,7 +2403,8 @@ export type CurrentUser = {
   display_name: string;
   active_role_id?: number | null;
   active_role_name?: string | null;
-  privileges: Privilege[];
+  event_privileges?: EventPrivilege[];
+  node_privileges?: NodePrivilege[];
   description?: string | null;
   user_tag_id?: number | null;
   user_tag_uid?: number | null;
@@ -2432,12 +2448,6 @@ export type Till = {
   tse_id?: number | null;
   tse_serial?: string | null;
 };
-export type NormalizedListTillInt = {
-  ids: number[];
-  entities: {
-    [key: string]: Till;
-  };
-};
 export type NewTill = {
   name: string;
   description?: string | null;
@@ -2455,12 +2465,6 @@ export type TillLayout = {
   ticket_ids?: number[] | null;
   node_id: number;
   id: number;
-};
-export type NormalizedListTillLayoutInt = {
-  ids: number[];
-  entities: {
-    [key: string]: TillLayout;
-  };
 };
 export type NewTillLayout = {
   name: string;
@@ -2482,12 +2486,6 @@ export type TillProfile = {
   node_id: number;
   id: number;
 };
-export type NormalizedListTillProfileInt = {
-  ids: number[];
-  entities: {
-    [key: string]: TillProfile;
-  };
-};
 export type NewTillProfile = {
   name: string;
   description?: string | null;
@@ -2506,12 +2504,6 @@ export type TillButton = {
   node_id: number;
   id: number;
   price: number;
-};
-export type NormalizedListTillButtonInt = {
-  ids: number[];
-  entities: {
-    [key: string]: TillButton;
-  };
 };
 export type NewTillButton = {
   name: string;
@@ -2537,12 +2529,6 @@ export type CashRegisterStocking = {
   node_id: number;
   id: number;
   total: number;
-};
-export type NormalizedListCashRegisterStockingInt = {
-  ids: number[];
-  entities: {
-    [key: string]: CashRegisterStocking;
-  };
 };
 export type NewCashRegisterStocking = {
   name: string;
@@ -2571,129 +2557,8 @@ export type CashRegister = {
   balance: number;
   account_id: number;
 };
-export type NormalizedListCashRegisterInt = {
-  ids: number[];
-  entities: {
-    [key: string]: CashRegister;
-  };
-};
 export type NewCashRegister = {
   name: string;
-};
-export type CashierShift = {
-  id: number;
-  comment: string;
-  cashier_id: number;
-  cash_register_id: number | null;
-  closing_out_user_id: number;
-  actual_cash_drawer_balance: number;
-  expected_cash_drawer_balance: number;
-  cash_drawer_imbalance: number;
-  started_at: string;
-  ended_at: string;
-};
-export type NormalizedListCashierShiftInt = {
-  ids: number[];
-  entities: {
-    [key: string]: CashierShift;
-  };
-};
-export type PaymentMethod = "cash" | "sumup" | "tag" | "sumup_online";
-export type OrderType =
-  | "sale"
-  | "cancel_sale"
-  | "top_up"
-  | "pay_out"
-  | "ticket"
-  | "money_transfer"
-  | "money_transfer_imbalance"
-  | "cashier_shift_start"
-  | "cashier_shift_end";
-export type LineItem = {
-  quantity: number;
-  product: Product;
-  product_price: number;
-  tax_rate_id: number;
-  tax_name: string;
-  tax_rate: number;
-  item_id: number;
-  total_tax: number;
-};
-export type LineItemRead = {
-  quantity: number;
-  product: Product;
-  product_price: number;
-  tax_rate_id: number;
-  tax_name: string;
-  tax_rate: number;
-  item_id: number;
-  total_tax: number;
-  total_price: number;
-};
-export type Order = {
-  id: number;
-  uuid: string;
-  total_price: number;
-  total_tax: number;
-  total_no_tax: number;
-  cancels_order: number | null;
-  booked_at: string;
-  payment_method: PaymentMethod;
-  order_type: OrderType;
-  cashier_id: number | null;
-  till_id: number | null;
-  cash_register_id: number | null;
-  customer_account_id: number | null;
-  customer_tag_uid: number | null;
-  customer_tag_id: number | null;
-  line_items: LineItem[];
-};
-export type OrderRead = {
-  id: number;
-  uuid: string;
-  total_price: number;
-  total_tax: number;
-  total_no_tax: number;
-  cancels_order: number | null;
-  booked_at: string;
-  payment_method: PaymentMethod;
-  order_type: OrderType;
-  cashier_id: number | null;
-  till_id: number | null;
-  cash_register_id: number | null;
-  customer_account_id: number | null;
-  customer_tag_uid: number | null;
-  customer_tag_id: number | null;
-  line_items: LineItemRead[];
-  customer_tag_uid_hex: string | null;
-};
-export type Transaction = {
-  id: number;
-  conducting_user_id: number | null;
-  description: string | null;
-  source_account: number;
-  target_account: number;
-  order: Order | null;
-  booked_at: string;
-  amount: number;
-  vouchers: number;
-};
-export type TransactionRead = {
-  id: number;
-  conducting_user_id: number | null;
-  description: string | null;
-  source_account: number;
-  target_account: number;
-  order: OrderRead | null;
-  booked_at: string;
-  amount: number;
-  vouchers: number;
-};
-export type NormalizedListTransactionInt = {
-  ids: number[];
-  entities: {
-    [key: string]: Transaction;
-  };
 };
 export type TransferRegisterPayload = {
   source_cashier_id: number;
@@ -2704,16 +2569,6 @@ export type Config = {
   test_mode_message: string;
   sumup_topup_enabled_globally: boolean;
   terminal_api_endpoint: string;
-};
-export type ConfigEntry = {
-  key: string;
-  value: string | null;
-};
-export type NormalizedListConfigEntryStr = {
-  ids: string[];
-  entities: {
-    [key: string]: ConfigEntry;
-  };
 };
 export type AccountType =
   | "private"
@@ -2755,10 +2610,12 @@ export type Account = {
   comment: string | null;
   balance: number;
   vouchers: number;
+  activated_at?: string | null;
   user_tag_id: number | null;
   user_tag_uid: number | null;
   user_tag_comment?: string | null;
-  restriction: ProductRestriction | null;
+  user_tag_variant_ids?: number[];
+  user_tag_variant_names?: string[];
   tag_history: UserTagHistoryEntry[];
 };
 export type AccountRead = {
@@ -2769,18 +2626,14 @@ export type AccountRead = {
   comment: string | null;
   balance: number;
   vouchers: number;
+  activated_at?: string | null;
   user_tag_id: number | null;
   user_tag_uid: number | null;
   user_tag_comment?: string | null;
-  restriction: ProductRestriction | null;
+  user_tag_variant_ids?: number[];
+  user_tag_variant_names?: string[];
   tag_history: UserTagHistoryEntryRead[];
   user_tag_uid_hex: string | null;
-};
-export type NormalizedListAccountInt = {
-  ids: number[];
-  entities: {
-    [key: string]: AccountRead;
-  };
 };
 export type DepositOverview = {
   total_deposit_charged: number;
@@ -2799,9 +2652,6 @@ export type MoneyOverviewRead = {
   total_cash_register_balance: number;
   deposit_overview?: DepositOverview | null;
 };
-export type FindAccountPayload = {
-  search_term: string;
-};
 export type UpdateBalancePayload = {
   new_balance: number;
 };
@@ -2811,11 +2661,84 @@ export type UpdateVoucherAmountPayload = {
 export type UpdateAccountCommentPayload = {
   comment: string;
 };
-export type NormalizedListOrderInt = {
-  ids: number[];
-  entities: {
-    [key: string]: Order;
-  };
+export type PaymentMethod = "cash" | "sumup" | "tag" | "sumup_online";
+export type OrderType =
+  | "sale"
+  | "cancel_sale"
+  | "top_up"
+  | "pay_out"
+  | "ticket"
+  | "money_transfer"
+  | "money_transfer_imbalance"
+  | "cashier_shift_start"
+  | "cashier_shift_end";
+export type LineItem = {
+  quantity: number;
+  product: Product;
+  product_price: number;
+  tax_rate_id: number;
+  tax_name: string;
+  tax_rate: number;
+  vouchers_redeemed: number;
+  item_id: number;
+  total_tax: number;
+};
+export type LineItemRead = {
+  quantity: number;
+  product: Product;
+  product_price: number;
+  tax_rate_id: number;
+  tax_name: string;
+  tax_rate: number;
+  vouchers_redeemed: number;
+  item_id: number;
+  total_tax: number;
+  total_price: number;
+};
+export type Order = {
+  id: number;
+  uuid: string;
+  total_price: number;
+  total_tax: number;
+  total_no_tax: number;
+  cancels_order: number | null;
+  booked_at: string;
+  payment_method: PaymentMethod;
+  order_type: OrderType;
+  cashier_id: number | null;
+  till_id: number | null;
+  cash_register_id: number | null;
+  customer_account_id: number | null;
+  customer_tag_uid: number | null;
+  customer_tag_id: number | null;
+  line_items: LineItem[];
+};
+export type OrderRead = {
+  id: number;
+  uuid: string;
+  total_price: number;
+  total_tax: number;
+  total_no_tax: number;
+  cancels_order: number | null;
+  booked_at: string;
+  payment_method: PaymentMethod;
+  order_type: OrderType;
+  cashier_id: number | null;
+  till_id: number | null;
+  cash_register_id: number | null;
+  customer_account_id: number | null;
+  customer_tag_uid: number | null;
+  customer_tag_id: number | null;
+  line_items: LineItemRead[];
+  customer_tag_uid_hex: string | null;
+};
+export type PaginatedListOrder = {
+  items: Order[];
+  total: number;
+};
+export type PaginatedListOrderRead = {
+  items: OrderRead[];
+  total: number;
 };
 export type OrderWithTse = {
   id: number;
@@ -2911,6 +2834,7 @@ export type PendingLineItem = {
   tax_rate_id: number;
   tax_name: string;
   tax_rate: number;
+  vouchers_redeemed: number;
 };
 export type PendingLineItemRead = {
   quantity: number;
@@ -2919,6 +2843,7 @@ export type PendingLineItemRead = {
   tax_rate_id: number;
   tax_name: string;
   tax_rate: number;
+  vouchers_redeemed: number;
   total_price: number;
 };
 export type BookedProduct = {
@@ -2964,38 +2889,17 @@ export type EditSaleProducts = {
   used_vouchers?: number | null;
   products: BookedProduct[];
 };
-export type Cashier = {
-  node_id: number;
+export type CashierShift = {
   id: number;
-  login: string;
-  display_name: string;
-  description?: string | null;
-  user_tag_id?: number | null;
-  user_tag_uid?: number | null;
-  transport_account_id?: number | null;
-  cash_register_id?: number | null;
-  cash_drawer_balance: number | null;
-  terminal_ids: number[];
-};
-export type CashierRead = {
-  node_id: number;
-  id: number;
-  login: string;
-  display_name: string;
-  description?: string | null;
-  user_tag_id?: number | null;
-  user_tag_uid?: number | null;
-  transport_account_id?: number | null;
-  cash_register_id?: number | null;
-  cash_drawer_balance: number | null;
-  terminal_ids: number[];
-  user_tag_uid_hex: string | null;
-};
-export type NormalizedListCashierInt = {
-  ids: number[];
-  entities: {
-    [key: string]: CashierRead;
-  };
+  comment: string;
+  cashier_id: number;
+  cash_register_id: number | null;
+  closing_out_user_id: number;
+  actual_cash_drawer_balance: number;
+  expected_cash_drawer_balance: number;
+  cash_drawer_imbalance: number;
+  started_at: string;
+  ended_at: string;
 };
 export type CashierProductStats = {
   product: Product;
@@ -3027,13 +2931,18 @@ export type StatInterval = {
 export type ProductTimeseries = {
   product_id: number;
   product_name: string;
+  node_id: number;
+  node_name: string;
   intervals: StatInterval[];
 };
 export type ProductOverallStats = {
   product_id: number;
   product_name: string;
+  node_id: number;
+  node_name: string;
   count: number;
   revenue: number;
+  vouchers_redeemed: number;
 };
 export type ProductStats = {
   from_time: string;
@@ -3055,11 +2964,24 @@ export type TimeseriesStats = {
   daily_intervals: StatInterval[];
   hourly_intervals: StatInterval[];
 };
+export type PaymentMethodStats = {
+  payment_method: PaymentMethod;
+  count: number;
+  revenue: number;
+};
+export type PaymentMethodStatsResponse = {
+  from_time: string;
+  to_time: string;
+  stats: PaymentMethodStats[];
+};
+export type FreeTicketStats = {
+  free_tickets_issued: number;
+};
 export type Ticket = {
   name: string;
   price: number;
   tax_rate_id: number;
-  restrictions: ProductRestriction[];
+  user_tag_variant_ids: number[];
   is_locked: boolean;
   initial_top_up_amount: number;
   node_id: number;
@@ -3068,17 +2990,11 @@ export type Ticket = {
   tax_rate: number;
   total_price: number;
 };
-export type NormalizedListTicketInt = {
-  ids: number[];
-  entities: {
-    [key: string]: Ticket;
-  };
-};
 export type NewTicket = {
   name: string;
   price: number;
   tax_rate_id: number;
-  restrictions: ProductRestriction[];
+  user_tag_variant_ids: number[];
   is_locked: boolean;
   initial_top_up_amount: number;
 };
@@ -3088,17 +3004,25 @@ export type ExternalTicket = {
   created_at: string;
   token: string;
   ticket_type: ExternalTicketType;
-  external_link?: string | null;
-  customer_email?: string | null;
-  customer_name?: string | null;
+  external_link: string | null;
+  customer_email: string | null;
+  customer_name: string | null;
   initial_top_up_amount: number;
-  pretix_item_id?: number | null;
-  pretix_product_name?: string | null;
+  pretix_item_id: number | null;
+  pretix_product_name: string | null;
   id: number;
   customer_account_id: number;
   has_checked_in: boolean;
   cancelled: boolean;
   externally_checked_in: boolean;
+};
+export type PresaleStats = {
+  total_tickets: number;
+  checked_in_tickets: number;
+  cancelled_tickets: number;
+  total_credit_sold: number;
+  credit_activated: number;
+  credit_pending: number;
 };
 export type UserTagSecret = {
   key0: string;
@@ -3114,8 +3038,13 @@ export type NewUserTagSecret = {
 };
 export type NewUserTag = {
   pin: string;
-  restriction?: ProductRestriction | null;
   secret_id: number;
+  variant_ids?: number[];
+  variant_names?: string[];
+};
+export type UserTagsCsvExportPayload = {
+  exclude_activated?: boolean;
+  variant_ids?: number[];
 };
 export type UserTagAccountAssociation = {
   account_id: number;
@@ -3126,7 +3055,10 @@ export type UserTagDetail = {
   pin: string;
   uid: number | null;
   node_id: number;
+  activated_at?: string | null;
   comment?: string | null;
+  variant_ids?: number[];
+  variant_names?: string[];
   account_id?: number | null;
   user_id?: number | null;
   account_history: UserTagAccountAssociation[];
@@ -3136,7 +3068,10 @@ export type UserTagDetailRead = {
   pin: string;
   uid: number | null;
   node_id: number;
+  activated_at?: string | null;
   comment?: string | null;
+  variant_ids?: number[];
+  variant_names?: string[];
   account_id?: number | null;
   user_id?: number | null;
   account_history: UserTagAccountAssociation[];
@@ -3153,6 +3088,18 @@ export type FindUserTagPayload = {
 };
 export type UpdateCommentPayload = {
   comment: string;
+};
+export type UserTagVariant = {
+  variant_name: string;
+  description?: string;
+  priority?: number;
+  id: number;
+  node_id: number;
+};
+export type NewUserTagVariant = {
+  variant_name: string;
+  description?: string;
+  priority?: number;
 };
 export type TseType = "diebold_nixdorf";
 export type TseStatus = "new" | "active" | "disabled" | "failed";
@@ -3174,12 +3121,6 @@ export type Tse = {
   process_data_encoding: string | null;
   tse_description: string | null;
   certificate_date: string | null;
-};
-export type NormalizedListTseInt = {
-  ids: number[];
-  entities: {
-    [key: string]: Tse;
-  };
 };
 export type NewTse = {
   name: string;
@@ -3211,18 +3152,13 @@ export type PayoutRunWithStats = {
   total_payout_amount: number;
   n_payouts: number;
 };
-export type NormalizedListPayoutRunWithStatsInt = {
-  ids: number[];
-  entities: {
-    [key: string]: PayoutRunWithStats;
-  };
-};
 export type NewPayoutRun = {
   max_payout_sum: number;
   max_num_payouts: number;
 };
 export type PendingPayoutDetail = {
   total_payout_amount: number;
+  total_unclaimed_payout_amount: number;
   total_donation_amount: number;
   n_payouts: number;
 };
@@ -3267,6 +3203,7 @@ export type PublicEventSettings = {
   customer_portal_about_page_url: string;
   customer_portal_data_privacy_url: string;
   customer_portal_contact_email: string;
+  customer_portal_feedback_url?: string | null;
   pretix_presale_enabled: boolean;
   pretix_shop_url: string | null;
   pretix_organizer: string | null;
@@ -3275,7 +3212,10 @@ export type PublicEventSettings = {
   pretix_topup_ids: number[] | null;
   ust_id: string;
   bon_issuer: string;
-  bon_address: string;
+  bon_street: string;
+  bon_zip: string;
+  bon_city: string;
+  bon_country?: string;
   bon_title: string;
   sepa_enabled: boolean;
   sepa_sender_name: string;
@@ -3293,6 +3233,7 @@ export type PublicEventSettings = {
   payout_registered_subject?: string | null;
   payout_registered_message?: string | null;
   payout_sender?: string | null;
+  headwind_enabled?: boolean;
   translation_texts?: {
     [key: string]: {
       [key: string]: string;
@@ -3328,7 +3269,8 @@ export type NodeSeenByUser = {
   forbidden_objects_in_subtree: ObjectType[];
   computed_forbidden_objects_in_subtree: ObjectType[];
   children: NodeSeenByUser[];
-  privileges_at_node: Privilege[];
+  event_privileges_at_node: EventPrivilege[];
+  node_privileges_at_node: NodePrivilege[];
 };
 export type Node = {
   id: number;
@@ -3361,6 +3303,9 @@ export type NewEvent = {
   sumup_oauth_client_secret?: string;
   pretix_api_key: string | null;
   email_smtp_password?: string | null;
+  headwind_url?: string | null;
+  headwind_username?: string | null;
+  headwind_password?: string | null;
   currency_identifier: string;
   max_account_balance: number;
   start_date?: string | null;
@@ -3372,6 +3317,7 @@ export type NewEvent = {
   customer_portal_about_page_url: string;
   customer_portal_data_privacy_url: string;
   customer_portal_contact_email: string;
+  customer_portal_feedback_url?: string | null;
   pretix_presale_enabled: boolean;
   pretix_shop_url: string | null;
   pretix_organizer: string | null;
@@ -3380,7 +3326,10 @@ export type NewEvent = {
   pretix_topup_ids: number[] | null;
   ust_id: string;
   bon_issuer: string;
-  bon_address: string;
+  bon_street: string;
+  bon_zip: string;
+  bon_city: string;
+  bon_country?: string;
   bon_title: string;
   sepa_enabled: boolean;
   sepa_sender_name: string;
@@ -3398,6 +3347,7 @@ export type NewEvent = {
   payout_registered_subject?: string | null;
   payout_registered_message?: string | null;
   payout_sender?: string | null;
+  headwind_enabled?: boolean;
   translation_texts?: {
     [key: string]: {
       [key: string]: string;
@@ -3416,6 +3366,9 @@ export type UpdateEvent = {
   sumup_oauth_client_secret?: string;
   pretix_api_key: string | null;
   email_smtp_password?: string | null;
+  headwind_url?: string | null;
+  headwind_username?: string | null;
+  headwind_password?: string | null;
   currency_identifier: string;
   max_account_balance: number;
   start_date?: string | null;
@@ -3427,6 +3380,7 @@ export type UpdateEvent = {
   customer_portal_about_page_url: string;
   customer_portal_data_privacy_url: string;
   customer_portal_contact_email: string;
+  customer_portal_feedback_url?: string | null;
   pretix_presale_enabled: boolean;
   pretix_shop_url: string | null;
   pretix_organizer: string | null;
@@ -3435,7 +3389,10 @@ export type UpdateEvent = {
   pretix_topup_ids: number[] | null;
   ust_id: string;
   bon_issuer: string;
-  bon_address: string;
+  bon_street: string;
+  bon_zip: string;
+  bon_city: string;
+  bon_country?: string;
   bon_title: string;
   sepa_enabled: boolean;
   sepa_sender_name: string;
@@ -3453,6 +3410,7 @@ export type UpdateEvent = {
   payout_registered_subject?: string | null;
   payout_registered_message?: string | null;
   payout_sender?: string | null;
+  headwind_enabled?: boolean;
   translation_texts?: {
     [key: string]: {
       [key: string]: string;
@@ -3465,9 +3423,9 @@ export type NewBlob = {
 };
 export type EventDesign = {
   bon_logo_blob_id: string | null;
-  app_logo_blob_id: string | null;
-  customer_logo_blob_id: string | null;
-  wristband_guide_blob_id: string | null;
+  app_logo_blob_id?: string | null;
+  customer_logo_blob_id?: string | null;
+  wristband_guide_blob_id?: string | null;
 };
 export type RestrictedEventSettings = {
   sumup_api_key?: string;
@@ -3477,6 +3435,9 @@ export type RestrictedEventSettings = {
   sumup_oauth_client_secret?: string;
   pretix_api_key: string | null;
   email_smtp_password?: string | null;
+  headwind_url?: string | null;
+  headwind_username?: string | null;
+  headwind_password?: string | null;
   currency_identifier: string;
   max_account_balance: number;
   start_date?: string | null;
@@ -3488,6 +3449,7 @@ export type RestrictedEventSettings = {
   customer_portal_about_page_url: string;
   customer_portal_data_privacy_url: string;
   customer_portal_contact_email: string;
+  customer_portal_feedback_url?: string | null;
   pretix_presale_enabled: boolean;
   pretix_shop_url: string | null;
   pretix_organizer: string | null;
@@ -3496,7 +3458,10 @@ export type RestrictedEventSettings = {
   pretix_topup_ids: number[] | null;
   ust_id: string;
   bon_issuer: string;
-  bon_address: string;
+  bon_street: string;
+  bon_zip: string;
+  bon_city: string;
+  bon_country?: string;
   bon_title: string;
   sepa_enabled: boolean;
   sepa_sender_name: string;
@@ -3514,6 +3479,7 @@ export type RestrictedEventSettings = {
   payout_registered_subject?: string | null;
   payout_registered_message?: string | null;
   payout_sender?: string | null;
+  headwind_enabled?: boolean;
   translation_texts?: {
     [key: string]: {
       [key: string]: string;
@@ -3547,16 +3513,11 @@ export type GenerateDailyReportPayload = {
   relevant_node_ids: number[];
   report_date: string;
 };
+export type Ao146AExportPayload = {
+  shutdown_date?: string | null;
+};
 export type SumUpTokenPayload = {
   authorization_code: string;
-};
-export type AuditLog = {
-  id: number;
-  created_at: string;
-  node_id: number;
-  log_type: string;
-  originating_user_id: number | null;
-  originating_terminal_id: number | null;
 };
 export type AuditLogDetail = {
   id: number;
@@ -3565,7 +3526,9 @@ export type AuditLogDetail = {
   log_type: string;
   originating_user_id: number | null;
   originating_terminal_id: number | null;
-  content: object;
+  content: {
+    [key: string]: any;
+  };
 };
 export type SumUpCheckoutStatus = "PENDING" | "FAILED" | "PAID";
 export type SumUpTransactionStatus = "SUCCESSFUL" | "CANCELLED" | "FAILED" | "PENDING" | "REFUNDED";
@@ -3603,10 +3566,12 @@ export type Customer = {
   comment: string | null;
   balance: number;
   vouchers: number;
+  activated_at?: string | null;
   user_tag_id: number | null;
   user_tag_uid: number | null;
   user_tag_comment?: string | null;
-  restriction: ProductRestriction | null;
+  user_tag_variant_ids?: number[];
+  user_tag_variant_names?: string[];
   tag_history: UserTagHistoryEntry[];
   iban: string | null;
   account_name: string | null;
@@ -3626,10 +3591,12 @@ export type CustomerRead = {
   comment: string | null;
   balance: number;
   vouchers: number;
+  activated_at?: string | null;
   user_tag_id: number | null;
   user_tag_uid: number | null;
   user_tag_comment?: string | null;
-  restriction: ProductRestriction | null;
+  user_tag_variant_ids?: number[];
+  user_tag_variant_names?: string[];
   tag_history: UserTagHistoryEntryRead[];
   iban: string | null;
   account_name: string | null;
@@ -3645,6 +3612,11 @@ export type CustomerRead = {
 export type FindCustomerPayload = {
   search_term: string;
 };
+export type SwitchCustomerTagPayload = {
+  old_user_tag_pin: string;
+  new_user_tag_pin: string;
+  comment: string;
+};
 export type Terminal = {
   name: string;
   description?: string | null;
@@ -3656,33 +3628,101 @@ export type Terminal = {
   active_user_id?: number | null;
   active_user_role_id?: number | null;
   last_seen: string;
-};
-export type NormalizedListTerminalInt = {
-  ids: number[];
-  entities: {
-    [key: string]: Terminal;
-  };
+  mdm_device_id?: string | null;
 };
 export type NewTerminal = {
   name: string;
   description?: string | null;
 };
+export type DeviceStatus = "online" | "offline" | "unknown";
+export type MdmDevice = {
+  device_id: string;
+  serial?: string | null;
+  imei?: string | null;
+  description?: string | null;
+  last_update?: string | null;
+  ip_address?: string | null;
+  model?: string | null;
+  status: DeviceStatus;
+  location_last_update?: string | null;
+};
+export type MdmType = "headwind";
+export type MdmDeviceMappingWithTerminal = {
+  terminal_id: number;
+  type: MdmType;
+  mdm_device_id: string;
+  created_at: string;
+  updated_at: string;
+  terminal_name: string;
+  terminal_description?: string | null;
+};
+export type MdmDeviceWithMapping = {
+  device: MdmDevice;
+  mapping: MdmDeviceMappingWithTerminal | null;
+};
+export type ChangeMdmDeviceMappingPayload = {
+  mdm_device_id: string;
+  terminal_id: number;
+};
+export type MdmDeviceLocation = {
+  latitude: number;
+  longitude: number;
+  last_update: string | null;
+};
+export type TerminalLocation = {
+  terminal_id: number;
+  terminal_name: string;
+  mdm_device_id: string;
+  latitude: number;
+  longitude: number;
+  last_update: string | null;
+};
 export type SwitchTillPayload = {
   new_till_id: number;
+};
+export type Transaction = {
+  id: number;
+  conducting_user_id: number | null;
+  description: string | null;
+  source_account: number;
+  target_account: number;
+  order: Order | null;
+  booked_at: string;
+  amount: number;
+  vouchers: number;
+};
+export type TransactionRead = {
+  id: number;
+  conducting_user_id: number | null;
+  description: string | null;
+  source_account: number;
+  target_account: number;
+  order: OrderRead | null;
+  booked_at: string;
+  amount: number;
+  vouchers: number;
+};
+export type PaginatedListTransaction = {
+  items: Transaction[];
+  total: number;
+};
+export type PaginatedListTransactionRead = {
+  items: TransactionRead[];
+  total: number;
 };
 export const {
   useListProductsQuery,
   useLazyListProductsQuery,
   useCreateProductMutation,
-  useGetProductQuery,
-  useLazyGetProductQuery,
   useUpdateProductMutation,
   useDeleteProductMutation,
   useListUsersQuery,
   useLazyListUsersQuery,
   useCreateUserMutation,
-  useGetUserQuery,
-  useLazyGetUserQuery,
+  useGetUserVoucherGrantStatsQuery,
+  useLazyGetUserVoucherGrantStatsQuery,
+  useListUserRoleAssignmentsQuery,
+  useLazyListUserRoleAssignmentsQuery,
   useUpdateUserMutation,
   useDeleteUserMutation,
   useChangeUserPasswordMutation,
@@ -3697,8 +3737,6 @@ export const {
   useListTaxRatesQuery,
   useLazyListTaxRatesQuery,
   useCreateTaxRateMutation,
-  useGetTaxRateQuery,
-  useLazyGetTaxRateQuery,
   useUpdateTaxRateMutation,
   useDeleteTaxRateMutation,
   useLoginMutation,
@@ -3707,8 +3745,6 @@ export const {
   useListTillsQuery,
   useLazyListTillsQuery,
   useCreateTillMutation,
-  useGetTillQuery,
-  useLazyGetTillQuery,
   useUpdateTillMutation,
   useDeleteTillMutation,
   useRemoveFromTerminalMutation,
@@ -3716,22 +3752,16 @@ export const {
   useListTillLayoutsQuery,
   useLazyListTillLayoutsQuery,
   useCreateTillLayoutMutation,
-  useGetTillLayoutQuery,
-  useLazyGetTillLayoutQuery,
   useUpdateTillLayoutMutation,
   useDeleteTillLayoutMutation,
   useListTillProfilesQuery,
   useLazyListTillProfilesQuery,
   useCreateTillProfileMutation,
-  useGetTillProfileQuery,
-  useLazyGetTillProfileQuery,
   useUpdateTillProfileMutation,
   useDeleteTillProfileMutation,
   useListTillButtonsQuery,
   useLazyListTillButtonsQuery,
   useCreateTillButtonMutation,
-  useGetTillButtonQuery,
-  useLazyGetTillButtonQuery,
   useUpdateTillButtonMutation,
   useDeleteTillButtonMutation,
   useListRegisterStockingsQuery,
@@ -3742,33 +3772,21 @@ export const {
   useListCashRegistersAdminQuery,
   useLazyListCashRegistersAdminQuery,
   useCreateRegisterMutation,
-  useGetCashRegisterAdminQuery,
-  useLazyGetCashRegisterAdminQuery,
+  useTransferRegisterMutation,
   useUpdateRegisterMutation,
   useDeleteRegisterMutation,
-  useGetCashierShiftsForRegisterQuery,
-  useLazyGetCashierShiftsForRegisterQuery,
-  useListTransactionsQuery,
-  useLazyListTransactionsQuery,
-  useTransferRegisterMutation,
   useGetPublicConfigQuery,
   useLazyGetPublicConfigQuery,
-  useListConfigEntriesQuery,
-  useLazyListConfigEntriesQuery,
-  useSetConfigEntryMutation,
   useListSystemAccountsQuery,
   useLazyListSystemAccountsQuery,
   useGetMoneyOverviewQuery,
   useLazyGetMoneyOverviewQuery,
-  useFindAccountsMutation,
   useGetAccountQuery,
   useLazyGetAccountQuery,
   useDisableAccountMutation,
   useUpdateBalanceMutation,
   useUpdateVoucherAmountMutation,
   useUpdateAccountCommentMutation,
-  useListOrdersByTillQuery,
-  useLazyListOrdersByTillQuery,
   useListOrdersQuery,
   useLazyListOrdersQuery,
   useGetOrderQuery,
@@ -3777,12 +3795,8 @@ export const {
   useGetOrderBonQuery,
   useLazyGetOrderBonQuery,
   useEditOrderMutation,
-  useListCashiersQuery,
-  useLazyListCashiersQuery,
-  useGetCashierQuery,
-  useLazyGetCashierQuery,
-  useGetCashierShiftsQuery,
-  useLazyGetCashierShiftsQuery,
+  useListCashierShiftsQuery,
+  useLazyListCashierShiftsQuery,
   useGetCashierShiftStatsQuery,
   useLazyGetCashierShiftStatsQuery,
   useGetCashierRevenueReportQuery,
@@ -3798,23 +3812,35 @@ export const {
   useLazyGetTopUpStatsQuery,
   useGetPayOutStatsQuery,
   useLazyGetPayOutStatsQuery,
+  useGetPaymentMethodStatsQuery,
+  useLazyGetPaymentMethodStatsQuery,
+  useGetFreeTicketStatsQuery,
+  useLazyGetFreeTicketStatsQuery,
   useListTicketsQuery,
   useLazyListTicketsQuery,
   useCreateTicketMutation,
   useListExternalTicketsQuery,
   useLazyListExternalTicketsQuery,
-  useGetTicketQuery,
-  useLazyGetTicketQuery,
+  useGetPresaleStatsQuery,
+  useLazyGetPresaleStatsQuery,
   useUpdateTicketMutation,
   useDeleteTicketMutation,
   useCreateUserTagSecretMutation,
   useListUserTagSecretsQuery,
   useLazyListUserTagSecretsQuery,
   useCreateUserTagsMutation,
+  useUserTagsCsvExportMutation,
   useFindUserTagsMutation,
   useGetUserTagDetailQuery,
   useLazyGetUserTagDetailQuery,
   useUpdateUserTagCommentMutation,
+  useListUserTagVariantsQuery,
+  useLazyListUserTagVariantsQuery,
+  useCreateUserTagVariantMutation,
+  useGetUserTagVariantQuery,
+  useLazyGetUserTagVariantQuery,
+  useUpdateUserTagVariantMutation,
+  useDeleteUserTagVariantMutation,
   useListTsesQuery,
   useLazyListTsesQuery,
   useCreateTseMutation,
@@ -3856,11 +3882,11 @@ export const {
   useGenerateDailyReportMutation,
   useGenerateTestDailyReportMutation,
   useGeneratePayoutReportMutation,
+  useExportDsfinvkMutation,
+  useExportAo146AMutation,
   useConfigureSumupTokenMutation,
   useListAuditLogsQuery,
   useLazyListAuditLogsQuery,
-  useGetAuditLogQuery,
-  useLazyGetAuditLogQuery,
   useListSumupCheckoutsQuery,
   useLazyListSumupCheckoutsQuery,
   useListSumupTransactionsQuery,
@@ -3874,16 +3900,24 @@ export const {
   useLazyGetCustomersWithBlockedPayoutQuery,
   usePreventCustomerPayoutMutation,
   useAllowCustomerPayoutMutation,
+  useSwitchCustomerTagMutation,
   useListTerminalsQuery,
   useLazyListTerminalsQuery,
   useCreateTerminalMutation,
-  useGetTerminalQuery,
-  useLazyGetTerminalQuery,
+  useListMdmDevicesQuery,
+  useLazyListMdmDevicesQuery,
+  useChangeMdmDeviceMappingMutation,
+  useGetMdmDeviceLocationQuery,
+  useLazyGetMdmDeviceLocationQuery,
+  useListTerminalLocationsQuery,
+  useLazyListTerminalLocationsQuery,
   useUpdateTerminalMutation,
   useDeleteTerminalMutation,
   useLogoutTerminalMutation,
   useSwitchTillMutation,
   useForceLogoutUserMutation,
+  useListTransactionsQuery,
+  useLazyListTransactionsQuery,
   useGetTransactionQuery,
   useLazyGetTransactionQuery,
   useTriggerWebhookMutation,

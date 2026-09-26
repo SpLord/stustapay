@@ -1,24 +1,38 @@
 import * as React from "react";
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
+
 import { ErrorPage } from "./ErrorPage";
 import { AuthenticatedRoot, PrivilegeGuard, UnauthenticatedRoot } from "./layout";
-import { AccountDetail, AccountPageLayout, FindAccounts, SystemAccountList } from "./routes/accounts";
+import { NodeProvider } from "./provider";
+import { AccountDetail, SystemAccountList } from "./routes/accounts";
 import { Login, Profile } from "./routes/auth";
-import { CashierCloseOut, CashierDetail, CashierList, CashierShiftDetail } from "./routes/cashiers";
+import { CashierCloseOut, CashierShiftDetail } from "./routes/cashiers";
 import {
-  EventCreate,
-  NodeOverview,
-  MoneyOverview,
-  NodePageLayout,
-  NodeSettings,
-  NodeCreate,
-  RevenueReports,
-} from "./routes/nodes";
+  CustomerDetail,
+  CustomerTagSwap,
+  CustomersWithBlockedPayout,
+  CustomerPageLayout,
+  CustomerSearch,
+} from "./routes/customers";
+import { EventCreate, NodeOverview, NodePageLayout, NodeSettings, NodeCreate, RevenueReports } from "./routes/nodes";
+import { AuditLogList, AuditLogDetail } from "./routes/nodes/audit-logs";
+import { DsfinvkExport } from "./routes/nodes/DsfinvkExport";
 import { NodeStats } from "./routes/nodes/stats";
+import { SumupOauthCallback } from "./routes/nodes/SumupOauthCallback";
 import { OrderBon, OrderDetail, SaleEdit, TransactionDetail } from "./routes/orders";
 import { PayoutRunCreate, PayoutRunDetail, PayoutRunList } from "./routes/payouts";
 import { ProductCreate, ProductDetail, ProductList, ProductUpdate } from "./routes/products";
+import { SumUpCheckoutList, SumUpPageLayout, SumUpTransactionList, SumUpTransactionDetail } from "./routes/sumup";
 import { TaxRateCreate, TaxRateList, TaxRateUpdate } from "./routes/tax-rates";
+import {
+  MdmDeviceList,
+  TerminalCreate,
+  TerminalDetail,
+  TerminalList,
+  TerminalOverview,
+  TerminalPageLayout,
+  TerminalUpdate,
+} from "./routes/terminals";
 import {
   ExternalTicketList,
   TicketCreate,
@@ -39,6 +53,7 @@ import {
   TillLayoutUpdate,
   TillList,
   TillPageLayout,
+  TillOverview,
   TillProfileCreate,
   TillProfileDetail,
   TillProfileList,
@@ -46,6 +61,7 @@ import {
   CashRegisterCreate,
   CashRegisterList,
   CashRegisterStockingCreate,
+  CashRegisterStockingDetail,
   CashRegisterStockingList,
   CashRegisterStockingUpdate,
   CashRegisterTransfer,
@@ -61,29 +77,23 @@ import {
   UserTagsCreate,
   UserTagCreateSingle,
   UserTagSecretCreate,
+  UserTagVariantCreate,
+  UserTagVariantList,
+  UserTagVariantUpdate,
 } from "./routes/user-tags";
 import {
   UserCreate,
   UserDetail,
   UserList,
-  UserPageLayout,
   UserPasswordChange,
   UserRoleCreate,
   UserRoleList,
   UserRoleUpdate,
   UserUpdate,
   UserToRoleList,
-  UserToRoleCreate,
   UserRoleDetail,
   UserToRoleUpdate,
 } from "./routes/users";
-import { SumUpCheckoutList, SumUpPageLayout, SumUpTransactionList, SumUpTransactionDetail } from "./routes/sumup";
-import { DsfinvkExport } from "./routes/nodes/DsfinvkExport";
-import { CustomerDetail, CustomersWithBlockedPayout, CustomerPageLayout, CustomerSearch } from "./routes/customers";
-import { TerminalCreate, TerminalDetail, TerminalList, TerminalUpdate } from "./routes/terminals";
-import { SumupOauthCallback } from "./routes/nodes/SumupOauthCallback";
-import { NodeProvider } from "./provider";
-import { AuditLogList, AuditLogDetail } from "./routes/nodes/audit-logs";
 
 const router = createBrowserRouter([
   {
@@ -128,6 +138,10 @@ const router = createBrowserRouter([
               {
                 path: "system-accounts",
                 element: <SystemAccountList />,
+              },
+              {
+                path: "system-accounts/:accountId",
+                element: <AccountDetail />,
               },
               {
                 path: "payout-runs",
@@ -201,6 +215,10 @@ const router = createBrowserRouter([
                 element: <CustomersWithBlockedPayout />,
               },
               {
+                path: "swap-tag",
+                element: <CustomerTagSwap />,
+              },
+              {
                 path: ":customerId",
                 element: <CustomerDetail />,
               },
@@ -251,33 +269,15 @@ const router = createBrowserRouter([
             ],
           },
           {
-            path: "cashiers",
-            element: <PrivilegeGuard privilege="node_administration" />,
-            children: [
-              {
-                index: true,
-                element: <CashierList />,
-              },
-              {
-                path: ":cashierId",
-                element: <CashierDetail />,
-              },
-              {
-                path: ":cashierId/close-out",
-                element: <CashierCloseOut />,
-              },
-              {
-                path: ":cashierId/shifts/:shiftId",
-                element: <CashierShiftDetail />,
-              },
-            ],
-          },
-          {
             path: "tills",
             element: <TillPageLayout />,
             children: [
               {
                 index: true,
+                element: <TillOverview />,
+              },
+              {
+                path: "list",
                 element: <TillList />,
               },
               {
@@ -353,6 +353,10 @@ const router = createBrowserRouter([
                 element: <CashRegisterStockingCreate />,
               },
               {
+                path: "stockings/:stockingId",
+                element: <CashRegisterStockingDetail />,
+              },
+              {
                 path: "stockings/:stockingId/edit",
                 element: <CashRegisterStockingUpdate />,
               },
@@ -372,10 +376,19 @@ const router = createBrowserRouter([
           },
           {
             path: "terminals",
+            element: <TerminalPageLayout />,
             children: [
               {
                 index: true,
+                element: <TerminalOverview />,
+              },
+              {
+                path: "list",
                 element: <TerminalList />,
+              },
+              {
+                path: "mdm",
+                element: <MdmDeviceList />,
               },
               {
                 path: "new",
@@ -388,25 +401,6 @@ const router = createBrowserRouter([
               {
                 path: ":terminalId",
                 element: <TerminalDetail />,
-              },
-            ],
-          },
-          {
-            path: "accounts",
-            element: (
-              <PrivilegeGuard privilege="node_administration">
-                <AccountPageLayout />
-              </PrivilegeGuard>
-            ),
-            children: [
-              { index: true, element: <MoneyOverview /> },
-              {
-                path: ":accountId",
-                element: <AccountDetail />,
-              },
-              {
-                path: "find",
-                element: <FindAccounts />,
               },
             ],
           },
@@ -433,6 +427,18 @@ const router = createBrowserRouter([
               {
                 path: "create-tags",
                 element: <UserTagsCreate />,
+              },
+              {
+                path: "variants",
+                element: <UserTagVariantList />,
+              },
+              {
+                path: "variants/new",
+                element: <UserTagVariantCreate />,
+              },
+              {
+                path: "variants/:userTagVariantId/edit",
+                element: <UserTagVariantUpdate />,
               },
               {
                 path: ":userTagId",
@@ -468,7 +474,6 @@ const router = createBrowserRouter([
           },
           {
             path: "users",
-            element: <UserPageLayout />,
             children: [
               {
                 index: true,
@@ -480,19 +485,24 @@ const router = createBrowserRouter([
               },
               {
                 path: "roles",
-                element: <UserRoleList />,
-              },
-              {
-                path: "roles/new",
-                element: <UserRoleCreate />,
-              },
-              {
-                path: "roles/:roleId",
-                element: <UserRoleDetail />,
-              },
-              {
-                path: "roles/:roleId/edit",
-                element: <UserRoleUpdate />,
+                children: [
+                  {
+                    index: true,
+                    element: <UserRoleList />,
+                  },
+                  {
+                    path: "new",
+                    element: <UserRoleCreate />,
+                  },
+                  {
+                    path: ":roleId",
+                    element: <UserRoleDetail />,
+                  },
+                  {
+                    path: ":roleId/edit",
+                    element: <UserRoleUpdate />,
+                  },
+                ],
               },
               {
                 path: ":userId/edit",
@@ -501,6 +511,14 @@ const router = createBrowserRouter([
               {
                 path: ":userId/change-password",
                 element: <UserPasswordChange />,
+              },
+              {
+                path: ":userId/close-out",
+                element: <CashierCloseOut />,
+              },
+              {
+                path: ":userId/shifts/:shiftId",
+                element: <CashierShiftDetail />,
               },
               {
                 path: ":userId",
@@ -517,7 +535,7 @@ const router = createBrowserRouter([
               },
               {
                 path: "new",
-                element: <UserToRoleCreate />,
+                element: <UserToRoleUpdate />,
               },
               {
                 path: ":userId/edit",

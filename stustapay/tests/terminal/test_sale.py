@@ -7,7 +7,9 @@ from sftkit.database import Connection
 
 from stustapay.core.schema.account import AccountType
 from stustapay.core.schema.order import (
+    BookedProduct,
     Button,
+    EditSaleProducts,
     NewSale,
     OrderType,
     PaymentMethod,
@@ -84,7 +86,7 @@ async def sale_products(
             target_account_id=None,
             price_in_vouchers=1,
             is_locked=True,
-            restrictions=[],
+            user_tag_variant_ids=[],
             is_returnable=False,
         ),
     )
@@ -100,7 +102,7 @@ async def sale_products(
             price_in_vouchers=2,
             is_locked=True,
             is_returnable=False,
-            restrictions=[],
+            user_tag_variant_ids=[],
         ),
     )
     deposit_product = await product_service.create_product(
@@ -114,7 +116,7 @@ async def sale_products(
             target_account_id=None,
             is_locked=True,
             is_returnable=True,
-            restrictions=[],
+            user_tag_variant_ids=[],
         ),
     )
     beer_button = await till_service.layout.create_button(
@@ -219,6 +221,149 @@ async def test_basic_sale_flow(
     )
     z_nr = await db_connection.fetchval("select z_nr from till where id = $1", till.id)
     assert z_nr_start + 1 == z_nr
+
+
+async def test_admin_order_edit_and_cancel(
+    db_connection: Connection,
+    order_service: OrderService,
+    till_service: TillService,
+    sale_products: SaleProducts,
+    customer: Customer,
+    event_admin_token: str,
+    event_node: Node,
+    terminal_token: str,
+    login_supervised_user: LoginSupervisedUser,
+    cashier: Cashier,
+    assert_system_account_balance: AssertSystemAccountBalance,
+):
+    await login_supervised_user(user_tag_uid=cashier.user_tag_uid, user_role_id=cashier.cashier_role.id)
+    assert sale_products.beer_product.price is not None
+    assert sale_products.deposit_product.price is not None
+    sale_total = sale_products.beer_product.price + sale_products.deposit_product.price
+
+    new_sale = NewSale(
+        uuid=uuid.uuid4(),
+        buttons=[Button(till_button_id=sale_products.beer_button.id, quantity=1)],
+        customer_tag_uid=customer.tag.uid,
+        payment_method=PaymentMethod.tag,
+    )
+    completed_sale = await order_service.book_sale(token=terminal_token, new_sale=new_sale)
+    assert completed_sale is not None
+
+    await order_service.cancel_sale_admin(
+        token=event_admin_token,
+        node_id=event_node.id,
+        order_id=completed_sale.id,
+    )
+    customer_info = await till_service.get_customer(token=terminal_token, customer_tag_uid=customer.tag.uid)
+    assert customer_info is not None
+    assert customer_info.balance == START_BALANCE
+    await assert_system_account_balance(account_type=AccountType.sale_exit, expected_balance=0)
+    cancel_order_id = await db_connection.fetchval(
+        "select id from ordr where cancels_order = $1 and order_type = $2",
+        completed_sale.id,
+        OrderType.cancel_sale.value,
+    )
+    assert cancel_order_id is not None
+
+    # cannot cancel an order twice
+    with pytest.raises(InvalidArgument):
+        await order_service.cancel_sale_admin(
+            token=event_admin_token,
+            node_id=event_node.id,
+            order_id=completed_sale.id,
+        )
+
+    new_sale = NewSale(
+        uuid=uuid.uuid4(),
+        buttons=[Button(till_button_id=sale_products.beer_button.id, quantity=2)],
+        customer_tag_uid=customer.tag.uid,
+        payment_method=PaymentMethod.tag,
+    )
+    completed_sale = await order_service.book_sale(token=terminal_token, new_sale=new_sale)
+    edited_total = sale_total
+    edited_sale = await order_service.edit_sale_products(
+        token=event_admin_token,
+        node_id=event_node.id,
+        order_id=completed_sale.id,
+        edit_sale=EditSaleProducts(
+            uuid=uuid.uuid4(),
+            products=[
+                BookedProduct(product_id=sale_products.beer_product.id, quantity=1),
+                BookedProduct(product_id=sale_products.deposit_product.id, quantity=1),
+            ],
+        ),
+    )
+    assert edited_sale.id != completed_sale.id
+    assert edited_sale.total_price == edited_total
+    customer_info = await till_service.get_customer(token=terminal_token, customer_tag_uid=customer.tag.uid)
+    assert customer_info is not None
+    assert customer_info.balance == START_BALANCE - edited_total
+    await assert_system_account_balance(account_type=AccountType.sale_exit, expected_balance=edited_total)
+    cancel_order_id = await db_connection.fetchval(
+        "select id from ordr where cancels_order = $1 and order_type = $2",
+        completed_sale.id,
+        OrderType.cancel_sale.value,
+    )
+    assert cancel_order_id is not None
+
+    # cannot cancel an order twice
+    with pytest.raises(InvalidArgument):
+        await order_service.cancel_sale_admin(
+            token=event_admin_token,
+            node_id=event_node.id,
+            order_id=completed_sale.id,
+        )
+
+
+async def test_sale_unlocked_products(
+    till_service: TillService,
+    product_service: ProductService,
+    order_service: OrderService,
+    customer: Customer,
+    event_node: Node,
+    terminal_token: str,
+    event_admin_token: str,
+    sale_products: SaleProducts,
+    cashier: Cashier,
+    login_supervised_user: LoginSupervisedUser,
+):
+    """Test that we cannot sell products that are not locked and that we can lock them again after unlocking."""
+    beer_product = sale_products.beer_product
+    beer_product.is_locked = False
+    await product_service.update_product(
+        token=event_admin_token,
+        node_id=event_node.id,
+        product_id=sale_products.beer_product.id,
+        product=beer_product,
+    )
+    await login_supervised_user(user_tag_uid=cashier.user_tag_uid, user_role_id=cashier.cashier_role.id)
+    customer_acc = await till_service.get_customer(token=terminal_token, customer_tag_uid=customer.tag.uid)
+    assert customer_acc is not None
+    new_sale = NewSale(
+        uuid=uuid.uuid4(),
+        buttons=[Button(till_button_id=sale_products.beer_button.id, quantity=2)],
+        customer_tag_uid=customer.tag.uid,
+        payment_method=PaymentMethod.tag,
+    )
+    with pytest.raises(InvalidArgument):
+        await order_service.check_sale(
+            token=terminal_token,
+            new_sale=new_sale,
+        )
+    # check that we can lock the product again and then sell it
+    beer_product = sale_products.beer_product
+    beer_product.is_locked = True
+    await product_service.update_product(
+        token=event_admin_token,
+        node_id=event_node.id,
+        product_id=sale_products.beer_product.id,
+        product=beer_product,
+    )
+    await order_service.check_sale(
+        token=terminal_token,
+        new_sale=new_sale,
+    )
 
 
 async def test_returnable_products(

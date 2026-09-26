@@ -1,3 +1,8 @@
+import { Button, Card, Grid, Stack, Typography } from "@mui/material";
+import * as React from "react";
+import { useTranslation } from "react-i18next";
+import { toast } from "react-toastify";
+
 import {
   RestrictedEventSettings,
   useGetEventDesignQuery,
@@ -8,16 +13,12 @@ import {
 } from "@/api";
 import { getBlobUrl } from "@/core/blobs";
 import { useCurrentNode } from "@/hooks";
-import { Button, Card, Grid, Stack, Typography } from "@mui/material";
-import * as React from "react";
-import { useTranslation } from "react-i18next";
-import { toast } from "react-toastify";
 
 const toBase64 = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = reject;
+    reader.addEventListener("load", () => resolve(reader.result as string));
+    reader.addEventListener("error", reject);
     reader.readAsDataURL(file);
   });
 };
@@ -63,7 +64,7 @@ const LogoUploadSection: React.FC<LogoUploadSectionProps> = ({
         mime_type: file.type,
       });
     } catch (e) {
-      toast.error("Error uploading logo");
+      toast.error(`Error uploading logo: ${e}`);
     }
   };
 
@@ -80,11 +81,7 @@ const LogoUploadSection: React.FC<LogoUploadSectionProps> = ({
       )}
       {blobId && (
         <Grid sx={{ mb: 1 }}>
-          <img
-            style={{ maxWidth: "100%", maxHeight: 200, objectFit: "contain" }}
-            src={getBlobUrl(blobId)}
-            alt=""
-          />
+          <img style={{ maxWidth: "100%", maxHeight: 200, objectFit: "contain" }} src={getBlobUrl(blobId)} alt="" />
         </Grid>
       )}
       <label htmlFor={inputId}>
@@ -103,8 +100,8 @@ const LogoUploadSection: React.FC<LogoUploadSectionProps> = ({
 };
 
 export const TabDesign: React.FC<{ nodeId: number; eventSettings: RestrictedEventSettings }> = ({
-  nodeId,
-  eventSettings,
+  nodeId: _nodeId,
+  eventSettings: _eventSettings,
 }) => {
   const { t } = useTranslation();
   const { currentNode } = useCurrentNode();
@@ -130,7 +127,7 @@ export const TabDesign: React.FC<{ nodeId: number; eventSettings: RestrictedEven
         newBlob: { data: imageAsBase64.split(",")[1], mime_type: file.type }, // TODO: remove the ugly hack
       });
     } catch (e) {
-      toast.error("Error uploading logo");
+      toast.error(`Error uploading logo: ${e}`);
     }
   };
 

@@ -1,12 +1,14 @@
-import { useCreateTillMutation } from "@/api";
-import { TillRoutes } from "@/app/routes";
-import { CreateLayout } from "@/components";
-import { useCurrentNode } from "@/hooks";
 import { NewTill, NewTillSchema } from "@stustapay/models";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
-import { TillForm } from "./TillForm";
+
 import { withPrivilegeGuard } from "@/app/layout";
+import { TillRoutes } from "@/app/routes";
+import { CreateLayoutV2 } from "@/components";
+import { generateId, getTillCollection } from "@/db/collections";
+import { useCurrentNode } from "@/hooks";
+
+import { TillForm } from "./TillForm";
 
 const initialValues: NewTill = {
   name: "",
@@ -19,15 +21,21 @@ const initialValues: NewTill = {
 export const TillCreate: React.FC = withPrivilegeGuard("node_administration", () => {
   const { t } = useTranslation();
   const { currentNode } = useCurrentNode();
-  const [createTill] = useCreateTillMutation();
 
   return (
-    <CreateLayout
+    <CreateLayoutV2
       title={t("till.create")}
-      successRoute={TillRoutes.list()}
+      successRoute={TillRoutes.action("list")}
       initialValues={initialValues}
       validationSchema={NewTillSchema}
-      onSubmit={(till) => createTill({ nodeId: currentNode.id, newTill: till })}
+      onSubmit={(till) =>
+        getTillCollection(currentNode.id).insert({
+          ...till,
+          id: generateId(),
+          node_id: currentNode.id,
+          z_nr: 0,
+        })
+      }
       form={TillForm}
     />
   );

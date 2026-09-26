@@ -1,76 +1,64 @@
 import {
-  Product,
-  selectProductAll,
-  selectTaxRateById,
-  useCreateProductMutation,
-  useDeleteProductMutation,
-  useListProductsQuery,
-  useListTaxRatesQuery,
-  useUpdateProductMutation,
-} from "@/api";
-import { ProductRoutes } from "@/app/routes";
-import { ListLayout } from "@/components";
-import {
   ContentCopy as ContentCopyIcon,
   Delete as DeleteIcon,
   Edit as EditIcon,
   Lock as LockIcon,
+  LockOpen as UnlockIcon,
+  SmartButton as SmartButtonIcon,
 } from "@mui/icons-material";
 import { Link, Tooltip } from "@mui/material";
 import { DataGrid, GridActionsCellItem, GridColDef } from "@stustapay/framework";
-import { Loading } from "@stustapay/components";
+import { useOpenModal } from "@stustapay/modal-provider";
+import { ArrayElement } from "@stustapay/utils";
+import { eq, useLiveQuery } from "@tanstack/react-db";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 import { Link as RouterLink, useNavigate } from "react-router-dom";
+
+import { ProductRoutes, tillButtonCreateFromProduct, TillButtonsRoutes } from "@/app/routes";
+import { ListLayout } from "@/components";
+import { getProductCollection, getTaxRateCollection, getUserTagVariantCollection } from "@/db/collections";
 import { useCurrentNode, useCurrentUserHasPrivilege, useCurrentUserHasPrivilegeAtNode, useRenderNode } from "@/hooks";
-import { useOpenModal } from "@stustapay/modal-provider";
 
 export const ProductList: React.FC = () => {
   const { t } = useTranslation();
   const { currentNode } = useCurrentNode();
   const canManageProducts = useCurrentUserHasPrivilege(ProductRoutes.privilege);
   const canManageProductsAtNode = useCurrentUserHasPrivilegeAtNode(ProductRoutes.privilege);
+  const canCreateTillButtonAtNode = useCurrentUserHasPrivilegeAtNode(TillButtonsRoutes.privilege);
   const navigate = useNavigate();
   const openModal = useOpenModal();
 
-  const { products, isLoading: isProductsLoading } = useListProductsQuery(
-    { nodeId: currentNode.id },
-    {
-      selectFromResult: ({ data, ...rest }) => ({
-        ...rest,
-        products: data ? selectProductAll(data) : undefined,
-      }),
-    }
+  const { data: products, isLoading: isProductsLoading } = useLiveQuery(
+    (q) =>
+      q
+        .from({ products: getProductCollection(currentNode.id) })
+        .join(
+          { taxRates: getTaxRateCollection(currentNode.id) },
+          ({ taxRates, products }) => eq(products.tax_rate_id, taxRates.id),
+          "inner" as const
+        )
+        .select(({ products, taxRates }) => ({
+          ...products,
+          taxRate: taxRates,
+        })),
+    [currentNode.id]
   );
-  const { data: taxRates, isLoading: isTaxRatesLoading } = useListTaxRatesQuery({ nodeId: currentNode.id });
-  const [createProduct] = useCreateProductMutation();
-  const [deleteProduct] = useDeleteProductMutation();
-  const [updateProduct] = useUpdateProductMutation();
+  const { data: userTagVariants, isLoading: isUserTagVariantsLoading } = useLiveQuery(
+    (q) => q.from({ userTagVariants: getUserTagVariantCollection(currentNode.id) }),
+    [currentNode.id]
+  );
+  const userTagVariantById = React.useMemo(
+    () => new Map((userTagVariants ?? []).map((variant) => [variant.id, variant])),
+    [userTagVariants]
+  );
+  const isLoading = isProductsLoading || isUserTagVariantsLoading;
   const { dataGridNodeColumn } = useRenderNode();
 
-  if (isProductsLoading || isTaxRatesLoading) {
-    return <Loading />;
-  }
-
-  const renderTaxRate = (id: number) => {
-    if (!taxRates) {
-      return "";
-    }
-
-    const tax = selectTaxRateById(taxRates, id);
-    if (!tax) {
-      return "";
-    }
-
-    return (
-      <Tooltip title={tax.description}>
-        <span>{(tax.rate * 100).toFixed(0)} %</span>
-      </Tooltip>
-    );
-  };
-
-  const handleLockProduct = (product: Product) => {
-    updateProduct({ nodeId: currentNode.id, productId: product.id, newProduct: { ...product, is_locked: true } });
+  const handleToggleLockProduct = (product: ArrayElement<NonNullable<typeof products>>) => {
+    getProductCollection(currentNode.id).update(product.id, (draft) => {
+      draft.is_locked = !draft.is_locked;
+    });
   };
 
   const openConfirmDeleteDialog = (productId: number) => {
@@ -79,19 +67,22 @@ export const ProductList: React.FC = () => {
       title: t("product.delete"),
       content: t("product.deleteDescription"),
       onConfirm: () => {
-        deleteProduct({ nodeId: currentNode.id, productId })
-          .unwrap()
-          .catch(() => undefined);
+        getProductCollection(currentNode.id).delete(productId);
         return true;
       },
     });
   };
 
-  const copyProduct = (product: Product) => {
-    createProduct({ nodeId: currentNode.id, newProduct: { ...product, name: `${product.name} - ${t("copy")}` } });
+  const copyProduct = (product: ArrayElement<NonNullable<typeof products>>) => {
+    getProductCollection(currentNode.id).insert({
+      ...product,
+      id: 0,
+      node_id: currentNode.id,
+      name: `${product.name} - ${t("copy")}`,
+    });
   };
 
-  const columns: GridColDef<Product>[] = [
+  const columns: GridColDef<ArrayElement<NonNullable<typeof products>>>[] = [
     {
       field: "name",
       headerName: t("product.name"),
@@ -136,13 +127,20 @@ export const ProductList: React.FC = () => {
       field: "tax_rate_id",
       headerName: t("product.taxRate"),
       align: "right",
-      renderCell: (params) => renderTaxRate(params.row.tax_rate_id),
+      renderCell: ({ row }) => (
+        <Tooltip title={row.taxRate.description}>
+          <span>{(row.taxRate.rate * 100).toFixed(0)} %</span>
+        </Tooltip>
+      ),
     },
     {
-      field: "restrictions",
-      headerName: t("product.restrictions"),
-      valueFormatter: (value) => (value as string[]).join(", "),
-      width: 150,
+      field: "userTagVariants",
+      headerName: t("product.userTagVariants"),
+      valueGetter: (_, row) =>
+        row.user_tag_variant_ids
+          .map((variantId) => userTagVariantById.get(variantId)?.variant_name ?? String(variantId))
+          .join(", "),
+      width: 180,
     },
     dataGridNodeColumn,
   ];
@@ -152,7 +150,7 @@ export const ProductList: React.FC = () => {
       field: "actions",
       type: "actions",
       headerName: t("actions"),
-      width: 150,
+      minWidth: 180,
       getActions: (params) =>
         canManageProductsAtNode(params.row.node_id)
           ? [
@@ -168,12 +166,39 @@ export const ProductList: React.FC = () => {
                 label={t("copy")}
                 onClick={() => copyProduct(params.row)}
               />,
+              ...(canCreateTillButtonAtNode(params.row.node_id)
+                ? [
+                    <GridActionsCellItem
+                      key="create-till-button"
+                      icon={
+                        <Tooltip title={t("product.createTillButton")}>
+                          <SmartButtonIcon />
+                        </Tooltip>
+                      }
+                      color="primary"
+                      label={t("product.createTillButton")}
+                      onClick={() => {
+                        const { to, state } = tillButtonCreateFromProduct(params.row);
+                        navigate(to, { state });
+                      }}
+                    />,
+                  ]
+                : []),
               <GridActionsCellItem
-                icon={<LockIcon />}
+                icon={
+                  params.row.is_locked ? (
+                    <Tooltip title={t("product.unlock")}>
+                      <UnlockIcon />
+                    </Tooltip>
+                  ) : (
+                    <Tooltip title={t("product.lock")}>
+                      <LockIcon />
+                    </Tooltip>
+                  )
+                }
                 color="primary"
-                disabled={params.row.is_locked}
                 label={t("product.lock")}
-                onClick={() => handleLockProduct(params.row)}
+                onClick={() => handleToggleLockProduct(params.row)}
               />,
               <GridActionsCellItem
                 icon={<DeleteIcon color="error" />}
@@ -190,10 +215,11 @@ export const ProductList: React.FC = () => {
     <ListLayout title={t("products")} routes={ProductRoutes}>
       <DataGrid
         autoHeight
+        loading={isLoading}
         rows={products ?? []}
         columns={columns}
         disableRowSelectionOnClick
-        sx={{ p: 1, boxShadow: (theme) => theme.shadows[1] }}
+        sx={{ boxShadow: (theme) => theme.shadows[1] }}
       />
     </ListLayout>
   );

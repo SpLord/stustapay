@@ -1,8 +1,10 @@
-import { NewProduct } from "@/api";
-import { RestrictionSelect, TaxRateSelect } from "@/components/features";
 import { FormCheckbox, FormCurrencyInput, FormNumericInput, FormTextField } from "@stustapay/form-components";
 import { FormikProps } from "formik";
+import * as React from "react";
 import { useTranslation } from "react-i18next";
+
+import { NewProduct } from "@/api";
+import { TaxRateSelect, UserTagVariantSelect } from "@/components/features";
 
 export type ProductFormProps<T extends NewProduct> = FormikProps<T>;
 
@@ -14,7 +16,12 @@ export function ProductForm<T extends NewProduct>(props: ProductFormProps<T>) {
     <>
       <FormTextField autoFocus name="name" label={t("product.name")} formik={props} />
       <FormCheckbox disabled={values.is_locked} label={t("product.isReturnable")} name="is_returnable" formik={props} />
-      <FormCheckbox disabled={values.is_locked} label={t("product.isDeposit", "Is Deposit / Pfand")} name="is_deposit" formik={props} />
+      <FormCheckbox
+        disabled={values.is_locked}
+        label={t("product.isDeposit", "Is Deposit / Pfand")}
+        name="is_deposit"
+        formik={props}
+      />
 
       <FormCheckbox
         disabled={values.is_locked}
@@ -49,14 +56,14 @@ export function ProductForm<T extends NewProduct>(props: ProductFormProps<T>) {
         value={values.tax_rate_id}
       />
 
-      <RestrictionSelect
-        label={t("product.restrictions")}
+      <UserTagVariantSelect
+        label={t("product.userTagVariants")}
         multiple={true}
-        value={values.restrictions ?? []}
+        value={values.user_tag_variant_ids ?? []}
         disabled={values.is_locked}
-        onChange={(value) => setFieldValue("restrictions", value)}
-        error={touched.restrictions && !!errors.restrictions}
-        helperText={(touched.restrictions && errors.restrictions) as string}
+        onChange={(value) => setFieldValue("user_tag_variant_ids", value)}
+        error={touched.user_tag_variant_ids && !!errors.user_tag_variant_ids}
+        helperText={(touched.user_tag_variant_ids && errors.user_tag_variant_ids) as string}
       />
     </>
   );

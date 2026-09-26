@@ -1,4 +1,3 @@
-import { RestrictedEventSettings, useUpdateEventMutation } from "@/api";
 import { Button, LinearProgress, Stack } from "@mui/material";
 import { FormNumericInput, FormSwitch, FormTextField } from "@stustapay/form-components";
 import { toFormikValidationSchema } from "@stustapay/utils";
@@ -8,6 +7,8 @@ import { useTranslation } from "react-i18next";
 import { toast } from "react-toastify";
 import { z } from "zod";
 
+import { RestrictedEventSettings, useUpdateEventMutation } from "@/api";
+
 const requiredIssue = {
   code: z.ZodIssueCode.custom,
   message: "Required if email sending is enabled",
@@ -16,7 +17,7 @@ const requiredIssue = {
 export const MailSettingsSchema = z
   .object({
     email_enabled: z.boolean(),
-    email_default_sender: z.string().email().optional().nullable(),
+    email_default_sender: z.string().email({ pattern: z.regexes.html5Email }).optional().nullable(),
     email_smtp_host: z.string().optional().nullable(),
     email_smtp_port: z.number().int().optional().nullable(),
     email_smtp_username: z.string().optional().nullable(),

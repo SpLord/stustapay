@@ -1,20 +1,21 @@
+import { Link } from "@mui/material";
+import { DataGrid, GridColDef } from "@stustapay/framework";
+import { NodePrivilege } from "@stustapay/models";
+import * as React from "react";
+import { useTranslation } from "react-i18next";
+import { Link as RouterLink } from "react-router-dom";
+
 import { SumUpCheckout, useListSumupCheckoutsQuery } from "@/api";
 import { withPrivilegeGuard } from "@/app/layout";
 import { ProductRoutes, SumUpTransactionRoutes } from "@/app/routes";
 import { ListLayout } from "@/components";
 import { useCurrentNode } from "@/hooks";
-import { Link } from "@mui/material";
-import { DataGrid, GridColDef } from "@stustapay/framework";
-import { Privilege } from "@stustapay/models";
-import * as React from "react";
-import { useTranslation } from "react-i18next";
-import { Link as RouterLink } from "react-router-dom";
 
-export const SumUpCheckoutList: React.FC = withPrivilegeGuard(Privilege.node_administration, () => {
+export const SumUpCheckoutList: React.FC = withPrivilegeGuard(NodePrivilege.node_administration, () => {
   const { t } = useTranslation();
   const { currentNode } = useCurrentNode();
 
-  const { data: checkouts } = useListSumupCheckoutsQuery({ nodeId: currentNode.id });
+  const { data: checkouts, isLoading } = useListSumupCheckoutsQuery({ nodeId: currentNode.id });
 
   const columns: GridColDef<SumUpCheckout>[] = [
     {
@@ -40,10 +41,11 @@ export const SumUpCheckoutList: React.FC = withPrivilegeGuard(Privilege.node_adm
     <ListLayout title={t("sumup.checkouts")} routes={ProductRoutes}>
       <DataGrid
         autoHeight
+        loading={isLoading}
         rows={checkouts ?? []}
         columns={columns}
         disableRowSelectionOnClick
-        sx={{ p: 1, boxShadow: (theme) => theme.shadows[1] }}
+        sx={{ boxShadow: (theme) => theme.shadows[1] }}
       />
     </ListLayout>
   );

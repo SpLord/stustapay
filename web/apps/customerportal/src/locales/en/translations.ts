@@ -4,6 +4,7 @@ export const translations = {
   login: "Login",
   userTagUid: "Wristband Tag ID",
   userTagPin: "Wristband Tag Pin",
+  pinRequired: "Wristband Tag Pin is required",
   nav: {
     payout: "Pay Out",
     topup: "Top Up",
@@ -89,6 +90,7 @@ export const translations = {
     confirmDonateAmountTitle: "Donate?",
     confirmDonateAmountContent: "Do you want to make a donation of {{donation}}?",
     onlyDuringEvent: "Refunds of remaining balance are only available during the event!",
+    sendFeedback: "Survey and feedback about the event",
   },
   topup: {
     amount: "Amount",

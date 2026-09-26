@@ -1,6 +1,6 @@
+import { Box, SvgIconProps, Typography, useTheme } from "@mui/material";
 import { TreeItem, TreeItemProps } from "@mui/x-tree-view";
 import * as React from "react";
-import { Box, SvgIconProps, Typography, useTheme } from "@mui/material";
 import { Link as RouterLink } from "react-router-dom";
 
 declare module "react" {
@@ -57,6 +57,9 @@ export const NavigationTreeItem: React.FC<NavigationTreeItemProps> = React.memo(
           }}
           component={to ? (RouterLink as any) : undefined}
           to={to}
+          onClick={(event: React.MouseEvent) => {
+            event.stopPropagation();
+          }}
         >
           <Box component={LabelIcon} color="inherit" sx={{ mr: 1 }} />
           <Typography variant="body2" sx={{ fontWeight: "inherit", flexGrow: 1 }}>

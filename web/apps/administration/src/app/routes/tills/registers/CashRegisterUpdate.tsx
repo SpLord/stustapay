@@ -1,31 +1,36 @@
-import { selectCashRegisterById, useListCashRegistersAdminQuery, useUpdateRegisterMutation } from "@/api";
-import { CashRegistersRoutes } from "@/app/routes";
-import { EditLayout } from "@/components";
-import { useCurrentNode } from "@/hooks";
 import { Loading } from "@stustapay/components";
-import { CashRegisterSchema } from "@stustapay/models";
+import { UpdateCashRegisterSchema } from "@stustapay/models";
+import { eq, useLiveQuery } from "@tanstack/react-db";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 import { Navigate, useParams } from "react-router-dom";
-import { CashRegisterForm } from "./CashRegisterForm";
+
 import { withPrivilegeGuard } from "@/app/layout";
+import { CashRegistersRoutes } from "@/app/routes";
+import { EditLayoutV2 } from "@/components";
+import { getCashRegisterCollection } from "@/db/collections";
+import { useCurrentNode } from "@/hooks";
+
+import { CashRegisterForm } from "./CashRegisterForm";
 
 export const CashRegisterUpdate: React.FC = withPrivilegeGuard("node_administration", () => {
   const { t } = useTranslation();
   const { currentNode } = useCurrentNode();
   const { registerId } = useParams();
-  const { register, isLoading, error } = useListCashRegistersAdminQuery(
-    { nodeId: currentNode.id },
-    {
-      selectFromResult: ({ data, ...rest }) => ({
-        ...rest,
-        register: data ? selectCashRegisterById(data, Number(registerId)) : undefined,
-      }),
-    }
+  const {
+    data: register,
+    isLoading,
+    isError,
+  } = useLiveQuery(
+    (q) =>
+      q
+        .from({ registers: getCashRegisterCollection(currentNode.id) })
+        .where(({ registers }) => eq(registers.id, Number(registerId)))
+        .findOne(),
+    [currentNode.id, registerId]
   );
-  const [update] = useUpdateRegisterMutation();
 
-  if (error) {
+  if (isError) {
     return <Navigate to={CashRegistersRoutes.list()} />;
   }
 
@@ -34,12 +39,16 @@ export const CashRegisterUpdate: React.FC = withPrivilegeGuard("node_administrat
   }
 
   return (
-    <EditLayout
+    <EditLayoutV2
       title={t("register.update")}
-      successRoute={CashRegistersRoutes.list()}
+      successRoute={CashRegistersRoutes.detail(register.id)}
       initialValues={register}
-      validationSchema={CashRegisterSchema}
-      onSubmit={(r) => update({ nodeId: currentNode.id, registerId: register.id, newCashRegister: r })}
+      validationSchema={UpdateCashRegisterSchema}
+      onSubmit={(updatedRegister) =>
+        getCashRegisterCollection(currentNode.id).update(register.id, (draft) => {
+          draft.name = updatedRegister.name;
+        })
+      }
       form={CashRegisterForm}
     />
   );

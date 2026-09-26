@@ -37,6 +37,7 @@ from stustapay.core.service.tree.service import fetch_event_design
 class CustomerPortalApiConfig(BaseModel):
     test_mode: bool
     test_mode_message: str
+    event_name: str
     data_privacy_url: str
     contact_email: EmailStr
     about_page_url: str
@@ -47,6 +48,7 @@ class CustomerPortalApiConfig(BaseModel):
     translation_texts: dict[Language, dict[str, str]]
     event_design: EventDesign
     node_id: int
+    feedback_url: Optional[str] = None
 
 
 class CustomerLoginSuccess(BaseModel):
@@ -291,6 +293,7 @@ class CustomerService(Service[Config]):
         return CustomerPortalApiConfig(
             test_mode=self.config.core.test_mode,
             test_mode_message=self.config.core.test_mode_message,
+            event_name=node.name,
             about_page_url=node.event.customer_portal_about_page_url,
             allowed_country_codes=node.event.sepa_allowed_country_codes,
             contact_email=node.event.customer_portal_contact_email,
@@ -301,4 +304,5 @@ class CustomerService(Service[Config]):
             currency_identifier=node.event.currency_identifier,
             event_design=event_design,
             node_id=node.id,
+            feedback_url=node.event.customer_portal_feedback_url,
         )

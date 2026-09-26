@@ -29,7 +29,7 @@ export function Select<Option, Multiple extends boolean>({
   checkboxes,
   formatOption,
   multiple,
-  chips,
+  chips: _chips,
   helperText,
   onChange,
   ...props
@@ -72,7 +72,14 @@ export function Select<Option, Multiple extends boolean>({
         </li>
       )}
       renderInput={(params) => (
-        <TextField variant={variant ?? "standard"} label={label} error={error} margin={margin} {...params} />
+        <TextField
+          variant={variant ?? "standard"}
+          label={label}
+          error={error}
+          margin={margin}
+          helperText={helperText}
+          {...params}
+        />
       )}
       {...props}
     />

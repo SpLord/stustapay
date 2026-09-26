@@ -1,7 +1,10 @@
-import { UserRole, selectUserRoleAll, useListUserRolesQuery } from "@/api";
-import { useCurrentNode } from "@/hooks";
 import { Select, SelectProps } from "@stustapay/components";
+import { useLiveQuery } from "@tanstack/react-db";
 import * as React from "react";
+
+import { UserRole } from "@/api";
+import { getUserRoleCollection } from "@/db/collections";
+import { useCurrentNode } from "@/hooks";
 
 export type RoleSelectProps = { value: number[]; onChange: (roleIds: number[]) => void } & Omit<
   SelectProps<UserRole, true>,
@@ -10,26 +13,25 @@ export type RoleSelectProps = { value: number[]; onChange: (roleIds: number[]) =
 
 export const RoleSelect: React.FC<RoleSelectProps> = ({ value, onChange, ...props }) => {
   const { currentNode } = useCurrentNode();
-  const { roles } = useListUserRolesQuery(
-    { nodeId: currentNode.id },
-    {
-      selectFromResult: ({ data, ...rest }) => ({
-        ...rest,
-        roles: data ? selectUserRoleAll(data) : [],
-      }),
-    }
+  const { data: roles = [] } = useLiveQuery(
+    (q) => q.from({ userRoles: getUserRoleCollection(currentNode.id) }),
+    [currentNode.id]
   );
 
   const handleChange = React.useCallback(
-    (roles: UserRole[] | null) => {
-      if (roles != null) {
-        onChange(roles.map((r) => r.id));
+    (selectedRoles: UserRole[] | null) => {
+      if (selectedRoles != null) {
+        onChange(selectedRoles.map((r) => r.id));
       }
     },
     [onChange]
   );
 
-  const selected = React.useMemo(() => roles.filter((r) => value.includes(r.id)) ?? null, [roles, value]);
+  const selected = React.useMemo(() => {
+    const list = roles.filter((r) => value.includes(r.id));
+    list.sort((a, b) => a.name.localeCompare(b.name));
+    return list;
+  }, [roles, value]);
 
   return (
     <Select

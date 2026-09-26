@@ -1,7 +1,8 @@
-import { ObjectType } from "@/api";
-import { useCurrentNodeAllowsObject } from "@/hooks";
 import * as React from "react";
 import { Navigate, Outlet } from "react-router-dom";
+
+import { ObjectType } from "@/api";
+import { useCurrentNodeAllowsObject } from "@/hooks";
 
 export interface TreeObjectGuardProps {
   objectType: ObjectType;
@@ -27,4 +28,14 @@ export const TreeObjectGuard: React.FC<TreeObjectGuardProps> = ({ objectType, ch
 
   // TODO: figure out why this cast is needed
   return children ? (children as React.ReactElement) : <Outlet />;
+};
+
+export const withTreeObjectGuard = (objectType: ObjectType, Component: React.FC): React.FC => {
+  return (props) => {
+    return (
+      <TreeObjectGuard objectType={objectType}>
+        <Component {...props} />
+      </TreeObjectGuard>
+    );
+  };
 };

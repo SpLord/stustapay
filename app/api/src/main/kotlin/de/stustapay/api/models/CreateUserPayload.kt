@@ -8,27 +8,36 @@
 
 @file:Suppress(
     "ArrayInDataClass",
+    "DuplicatedCode",
     "EnumEntryName",
     "RemoveRedundantQualifierName",
-    "UnusedImport"
+    "RemoveRedundantCallsOfConversionMethods",
+    "REDUNDANT_CALL_OF_CONVERSION_METHOD",
+    "RedundantUnitReturnType",
+    "RemoveEmptyClassBody",
+    "UnnecessaryVariable",
+    "UnusedImport",
+    "UnnecessaryVariable",
+    "unused"
 )
 
 package de.stustapay.api.models
 
+import de.stustapay.api.models.UserRoleAssignmentPayload
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Contextual
 
 /**
- * 
  *
- * @param login 
- * @param displayName 
- * @param roleIds 
- * @param userTagPin 
- * @param userTagUid 
- * @param description 
+ *
+ * @param login
+ * @param displayName
+ * @param roleAssignments
+ * @param userTagPin
+ * @param userTagUid
+ * @param description
  */
 @Serializable
 
@@ -40,8 +49,8 @@ data class CreateUserPayload (
     @SerialName(value = "display_name")
     val displayName: kotlin.String,
 
-    @SerialName(value = "role_ids")
-    val roleIds: kotlin.collections.List<@Contextual com.ionspin.kotlin.bignum.integer.BigInteger>,
+    @SerialName(value = "role_assignments")
+    val roleAssignments: kotlin.collections.List<UserRoleAssignmentPayload>,
 
     @SerialName(value = "user_tag_pin")
     val userTagPin: kotlin.String? = null,
@@ -56,4 +65,3 @@ data class CreateUserPayload (
 
 
 }
-

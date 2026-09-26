@@ -1,29 +1,27 @@
 package de.stustapay.chip_debug.ui.root
 
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
 import de.stustapay.chip_debug.R
 
 
 val startpageItems = listOf(
     StartpageItem(
-        icon = Icons.Filled.Warning,
+        iconId = de.stustapay.libssp.R.drawable.warning_24,
         label = R.string.root_item_test,
-        navDestination = RootNavDests.test
+        navDestination = RootNavDests.test,
     ),
     StartpageItem(
-        icon = Icons.Filled.Edit,
+        iconId = de.stustapay.libssp.R.drawable.edit_24,
         label = R.string.root_item_write,
-        navDestination = RootNavDests.write
+        navDestination = RootNavDests.write,
     ),
     StartpageItem(
-        icon = Icons.Filled.Add,
+        iconId = de.stustapay.libssp.R.drawable.add_24,
         label = R.string.root_item_provision,
-        navDestination = RootNavDests.provision
+        navDestination = RootNavDests.provision,
     ),
     StartpageItem(
-        icon = Icons.Filled.Search,
+        iconId = de.stustapay.libssp.R.drawable.search_24,
         label = R.string.root_item_verify,
-        navDestination = RootNavDests.verify
+        navDestination = RootNavDests.verify,
     ),
 )

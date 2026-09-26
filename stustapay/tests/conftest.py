@@ -20,8 +20,8 @@ from stustapay.core.config import (
     TerminalApiConfig,
 )
 from stustapay.core.database import get_database
-from stustapay.core.schema.product import ProductRestriction
 from stustapay.core.schema.tax_rate import NewTaxRate, TaxRate
+from stustapay.core.schema.tax_type import TaxType
 from stustapay.core.schema.terminal import NewTerminal, Terminal
 from stustapay.core.schema.ticket import TicketVoucher
 from stustapay.core.schema.till import (
@@ -40,10 +40,11 @@ from stustapay.core.schema.tree import (
 )
 from stustapay.core.schema.user import (
     ADMIN_ROLE_ID,
+    EventPrivilege,
     NewUser,
     NewUserRole,
     NewUserToRoles,
-    Privilege,
+    NodePrivilege,
     RoleToNode,
     User,
     UserRole,
@@ -53,9 +54,11 @@ from stustapay.core.service.auth import AuthService
 from stustapay.core.service.cashier import CashierService
 from stustapay.core.service.config import ConfigService
 from stustapay.core.service.customer.customer import CustomerService
+from stustapay.core.service.dsfinvk import DsfinvkService
 from stustapay.core.service.mail import MailService
 from stustapay.core.service.order import OrderService
 from stustapay.core.service.product import ProductService
+from stustapay.core.service.sumup import SumUpService
 from stustapay.core.service.tax_rate import TaxRateService, fetch_tax_rate_none
 from stustapay.core.service.terminal import TerminalService
 from stustapay.core.service.ticket import TicketService
@@ -67,6 +70,7 @@ from stustapay.core.service.tree.common import (
 from stustapay.core.service.tree.service import TreeService, create_event
 from stustapay.core.service.user import UserService, associate_user_to_role
 from stustapay.core.service.user_tag import UserTagService
+from stustapay.core.service.webhook import WebhookService
 
 
 def get_test_db_config() -> DatabaseConfig:
@@ -74,7 +78,7 @@ def get_test_db_config() -> DatabaseConfig:
         user=os.environ.get("TEST_DB_USER", None),
         password=os.environ.get("TEST_DB_PASSWORD", None),
         host=os.environ.get("TEST_DB_HOST", None),
-        port=int(os.environ.get("TEST_DB_PORT", 0)) or None,
+        port=int(os.environ.get("TEST_DB_PORT", "0")) or None,
         dbname=os.environ.get("TEST_DB_DATABASE", "stustapay_test"),
     )
 
@@ -146,7 +150,10 @@ async def event_node(db_connection: Connection) -> Node:
             sepa_allowed_country_codes=["DE"],
             bon_title="",
             bon_issuer="",
-            bon_address="",
+            bon_street="",
+            bon_zip="",
+            bon_city="",
+            bon_country="DEU",
             max_account_balance=150,
             sumup_topup_enabled=False,
             sumup_payment_enabled=False,
@@ -199,26 +206,53 @@ class UserTag:
     pin: str
 
 
+@dataclass
+class StandardUserTagVariants:
+    under_16_id: int
+    under_18_id: int
+
+
+@pytest.fixture
+async def standard_user_tag_variants(db_connection: Connection, event_node: Node) -> StandardUserTagVariants:
+    under_16_id = await db_connection.fetchval(
+        "insert into user_tag_variant (node_id, variant_name, description, priority) "
+        "values ($1, 'under_16', 'User tag holder under 16 years', 1) returning id",
+        event_node.id,
+    )
+    under_18_id = await db_connection.fetchval(
+        "insert into user_tag_variant (node_id, variant_name, description, priority) "
+        "values ($1, 'under_18', 'User tag holder under 18 years', 2) returning id",
+        event_node.id,
+    )
+    return StandardUserTagVariants(under_16_id=under_16_id, under_18_id=under_18_id)
+
+
 class CreateRandomUserTag(Protocol):
-    def __call__(self, restriction: ProductRestriction | None = None) -> Awaitable[UserTag]: ...
+    def __call__(self, variant_ids: list[int] | None = None) -> Awaitable[UserTag]: ...
 
 
 @pytest.fixture
 async def create_random_user_tag(
     db_connection: Connection, event_node: Node, user_tag_secret: int
 ) -> CreateRandomUserTag:
-    async def func(restriction: ProductRestriction | None = None) -> UserTag:
+    async def func(variant_ids: list[int] | None = None) -> UserTag:
         while True:
             uid = random.randint(1, 2**32 - 1)
             pin = secrets.token_hex(16)
             try:
                 user_tag_id = await db_connection.fetchval(
-                    "insert into user_tag (node_id, secret_id, restriction, pin) values ($1, $2, $3, $4) returning id",
+                    "insert into user_tag (node_id, secret_id, pin) values ($1, $2, $3) returning id",
                     event_node.id,
                     user_tag_secret,
-                    restriction.name if restriction is not None else None,
                     pin,
                 )
+                if variant_ids:
+                    for variant_id in variant_ids:
+                        await db_connection.execute(
+                            "insert into user_tag_to_variant (user_tag_id, variant_id) values ($1, $2)",
+                            user_tag_id,
+                            variant_id,
+                        )
                 return UserTag(id=user_tag_id, uid=uid, pin=pin)
             except asyncpg.DataError:
                 pass
@@ -298,6 +332,13 @@ async def user_tag_service(
 
 
 @pytest.fixture(scope="session")
+async def dsfinvk_service(
+    setup_test_db_pool: asyncpg.Pool, config: Config, auth_service: AuthService
+) -> DsfinvkService:
+    return DsfinvkService(db_pool=setup_test_db_pool, config=config, auth_service=auth_service)
+
+
+@pytest.fixture(scope="session")
 async def product_service(
     setup_test_db_pool: asyncpg.Pool, config: Config, auth_service: AuthService
 ) -> ProductService:
@@ -310,8 +351,19 @@ async def ticket_service(setup_test_db_pool: asyncpg.Pool, config: Config, auth_
 
 
 @pytest.fixture(scope="session")
-async def tree_service(setup_test_db_pool: asyncpg.Pool, config: Config, auth_service: AuthService) -> TreeService:
-    return TreeService(db_pool=setup_test_db_pool, config=config, auth_service=auth_service)
+async def terminal_service(
+    setup_test_db_pool: asyncpg.Pool, config: Config, auth_service: AuthService
+) -> TerminalService:
+    return TerminalService(db_pool=setup_test_db_pool, config=config, auth_service=auth_service)
+
+
+@pytest.fixture(scope="session")
+async def tree_service(
+    setup_test_db_pool: asyncpg.Pool, config: Config, auth_service: AuthService, terminal_service: TerminalService
+) -> TreeService:
+    return TreeService(
+        db_pool=setup_test_db_pool, config=config, auth_service=auth_service, terminal_service=terminal_service
+    )
 
 
 @pytest.fixture(scope="session")
@@ -324,13 +376,6 @@ async def cashier_service(
 @pytest.fixture(scope="session")
 async def order_service(setup_test_db_pool: asyncpg.Pool, config: Config, auth_service: AuthService) -> OrderService:
     return OrderService(db_pool=setup_test_db_pool, config=config, auth_service=auth_service)
-
-
-@pytest.fixture(scope="session")
-async def terminal_service(
-    setup_test_db_pool: asyncpg.Pool, config: Config, auth_service: AuthService
-) -> TerminalService:
-    return TerminalService(db_pool=setup_test_db_pool, config=config, auth_service=auth_service)
 
 
 @pytest.fixture(scope="session")
@@ -352,6 +397,18 @@ async def customer_service(
 @pytest.fixture(scope="session")
 async def mail_service(setup_test_db_pool: asyncpg.Pool, config: Config) -> MailService:
     return MailService(db_pool=setup_test_db_pool, config=config)
+
+
+@pytest.fixture(scope="session")
+async def sumup_service(setup_test_db_pool: asyncpg.Pool, config: Config, auth_service: AuthService) -> SumUpService:
+    return SumUpService(db_pool=setup_test_db_pool, config=config, auth_service=auth_service)
+
+
+@pytest.fixture(scope="session")
+async def webhook_service(
+    setup_test_db_pool: asyncpg.Pool, config: Config, auth_service: AuthService
+) -> WebhookService:
+    return WebhookService(db_pool=setup_test_db_pool, config=config, auth_service=auth_service)
 
 
 @pytest.fixture
@@ -385,20 +442,21 @@ async def global_admin_token(user_service: UserService, global_admin_user: tuple
         token=admin_token,
         node_id=ROOT_NODE_ID,
         role_id=ADMIN_ROLE_ID,
-        is_privileged=True,
-        privileges=[
-            Privilege.user_management,
-            Privilege.payout_management,
-            Privilege.view_node_stats,
-            Privilege.allow_privileged_role_assignment,
-            Privilege.node_administration,
-            Privilege.cash_transport,
-            Privilege.customer_management,
-            Privilege.terminal_login,
-            Privilege.can_book_orders,
-            Privilege.grant_vouchers,
-            Privilege.grant_free_tickets,
-            Privilege.create_user,
+        can_assign_all_roles=True,
+        assignable_role_ids=[],
+        event_privileges=[
+            EventPrivilege.payout_management,
+            EventPrivilege.cash_transport,
+            EventPrivilege.customer_management,
+            EventPrivilege.terminal_login,
+            EventPrivilege.grant_vouchers,
+            EventPrivilege.grant_free_tickets,
+            EventPrivilege.create_user,
+        ],
+        node_privileges=[
+            NodePrivilege.node_administration,
+            NodePrivilege.view_node_stats,
+            NodePrivilege.can_book_orders,
         ],
     )
     return admin_token
@@ -455,7 +513,9 @@ async def tax_rate_none(db_connection: Connection, event_node: Node) -> TaxRate:
 @pytest.fixture
 async def tax_rate_ust(tax_rate_service: TaxRateService, event_admin_token: str, event_node: Node) -> TaxRate:
     return await tax_rate_service.create_tax_rate(
-        token=event_admin_token, node_id=event_node.id, tax_rate=NewTaxRate(name="ust", description="", rate=0.19)
+        token=event_admin_token,
+        node_id=event_node.id,
+        tax_rate=NewTaxRate(name="ust", description="Regular VAT", rate=0.19, tax_type=TaxType.regular_vat),
     )
 
 
@@ -481,8 +541,8 @@ async def cashier(
         node_id=event_node.id,
         new_role=NewUserRole(
             name="cashier",
-            is_privileged=False,
-            privileges=[Privilege.can_book_orders, Privilege.supervised_terminal_login],
+            event_privileges=[EventPrivilege.supervised_terminal_login],
+            node_privileges=[NodePrivilege.can_book_orders],
         ),
     )
     cashier_user: User = await user_service.create_user_no_auth(

@@ -61,7 +61,7 @@ async def order_with_bon(
             name="Bier",
             price=5.0,
             tax_rate_id=tax_rate_ust.id,
-            restrictions=[],
+            user_tag_variant_ids=[],
             is_locked=True,
             is_returnable=False,
             fixed_price=True,
@@ -74,7 +74,7 @@ async def order_with_bon(
             name="Pfand",
             price=2.0,
             tax_rate_id=tax_rate_none.id,
-            restrictions=[],
+            user_tag_variant_ids=[],
             is_locked=True,
             is_returnable=False,
             fixed_price=True,
@@ -87,12 +87,14 @@ async def order_with_bon(
             product_id=product1.id,
             product_price=product1.price,
             tax_rate_id=product1.tax_rate_id,
+            vouchers_redeemed=0,
         ),
         NewLineItem(
             quantity=1,
             product_id=product2.id,
             product_price=product2.price,
             tax_rate_id=product2.tax_rate_id,
+            vouchers_redeemed=0,
         ),
     ]
 

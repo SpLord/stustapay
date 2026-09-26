@@ -1,3 +1,14 @@
+import {
+  ChevronRight as ChevronRightIcon,
+  ExpandMore as ExpandMoreIcon,
+  Folder as FolderIcon,
+  Event as EventIcon,
+  EditOff as EditOffIcon,
+} from "@mui/icons-material";
+import { SimpleTreeView, TreeViewItemId } from "@mui/x-tree-view";
+import * as React from "react";
+import { useLocation } from "react-router-dom";
+
 import { Node, NodeSeenByUser } from "@/api";
 import { findNode, useTreeForCurrentUser } from "@/api/nodes";
 import { nodeUrlBaseRegex } from "@/app/routes";
@@ -10,16 +21,7 @@ import {
   useAppDispatch,
   useAppSelector,
 } from "@/store";
-import {
-  ChevronRight as ChevronRightIcon,
-  ExpandMore as ExpandMoreIcon,
-  Folder as FolderIcon,
-  Event as EventIcon,
-  EditOff as EditOffIcon,
-} from "@mui/icons-material";
-import { SimpleTreeView, TreeViewItemId } from "@mui/x-tree-view";
-import * as React from "react";
-import { useLocation } from "react-router-dom";
+
 import { NavigationTreeItem } from "./NavigationTreeItem";
 import { NodeMenu, isMenuEntryValidAtNode, nodeMenuEntryDefinitions } from "./NodeMenu";
 
@@ -39,9 +41,17 @@ const computeMenuIds = (node: NodeSeenByUser) => {
     }
   }
   for (const child of node.children) {
-    ids = [...ids, ...computeMenuIds(child)];
+    ids.push(...computeMenuIds(child));
   }
   return ids;
+};
+
+const matchesMenuPath = (pathname: string, menuPath: string) => {
+  return pathname === menuPath || pathname.startsWith(`${menuPath}/`);
+};
+
+const findBestMatchingMenuId = (pathname: string, menuIds: string[]) => {
+  return menuIds.filter((menuPath) => matchesMenuPath(pathname, menuPath)).toSorted((a, b) => b.length - a.length)[0];
 };
 
 export const NavigationTree: React.FC = () => {
@@ -73,11 +83,7 @@ export const NavigationTree: React.FC = () => {
     setSelected(itemId);
   };
 
-  const menuIds = React.useMemo(() => {
-    const result = computeMenuIds(tree);
-    result.sort().reverse();
-    return result;
-  }, [tree]);
+  const menuIds = React.useMemo(() => computeMenuIds(tree), [tree]);
 
   React.useEffect(() => {
     const match = location.pathname.match(nodeUrlBaseRegex);
@@ -88,7 +94,7 @@ export const NavigationTree: React.FC = () => {
         return;
       }
       dispatch(extendExpandedNodes([nodeId, ...node.parent_ids.map((parent) => `/node/${parent}`)]));
-      const firstMatchingMenuId = menuIds.find((val) => location.pathname.startsWith(val));
+      const firstMatchingMenuId = findBestMatchingMenuId(location.pathname, menuIds);
       if (firstMatchingMenuId) {
         setSelected(firstMatchingMenuId);
       } else {
@@ -115,6 +121,7 @@ export const NavigationTree: React.FC = () => {
     <SimpleTreeView
       aria-label="navigation tree"
       slots={{ collapseIcon: ExpandMoreIcon, expandIcon: ChevronRightIcon }}
+      expansionTrigger="iconContainer"
       multiSelect={false}
       expandedItems={expanded}
       selectedItems={selected}

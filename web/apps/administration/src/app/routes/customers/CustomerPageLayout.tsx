@@ -1,60 +1,52 @@
-import { useNode } from "@/api/nodes";
-import { CustomerRoutes } from "@/app/routes";
-import { Search as SearchIcon } from "@mui/icons-material";
-import { Box, Tab, Tabs } from "@mui/material";
-import { Loading } from "@stustapay/components";
+import { Search as SearchIcon, SwapHoriz as SwapHorizIcon } from "@mui/icons-material";
+import { Box } from "@mui/material";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
-import { Navigate, Outlet, Link as RouterLink, useLocation, useParams } from "react-router-dom";
+import { Navigate, Outlet } from "react-router-dom";
 
-const getActiveTab = (location: string) => {
-  if (location.startsWith(CustomerRoutes.action("blocked-payout"))) {
-    return CustomerRoutes.action("blocked-payout");
-  }
-  return CustomerRoutes.list();
-};
+import { withTreeObjectGuard } from "@/app/layout";
+import { CustomerRoutes } from "@/app/routes";
+import { ResponsivePageTabs } from "@/components";
+import { useCurrentNode } from "@/hooks";
 
-export const CustomerPageLayout: React.FC = () => {
+export const CustomerPageLayout: React.FC = withTreeObjectGuard("account", () => {
   const { t } = useTranslation();
-  const { nodeId } = useParams();
-  const { node } = useNode({ nodeId: Number(nodeId) });
-  const location = useLocation();
+  const { currentNode } = useCurrentNode();
 
-  if (!nodeId) {
-    // TODO: return error page / redirect
-    return null;
-  }
+  const tabs = React.useMemo(
+    () => [
+      {
+        value: CustomerRoutes.list(),
+        label: t("common.search"),
+        to: CustomerRoutes.list(),
+        icon: <SearchIcon />,
+      },
+      {
+        value: CustomerRoutes.action("swap-tag"),
+        label: t("customer.swapTag"),
+        to: CustomerRoutes.action("swap-tag"),
+        icon: <SwapHorizIcon />,
+      },
+      {
+        value: CustomerRoutes.action("blocked-payout"),
+        label: t("customer.customersWithBlockedPayout"),
+        to: CustomerRoutes.action("blocked-payout"),
+      },
+    ],
+    [t]
+  );
 
-  if (!node) {
-    return <Loading />;
-  }
-
-  if (node.event == null) {
+  if (currentNode.event == null) {
     // TODO: proper error redirect
     return <Navigate to="/" />;
   }
 
   return (
     <Box>
-      <Tabs value={getActiveTab(location.pathname)} sx={{ borderBottom: 1, borderColor: "divider" }}>
-        <Tab
-          label={t("common.search")}
-          icon={<SearchIcon />}
-          iconPosition="start"
-          component={RouterLink}
-          value={CustomerRoutes.list()}
-          to={CustomerRoutes.list()}
-        />
-        <Tab
-          label={t("customer.customersWithBlockedPayout")}
-          component={RouterLink}
-          value={CustomerRoutes.action("blocked-payout")}
-          to={CustomerRoutes.action("blocked-payout")}
-        />
-      </Tabs>
+      <ResponsivePageTabs tabs={tabs} />
       <Box sx={{ mt: 2 }}>
         <Outlet />
       </Box>
     </Box>
   );
-};
+});

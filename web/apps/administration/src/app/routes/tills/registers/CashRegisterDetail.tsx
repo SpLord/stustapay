@@ -1,73 +1,20 @@
-import {
-  CashRegister,
-  selectCashierById,
-  selectCashierShiftAll,
-  selectTillById,
-  selectTransactionAll,
-  useDeleteRegisterMutation,
-  useGetCashierShiftsForRegisterQuery,
-  useGetCashRegisterAdminQuery,
-  useListCashiersQuery,
-  useListTillsQuery,
-  useListTransactionsQuery,
-} from "@/api";
-import { CashierRoutes, CashRegistersRoutes, TillRoutes } from "@/app/routes";
-import { ButtonLink, DetailField, DetailLayout, DetailNumberField, DetailView } from "@/components";
-import { TransactionTable } from "@/components/features";
-import { useCurrentNode } from "@/hooks";
 import { Delete as DeleteIcon, Edit as EditIcon, SwapHoriz as SwapHorizIcon } from "@mui/icons-material";
 import { TabContext, TabList, TabPanel } from "@mui/lab";
 import { Paper, Stack, Tab } from "@mui/material";
 import { Loading } from "@stustapay/components";
 import { useOpenModal } from "@stustapay/modal-provider";
-import { getUserName } from "@stustapay/models";
+import { eq, useLiveQuery } from "@tanstack/react-db";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
+
+import { CashRegistersRoutes, TillRoutes, UserRoutes } from "@/app/routes";
+import { ButtonLink, DetailField, DetailLayout, DetailNumberField, DetailView, UserDetailField } from "@/components";
+import { TransactionTable } from "@/components/features";
+import { getCashRegisterCollection, getTillCollection, getUserCollection } from "@/db/collections";
+import { useCurrentNode } from "@/hooks";
+
 import { CashierShiftTable } from "../../cashiers";
-
-const RegisterOrderList: React.FC<{ register: CashRegister }> = ({ register }) => {
-  const { transactions } = useListTransactionsQuery(
-    { nodeId: register.node_id, registerId: register.id },
-
-    {
-      selectFromResult: ({ data, ...rest }) => ({
-        ...rest,
-        transactions: data
-          ? selectTransactionAll(data).map((transaction) => ({
-              ...transaction,
-              amount: transaction.target_account === register.account_id ? transaction.amount : -transaction.amount,
-            }))
-          : undefined,
-      }),
-    }
-  );
-
-  if (!transactions) {
-    return <Loading />;
-  }
-
-  return <TransactionTable transactions={transactions} showTillColumn showCashierColumn />;
-};
-
-const CashierShiftsList: React.FC<{ register: CashRegister }> = ({ register }) => {
-  const { shifts } = useGetCashierShiftsForRegisterQuery(
-    { nodeId: register.node_id, registerId: register.id },
-
-    {
-      selectFromResult: ({ data, ...rest }) => ({
-        ...rest,
-        shifts: data ? selectCashierShiftAll(data) : undefined,
-      }),
-    }
-  );
-
-  if (!shifts) {
-    return <Loading />;
-  }
-
-  return <CashierShiftTable cashierShifts={shifts} showCashierColumn />;
-};
 
 export const CashRegisterDetail: React.FC = () => {
   const { t } = useTranslation();
@@ -75,20 +22,40 @@ export const CashRegisterDetail: React.FC = () => {
   const { registerId } = useParams();
   const navigate = useNavigate();
   const openModal = useOpenModal();
-  const [deleteRegister] = useDeleteRegisterMutation();
-  const { data: register, error } = useGetCashRegisterAdminQuery({
-    nodeId: currentNode.id,
-    registerId: Number(registerId),
-  });
-  const { data: tills } = useListTillsQuery({ nodeId: currentNode.id });
-  const { data: cashiers } = useListCashiersQuery({ nodeId: currentNode.id });
+  const {
+    data: register,
+    isLoading: isRegisterLoading,
+    isError: isRegisterError,
+  } = useLiveQuery(
+    (q) =>
+      q
+        .from({ registers: getCashRegisterCollection(currentNode.id) })
+        .where(({ registers }) => eq(registers.id, Number(registerId)))
+        .join(
+          { tills: getTillCollection(currentNode.id) },
+          ({ registers, tills }) => eq(registers.current_till_id, tills.id),
+          "left" as const
+        )
+        .join(
+          { users: getUserCollection(currentNode.id) },
+          ({ registers, users }) => eq(registers.current_cashier_id, users.id),
+          "left" as const
+        )
+        .select(({ registers, tills, users }) => ({
+          ...registers,
+          till: tills,
+          cashier: users,
+        }))
+        .findOne(),
+    [currentNode.id, registerId]
+  );
 
   const [activeTab, setActiveTab] = React.useState("cashierShifts");
 
-  if (error) {
+  if (isRegisterError) {
     return <Navigate to={CashRegistersRoutes.list()} />;
   }
-  if (register === undefined || tills === undefined || cashiers === undefined) {
+  if (isRegisterLoading || !register) {
     return <Loading />;
   }
 
@@ -98,14 +65,14 @@ export const CashRegisterDetail: React.FC = () => {
       title: t("register.deleteRegister"),
       content: t("register.deleteRegisterDescription"),
       onConfirm: () => {
-        deleteRegister({ nodeId: currentNode.id, registerId: Number(registerId) }).then(() =>
-          navigate(CashRegistersRoutes.list())
-        );
+        getCashRegisterCollection(currentNode.id)
+          .delete(Number(registerId))
+          .isPersisted.promise.then(() => navigate(CashRegistersRoutes.list()));
       },
     });
   };
 
-  const cashier = register.current_cashier_id != null ? selectCashierById(cashiers, register.current_cashier_id) : null;
+  const cashier = register.cashier?.id != null ? register.cashier : null;
 
   return (
     <Stack spacing={2} direction="column">
@@ -127,7 +94,12 @@ export const CashRegisterDetail: React.FC = () => {
             onClick: () => navigate(`${CashRegistersRoutes.detail(register.id)}/transfer`),
             disabled: register.current_cashier_id == null,
           },
-          { label: t("delete"), onClick: openConfirmDeleteDialog, color: "error", icon: <DeleteIcon /> },
+          {
+            label: t("delete"),
+            onClick: openConfirmDeleteDialog,
+            color: "error",
+            icon: <DeleteIcon />,
+          },
         ]}
       >
         <DetailView>
@@ -138,25 +110,22 @@ export const CashRegisterDetail: React.FC = () => {
             type="currency"
             secondaryAction={
               register.balance !== 0 &&
-              cashier != null && (
-                <ButtonLink to={CashierRoutes.detailAction(cashier.id, "close-out", cashier.node_id)}>
+              cashier != null &&
+              cashier.id != null && (
+                <ButtonLink to={UserRoutes.detailAction(cashier.id, "close-out", cashier.node_id ?? register.node_id)}>
                   {t("cashier.closeOut")}
                 </ButtonLink>
               )
             }
           />
-          {cashier != null && (
-            <DetailField
-              label={t("register.currentCashier")}
-              linkTo={CashierRoutes.detail(cashier.id)}
-              value={getUserName(cashier)}
-            />
+          {register.current_cashier_id != null && (
+            <UserDetailField label={t("register.currentCashier")} user={cashier} fallbackNodeId={register.node_id} />
           )}
-          {register.current_till_id != null && (
+          {register.till != null && (
             <DetailField
               label={t("register.currentTill")}
-              linkTo={TillRoutes.detail(register.current_till_id)}
-              value={selectTillById(tills, register.current_till_id)?.name}
+              linkTo={TillRoutes.detail(register.till.id, register.till.node_id)}
+              value={register.till.name}
             />
           )}
         </DetailView>
@@ -169,9 +138,13 @@ export const CashRegisterDetail: React.FC = () => {
             <Tab label={t("register.orders")} value="orders" />
           </TabList>
           <TabPanel value="cashierShifts">
-            {activeTab === "cashierShifts" && <CashierShiftsList register={register} />}
+            {activeTab === "cashierShifts" && <CashierShiftTable cashRegisterId={register.id} showCashierColumn />}
           </TabPanel>
-          <TabPanel value="orders">{activeTab === "orders" && <RegisterOrderList register={register} />}</TabPanel>
+          <TabPanel value="orders">
+            {activeTab === "orders" && (
+              <TransactionTable cashRegisterId={register.id} showTillColumn showCashierColumn />
+            )}
+          </TabPanel>
         </TabContext>
       </Paper>
     </Stack>

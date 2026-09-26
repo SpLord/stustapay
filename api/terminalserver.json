@@ -5,7 +5,7 @@
     "license": {
       "name": "AGPL-3.0"
     },
-    "version": "0.1.0"
+    "version": "2026.2.1"
   },
   "paths": {
     "/health": {
@@ -1756,6 +1756,45 @@
           }
         ]
       }
+    },
+    "/media/blob/{blob_id}": {
+      "get": {
+        "tags": [
+          "media"
+        ],
+        "summary": "Get Blob",
+        "operationId": "get_blob",
+        "parameters": [
+          {
+            "name": "blob_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Blob Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1803,6 +1842,18 @@
             "type": "integer",
             "title": "Vouchers"
           },
+          "activated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Activated At"
+          },
           "user_tag_id": {
             "anyOf": [
               {
@@ -1836,15 +1887,21 @@
             ],
             "title": "User Tag Comment"
           },
-          "restriction": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/ProductRestriction"
-              },
-              {
-                "type": "null"
-              }
-            ]
+          "user_tag_variant_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "User Tag Variant Ids",
+            "default": []
+          },
+          "user_tag_variant_names": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "User Tag Variant Names",
+            "default": []
           },
           "tag_history": {
             "items": {
@@ -1877,7 +1934,6 @@
           "vouchers",
           "user_tag_id",
           "user_tag_uid",
-          "restriction",
           "tag_history",
           "user_tag_uid_hex"
         ],
@@ -1902,6 +1958,32 @@
           "cash_register"
         ],
         "title": "AccountType"
+      },
+      "AssignableUserRolesAtNode": {
+        "properties": {
+          "node_id": {
+            "type": "integer",
+            "title": "Node Id"
+          },
+          "node_name": {
+            "type": "string",
+            "title": "Node Name"
+          },
+          "roles": {
+            "items": {
+              "$ref": "#/components/schemas/UserRole"
+            },
+            "type": "array",
+            "title": "Roles"
+          }
+        },
+        "type": "object",
+        "required": [
+          "node_id",
+          "node_name",
+          "roles"
+        ],
+        "title": "AssignableUserRolesAtNode"
       },
       "Button": {
         "properties": {
@@ -2505,19 +2587,19 @@
             ],
             "title": "Description"
           },
-          "role_ids": {
+          "role_assignments": {
             "items": {
-              "type": "integer"
+              "$ref": "#/components/schemas/UserRoleAssignmentPayload"
             },
             "type": "array",
-            "title": "Role Ids"
+            "title": "Role Assignments"
           }
         },
         "type": "object",
         "required": [
           "login",
           "display_name",
-          "role_ids"
+          "role_assignments"
         ],
         "title": "CreateUserPayload"
       },
@@ -2561,12 +2643,19 @@
             ],
             "title": "Active Role Name"
           },
-          "privileges": {
+          "event_privileges": {
             "items": {
-              "$ref": "#/components/schemas/Privilege"
+              "$ref": "#/components/schemas/EventPrivilege"
             },
             "type": "array",
-            "title": "Privileges"
+            "title": "Event Privileges"
+          },
+          "node_privileges": {
+            "items": {
+              "$ref": "#/components/schemas/NodePrivilege"
+            },
+            "type": "array",
+            "title": "Node Privileges"
           },
           "description": {
             "anyOf": [
@@ -2629,8 +2718,7 @@
           "node_id",
           "id",
           "login",
-          "display_name",
-          "privileges"
+          "display_name"
         ],
         "title": "CurrentUser",
         "description": "Describes a logged-in user in the system"
@@ -2793,6 +2881,20 @@
         ],
         "title": "DetailedOrder"
       },
+      "EventPrivilege": {
+        "type": "string",
+        "enum": [
+          "customer_management",
+          "payout_management",
+          "create_user",
+          "cash_transport",
+          "terminal_login",
+          "supervised_terminal_login",
+          "grant_free_tickets",
+          "grant_vouchers"
+        ],
+        "title": "EventPrivilege"
+      },
       "GrantVoucherPayload": {
         "properties": {
           "vouchers": {
@@ -2849,6 +2951,10 @@
             "type": "number",
             "title": "Tax Rate"
           },
+          "vouchers_redeemed": {
+            "type": "integer",
+            "title": "Vouchers Redeemed"
+          },
           "item_id": {
             "type": "integer",
             "title": "Item Id"
@@ -2871,6 +2977,7 @@
           "tax_rate_id",
           "tax_name",
           "tax_rate",
+          "vouchers_redeemed",
           "item_id",
           "total_tax",
           "total_price"
@@ -3071,6 +3178,15 @@
           "customer_tag_uid"
         ],
         "title": "NewTopUp"
+      },
+      "NodePrivilege": {
+        "type": "string",
+        "enum": [
+          "node_administration",
+          "view_node_stats",
+          "can_book_orders"
+        ],
+        "title": "NodePrivilege"
       },
       "Order": {
         "properties": {
@@ -3276,6 +3392,10 @@
             "type": "number",
             "title": "Tax Rate"
           },
+          "vouchers_redeemed": {
+            "type": "integer",
+            "title": "Vouchers Redeemed"
+          },
           "total_price": {
             "type": "number",
             "title": "Total Price",
@@ -3290,6 +3410,7 @@
           "tax_rate_id",
           "tax_name",
           "tax_rate",
+          "vouchers_redeemed",
           "total_price"
         ],
         "title": "PendingLineItem"
@@ -3513,25 +3634,6 @@
         ],
         "title": "PendingTopUp"
       },
-      "Privilege": {
-        "type": "string",
-        "enum": [
-          "node_administration",
-          "customer_management",
-          "payout_management",
-          "create_user",
-          "allow_privileged_role_assignment",
-          "user_management",
-          "view_node_stats",
-          "cash_transport",
-          "terminal_login",
-          "supervised_terminal_login",
-          "can_book_orders",
-          "grant_free_tickets",
-          "grant_vouchers"
-        ],
-        "title": "Privilege"
-      },
       "Product": {
         "properties": {
           "name": {
@@ -3568,12 +3670,12 @@
             "type": "integer",
             "title": "Tax Rate Id"
           },
-          "restrictions": {
+          "user_tag_variant_ids": {
             "items": {
-              "$ref": "#/components/schemas/ProductRestriction"
+              "type": "integer"
             },
             "type": "array",
-            "title": "Restrictions"
+            "title": "User Tag Variant Ids"
           },
           "is_locked": {
             "type": "boolean",
@@ -3582,6 +3684,10 @@
           "is_returnable": {
             "type": "boolean",
             "title": "Is Returnable"
+          },
+          "is_deposit": {
+            "type": "boolean",
+            "title": "Is Deposit"
           },
           "target_account_id": {
             "anyOf": [
@@ -3610,6 +3716,9 @@
             "type": "number",
             "title": "Tax Rate"
           },
+          "tax_type": {
+            "$ref": "#/components/schemas/TaxType"
+          },
           "type": {
             "$ref": "#/components/schemas/ProductType"
           },
@@ -3631,24 +3740,18 @@
           "price",
           "fixed_price",
           "tax_rate_id",
-          "restrictions",
+          "user_tag_variant_ids",
           "is_locked",
           "is_returnable",
+          "is_deposit",
           "node_id",
           "id",
           "tax_name",
           "tax_rate",
+          "tax_type",
           "type"
         ],
         "title": "Product"
-      },
-      "ProductRestriction": {
-        "type": "string",
-        "enum": [
-          "under_16",
-          "under_18"
-        ],
-        "title": "ProductRestriction"
       },
       "ProductType": {
         "type": "string",
@@ -3780,6 +3883,16 @@
         ],
         "title": "SwitchTagPayload"
       },
+      "TaxType": {
+        "type": "string",
+        "enum": [
+          "regular_vat",
+          "reduced_vat",
+          "no_tax",
+          "transparent"
+        ],
+        "title": "TaxType"
+      },
       "Terminal": {
         "properties": {
           "name": {
@@ -3866,6 +3979,17 @@
             "type": "string",
             "format": "date-time",
             "title": "Last Seen"
+          },
+          "mdm_device_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mdm Device Id"
           }
         },
         "type": "object",
@@ -3900,6 +4024,17 @@
               }
             ],
             "title": "Price"
+          },
+          "deposit_price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deposit Price"
           },
           "default_price": {
             "anyOf": [
@@ -3989,18 +4124,18 @@
             ],
             "title": "Active User Id"
           },
-          "available_roles": {
+          "available_roles_by_node": {
             "items": {
-              "$ref": "#/components/schemas/UserRole"
+              "$ref": "#/components/schemas/AssignableUserRolesAtNode"
             },
             "type": "array",
-            "title": "Available Roles"
+            "title": "Available Roles By Node"
           },
-          "user_privileges": {
+          "user_event_privileges": {
             "anyOf": [
               {
                 "items": {
-                  "$ref": "#/components/schemas/Privilege"
+                  "$ref": "#/components/schemas/EventPrivilege"
                 },
                 "type": "array"
               },
@@ -4008,7 +4143,21 @@
                 "type": "null"
               }
             ],
-            "title": "User Privileges"
+            "title": "User Event Privileges"
+          },
+          "user_node_privileges": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/NodePrivilege"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Node Privileges"
           },
           "secrets": {
             "anyOf": [
@@ -4037,6 +4186,17 @@
           "test_mode_message": {
             "type": "string",
             "title": "Test Mode Message"
+          },
+          "app_logo_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "App Logo Url"
           }
         },
         "type": "object",
@@ -4046,8 +4206,9 @@
           "description",
           "event_name",
           "active_user_id",
-          "available_roles",
-          "user_privileges",
+          "available_roles_by_node",
+          "user_event_privileges",
+          "user_node_privileges",
           "secrets",
           "till",
           "test_mode",
@@ -4262,12 +4423,12 @@
             "type": "integer",
             "title": "Tax Rate Id"
           },
-          "restrictions": {
+          "user_tag_variant_ids": {
             "items": {
-              "$ref": "#/components/schemas/ProductRestriction"
+              "type": "integer"
             },
             "type": "array",
-            "title": "Restrictions"
+            "title": "User Tag Variant Ids"
           },
           "is_locked": {
             "type": "boolean",
@@ -4303,7 +4464,7 @@
           "name",
           "price",
           "tax_rate_id",
-          "restrictions",
+          "user_tag_variant_ids",
           "is_locked",
           "initial_top_up_amount",
           "node_id",
@@ -4404,6 +4565,11 @@
           "token": {
             "type": "string",
             "title": "Token"
+          },
+          "initial_top_up_amount": {
+            "type": "number",
+            "title": "Initial Top Up Amount",
+            "default": 0.0
           }
         },
         "type": "object",
@@ -4492,18 +4658,18 @@
             "type": "integer",
             "title": "User Tag Uid"
           },
-          "role_ids": {
+          "role_assignments": {
             "items": {
-              "type": "integer"
+              "$ref": "#/components/schemas/UserRoleAssignmentPayload"
             },
             "type": "array",
-            "title": "Role Ids"
+            "title": "Role Assignments"
           }
         },
         "type": "object",
         "required": [
           "user_tag_uid",
-          "role_ids"
+          "role_assignments"
         ],
         "title": "UpdateUserPayload"
       },
@@ -4576,6 +4742,35 @@
             ],
             "title": "Transport Account Id"
           },
+          "cash_register_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cash Register Id"
+          },
+          "cash_drawer_balance": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cash Drawer Balance"
+          },
+          "terminal_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Terminal Ids"
+          },
           "id": {
             "type": "integer",
             "title": "Id"
@@ -4598,6 +4793,7 @@
           "login",
           "display_name",
           "node_id",
+          "terminal_ids",
           "id",
           "user_tag_uid_hex"
         ],
@@ -4605,28 +4801,21 @@
       },
       "UserInfo": {
         "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
           "login": {
             "type": "string",
             "title": "Login"
           },
+          "node_id": {
+            "type": "integer",
+            "title": "Node Id"
+          },
           "display_name": {
             "type": "string",
             "title": "Display Name"
-          },
-          "user_tag_pin": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "User Tag Pin"
-          },
-          "user_tag_uid": {
-            "type": "integer",
-            "title": "User Tag Uid"
           },
           "description": {
             "anyOf": [
@@ -4639,35 +4828,17 @@
             ],
             "title": "Description"
           },
-          "node_id": {
-            "type": "integer",
-            "title": "Node Id"
-          },
           "user_tag_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "type": "integer",
             "title": "User Tag Id"
           },
-          "transport_account_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Transport Account Id"
+          "user_tag_pin": {
+            "type": "string",
+            "title": "User Tag Pin"
           },
-          "id": {
+          "user_tag_uid": {
             "type": "integer",
-            "title": "Id"
+            "title": "User Tag Uid"
           },
           "cash_register_id": {
             "anyOf": [
@@ -4713,6 +4884,17 @@
             ],
             "title": "Transport Account Balance"
           },
+          "transport_account_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transport Account Id"
+          },
           "assigned_roles": {
             "items": {
               "$ref": "#/components/schemas/UserRoleInfo"
@@ -4735,11 +4917,13 @@
         },
         "type": "object",
         "required": [
-          "login",
-          "display_name",
-          "user_tag_uid",
-          "node_id",
           "id",
+          "login",
+          "node_id",
+          "display_name",
+          "user_tag_id",
+          "user_tag_pin",
+          "user_tag_uid",
           "assigned_roles",
           "user_tag_uid_hex"
         ],
@@ -4764,17 +4948,31 @@
             "type": "string",
             "title": "Name"
           },
-          "is_privileged": {
+          "can_assign_all_roles": {
             "type": "boolean",
-            "title": "Is Privileged",
+            "title": "Can Assign All Roles",
             "default": false
           },
-          "privileges": {
+          "assignable_role_ids": {
             "items": {
-              "$ref": "#/components/schemas/Privilege"
+              "type": "integer"
             },
             "type": "array",
-            "title": "Privileges"
+            "title": "Assignable Role Ids"
+          },
+          "event_privileges": {
+            "items": {
+              "$ref": "#/components/schemas/EventPrivilege"
+            },
+            "type": "array",
+            "title": "Event Privileges"
+          },
+          "node_privileges": {
+            "items": {
+              "$ref": "#/components/schemas/NodePrivilege"
+            },
+            "type": "array",
+            "title": "Node Privileges"
           },
           "id": {
             "type": "integer",
@@ -4788,11 +4986,33 @@
         "type": "object",
         "required": [
           "name",
-          "privileges",
+          "event_privileges",
+          "node_privileges",
           "id",
           "node_id"
         ],
         "title": "UserRole"
+      },
+      "UserRoleAssignmentPayload": {
+        "properties": {
+          "node_id": {
+            "type": "integer",
+            "title": "Node Id"
+          },
+          "role_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Role Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "node_id",
+          "role_ids"
+        ],
+        "title": "UserRoleAssignmentPayload"
       },
       "UserRoleInfo": {
         "properties": {
@@ -4804,16 +5024,19 @@
             "type": "string",
             "title": "Name"
           },
-          "is_privileged": {
-            "type": "boolean",
-            "title": "Is Privileged"
-          },
-          "privileges": {
+          "event_privileges": {
             "items": {
-              "$ref": "#/components/schemas/Privilege"
+              "$ref": "#/components/schemas/EventPrivilege"
             },
             "type": "array",
-            "title": "Privileges"
+            "title": "Event Privileges"
+          },
+          "node_privileges": {
+            "items": {
+              "$ref": "#/components/schemas/NodePrivilege"
+            },
+            "type": "array",
+            "title": "Node Privileges"
           },
           "node_id": {
             "type": "integer",
@@ -4832,8 +5055,8 @@
         "required": [
           "id",
           "name",
-          "is_privileged",
-          "privileges",
+          "event_privileges",
+          "node_privileges",
           "node_id",
           "node_name",
           "is_at_current_node"

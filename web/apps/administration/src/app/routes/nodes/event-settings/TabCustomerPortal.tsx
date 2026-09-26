@@ -1,4 +1,3 @@
-import { RestrictedEventSettings, useUpdateEventMutation } from "@/api";
 import { Button, LinearProgress, Stack } from "@mui/material";
 import { FormTextField } from "@stustapay/form-components";
 import { toFormikValidationSchema } from "@stustapay/utils";
@@ -8,11 +7,14 @@ import { useTranslation } from "react-i18next";
 import { toast } from "react-toastify";
 import { z } from "zod";
 
+import { RestrictedEventSettings, useUpdateEventMutation } from "@/api";
+
 export const CustomerPortalSettingsSchema = z.object({
   customer_portal_url: z.string().url(),
-  customer_portal_contact_email: z.string().email(),
+  customer_portal_contact_email: z.string().email({ pattern: z.regexes.html5Email }),
   customer_portal_about_page_url: z.string().url(),
   customer_portal_data_privacy_url: z.string().url(),
+  customer_portal_feedback_url: z.string().url().optional(),
 });
 
 export type CustomerPortalSettings = z.infer<typeof CustomerPortalSettingsSchema>;
@@ -37,14 +39,20 @@ export const CustomerPortalSettingsForm: React.FC<FormikProps<CustomerPortalSett
         name="customer_portal_data_privacy_url"
         formik={formik}
       />
+      <FormTextField
+        label={t("settings.customerPortal.feedback_url")}
+        name="customer_portal_feedback_url"
+        formik={formik}
+        placeholder={t("settings.customerPortal.feedback_url_placeholder")}
+      />
     </>
   );
 };
 
-export const TabCustomerPortal: React.FC<{ nodeId: number; eventSettings: RestrictedEventSettings }> = ({
-  nodeId,
-  eventSettings,
-}) => {
+export const TabCustomerPortal: React.FC<{
+  nodeId: number;
+  eventSettings: RestrictedEventSettings;
+}> = ({ nodeId, eventSettings }) => {
   const { t } = useTranslation();
   const [updateEvent] = useUpdateEventMutation();
 

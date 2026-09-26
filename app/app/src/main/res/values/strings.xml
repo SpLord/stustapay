@@ -35,6 +35,7 @@
     <string name="common_status_idle">Idle</string>
     <string name="common_status_success">Success!</string>
     <string name="common_tag_id">Chip ID</string>
+    <string name="common_tag_pin">Chip PIN</string>
     <string name="common_topup">Top up</string>
     <string name="common_voucher">Voucher</string>
     <string name="common_voucher_amount">Voucher amount</string>
@@ -116,6 +117,7 @@
     <string name="sale_payout_action">🪙 Pay out...</string>
     <string name="stats_daily_revenue">Daily Revenue</string>
     <string name="stats_hourly_revenue">Hourly Revenue</string>
+    <string name="ticket_check_scan">Checking ticket...</string>
     <string name="ticket_error_duplicate">Already scanned! Scan new ticket.</string>
     <string name="ticket_error_preambel">Error buying ticket:</string>
     <string name="ticket_free_activated">Free ticket activated</string>
@@ -125,8 +127,8 @@
     <string name="ticket_order_cleared_success">Ready for new order.</string>
     <string name="ticket_order_validated">Ticket order validated!</string>
     <string name="ticket_scan">🎫 Scan Ticket</string>
-    <string name="ticket_scan_voucher">Scan Ticket</string>
-    <string name="ticket_scanning_off">Not scanning.</string>
+    <string name="ticket_scan_voucher">Scan QR Ticket</string>
+    <string name="ticket_scanning_off">🎫 Waiting...</string>
     <string name="ticket_unknown">Ticket unknown.</string>
     <string name="ticket_valid">Ticket is valid.</string>
     <string name="ticket_voucher_valid">Ticket voucher is valid.</string>
@@ -143,8 +145,13 @@
     <string name="user_login">Login</string>
     <string name="user_login_other">Change User or Role</string>
     <string name="user_logout">Logout</string>
-    <string name="user_privileged">User is privileged and can not be edited</string>
     <string name="user_roles">Roles</string>
+    <string name="user_roles_at_node">Roles at %1$s</string>
+    <string name="user_roles_read_only">Roles at other nodes (read-only)</string>
+    <string name="user_roles_self_read_only">You cannot change your own roles.</string>
+    <string name="user_select_node">Node</string>
+    <string name="user_add_node_role_assignment">Add additional node</string>
+    <string name="user_remove_node_role_assignment">Remove</string>
     <string name="user_role_select">Select a role:</string>
     <string name="user_title">User</string>
     <string name="user_update_title">Update User</string>

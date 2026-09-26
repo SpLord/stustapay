@@ -14,10 +14,11 @@ const capitalize = <S extends string>(val: S): Capitalize<S> => {
 export type RemovePrefix<S extends string, Prefix extends string> = S extends `${Prefix}${infer T}` ? T : S;
 
 export type ConvertReturn<T, N extends string> = {
-  [K in keyof EntitySelectors<T, EntityState<T, number>, number> as `select${Capitalize<N>}${RemovePrefix<
-    K,
-    "select"
-  >}`]: EntitySelectors<T, EntityState<T, number>, number>[K];
+  [K in keyof EntitySelectors<
+    T,
+    EntityState<T, number>,
+    number
+  > as `select${Capitalize<N>}${RemovePrefix<K, "select">}`]: EntitySelectors<T, EntityState<T, number>, number>[K];
 };
 
 export const convertEntityAdaptorSelectors = <T, N extends string>(
@@ -50,3 +51,26 @@ export const isErrorResp = (resp: object): resp is ErrorResp => {
     typeof anyResp.error.data.detail === "string"
   );
 };
+
+async function parseErrorResponse(resp: Response): Promise<unknown> {
+  const contentType = resp.headers.get("content-type") ?? "";
+  if (contentType.includes("application/json")) {
+    return await resp.json();
+  }
+  return await resp.text();
+}
+
+export async function blobResponseHandler(resp: Response): Promise<Blob | unknown> {
+  if (!resp.ok) {
+    return parseErrorResponse(resp);
+  }
+  return await resp.blob();
+}
+
+export async function blobUrlResponseHandler(resp: Response): Promise<string | unknown> {
+  const result = await blobResponseHandler(resp);
+  if (result instanceof Blob) {
+    return window.URL.createObjectURL(result);
+  }
+  return result;
+}

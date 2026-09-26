@@ -1,55 +1,84 @@
-import {
-  CashierShift,
-  selectCashRegisterById,
-  selectUserById,
-  useGetCashRegisterAdminQuery,
-  useListCashRegistersAdminQuery,
-  useListUsersQuery,
-} from "@/api";
-import { CashierRoutes, CashRegistersRoutes, UserRoutes } from "@/app/routes";
-import { useCurrentNode } from "@/hooks";
-import { Loading } from "@stustapay/components";
+import { Link } from "@mui/material";
 import { DataGrid, GridColDef } from "@stustapay/framework";
-import { getUserName } from "@stustapay/models";
-import * as React from "react";
+import { ArrayElement } from "@stustapay/utils";
+import { eq, materialize, useLiveQuery } from "@tanstack/react-db";
 import { useTranslation } from "react-i18next";
 import { Link as RouterLink } from "react-router-dom";
 
+import { CashRegistersRoutes, UserRoutes } from "@/app/routes";
+import { UserCell, userValueGetter } from "@/components/table/UserCell";
+import { getCashRegisterCollection, getCashierShiftCollection, getUserCollection } from "@/db/collections";
+import { useCurrentNode } from "@/hooks";
+
+const shiftDetailPath = (cashierId: number, shiftId: number) => `${UserRoutes.detail(cashierId)}/shifts/${shiftId}`;
+
 export const CashierShiftTable: React.FC<{
-  cashierShifts: CashierShift[];
+  cashierId?: number;
+  cashRegisterId?: number;
   showCashierColumn?: boolean;
   showCashRegisterColumn?: boolean;
-}> = ({ cashierShifts, showCashierColumn = false, showCashRegisterColumn = false }) => {
+  hideWhenEmpty?: boolean;
+}> = ({
+  cashierId,
+  cashRegisterId,
+  showCashierColumn = false,
+  showCashRegisterColumn = false,
+  hideWhenEmpty = false,
+}) => {
   const { t } = useTranslation();
   const { currentNode } = useCurrentNode();
-  const { data: users } = useListUsersQuery({ nodeId: currentNode.id });
-  const { data: registers } = useListCashRegistersAdminQuery({ nodeId: currentNode.id });
+  const {
+    data: rows,
+    isLoading,
+    isError,
+  } = useLiveQuery(
+    (q) => {
+      let query = q.from({ shifts: getCashierShiftCollection(currentNode.id) });
+      if (cashierId != null) {
+        query = query.where(({ shifts }) => eq(shifts.cashier_id, cashierId));
+      }
+      if (cashRegisterId != null) {
+        query = query.where(({ shifts }) => eq(shifts.cash_register_id, cashRegisterId));
+      }
+      return query.select(({ shifts: shiftRow }) => ({
+        ...shiftRow,
+        closingOutUser: materialize(
+          q
+            .from({ users: getUserCollection(currentNode.id) })
+            .where(({ users }) => eq(users.id, shiftRow.closing_out_user_id))
+            .select(({ users }) => users)
+        ),
+        cashier: materialize(
+          q
+            .from({ users: getUserCollection(currentNode.id) })
+            .where(({ users }) => eq(users.id, shiftRow.cashier_id))
+            .select(({ users }) => users)
+        ),
+        register: materialize(
+          q
+            .from({ registers: getCashRegisterCollection(currentNode.id) })
+            .where(({ registers }) =>
+              shiftRow.cash_register_id != null ? eq(registers.id, shiftRow.cash_register_id) : eq(registers.id, -1)
+            )
+            .select(({ registers }) => registers)
+        ),
+      }));
+    },
+    [currentNode.id, cashierId, cashRegisterId]
+  );
 
-  if (!users || !registers) {
-    return <Loading />;
+  if (isError || (hideWhenEmpty && !isLoading && (rows?.length ?? 0) === 0)) {
+    return null;
   }
 
-  const getUsernameForUser = (id?: number | null) => {
-    if (id == null || users == null) {
-      return "";
-    }
+  type CashierShiftRow = ArrayElement<NonNullable<typeof rows>>;
 
-    const user = selectUserById(users, id);
-    if (!user) {
-      return "";
-    }
-
-    return getUserName(user);
-  };
-
-  const columns: GridColDef<CashierShift>[] = [
+  const columns: GridColDef<CashierShiftRow>[] = [
     {
       field: "id",
       headerName: t("shift.id"),
       renderCell: (params) => (
-        <RouterLink to={CashierRoutes.detail(params.row.cashier_id) + `/shifts/${params.row.id}`}>
-          {params.row.id}
-        </RouterLink>
+        <RouterLink to={shiftDetailPath(params.row.cashier_id, params.row.id)}>{params.row.id}</RouterLink>
       ),
     },
     {
@@ -63,24 +92,18 @@ export const CashierShiftTable: React.FC<{
             field: "cashier_id",
             headerName: t("common.cashier"),
             type: "string",
-            renderCell: (params: any) => (
-              <RouterLink to={CashierRoutes.detail(params.row.cashier_id)}>
-                {getUsernameForUser(params.row.cashier_id)}
-              </RouterLink>
-            ),
+            valueGetter: (_, row) => userValueGetter(row.cashier[0]),
+            renderCell: ({ row }) => <UserCell user={row.cashier[0]} nodeId={currentNode.id} />,
             width: 200,
           },
-        ] as const)
-      : ([] as const)),
+        ] satisfies GridColDef<CashierShiftRow>[])
+      : []),
     {
       field: "closing_out_user_id",
       headerName: t("closeOut.closingOutUser"),
       type: "string",
-      renderCell: (params) => (
-        <RouterLink to={UserRoutes.detail(params.row.closing_out_user_id)}>
-          {getUsernameForUser(params.row.closing_out_user_id)}
-        </RouterLink>
-      ),
+      valueGetter: (_, row) => userValueGetter(row.closingOutUser[0]),
+      renderCell: ({ row }) => <UserCell user={row.closingOutUser[0]} nodeId={currentNode.id} />,
       width: 200,
     },
     ...(showCashRegisterColumn
@@ -89,15 +112,23 @@ export const CashierShiftTable: React.FC<{
             field: "cash_register_id",
             headerName: t("shift.cashRegister"),
             type: "string",
-            renderCell: (params: any) => (
-              <RouterLink to={CashRegistersRoutes.detail(params.row.cash_register_id)}>
-                {selectCashRegisterById(registers, params.row.cash_register_id)?.name}
-              </RouterLink>
-            ),
+            valueGetter: (_, row) => row.register[0]?.name ?? "",
+            renderCell: ({ row }) => {
+              const register = row.register[0];
+              if (register == null) {
+                return null;
+              }
+
+              return (
+                <Link component={RouterLink} to={CashRegistersRoutes.detail(register.id, register.node_id)}>
+                  {register.name}
+                </Link>
+              );
+            },
             width: 200,
           },
-        ] as const)
-      : ([] as const)),
+        ] satisfies GridColDef<CashierShiftRow>[])
+      : []),
     {
       field: "started_at",
       headerName: t("shift.startedAt"),
@@ -129,5 +160,13 @@ export const CashierShiftTable: React.FC<{
     },
   ];
 
-  return <DataGrid rows={cashierShifts} columns={columns} disableRowSelectionOnClick sx={{ border: "none" }} />;
+  return (
+    <DataGrid
+      loading={isLoading}
+      rows={rows ?? []}
+      columns={columns}
+      disableRowSelectionOnClick
+      sx={{ border: "none" }}
+    />
+  );
 };

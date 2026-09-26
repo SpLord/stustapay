@@ -19,20 +19,29 @@ class CreateExternalTicket(BaseModel):
     created_at: datetime
     token: str
     ticket_type: ExternalTicketType
-    external_link: str | None = None
-    customer_email: str | None = None
-    customer_name: str | None = None
-    initial_top_up_amount: float = 0.0
-    pretix_item_id: int | None = None
-    pretix_product_name: str | None = None
+    external_link: str | None
+    customer_email: str | None
+    customer_name: str | None
+    initial_top_up_amount: float
+    pretix_item_id: int | None
+    pretix_product_name: str | None
 
 
 class ExternalTicket(CreateExternalTicket):
     id: int
     customer_account_id: int
     has_checked_in: bool
-    cancelled: bool = False
-    externally_checked_in: bool = False
+    cancelled: bool
+    externally_checked_in: bool
+
+
+class PresaleStats(BaseModel):
+    total_tickets: int
+    checked_in_tickets: int
+    cancelled_tickets: int
+    total_credit_sold: float
+    credit_activated: float
+    credit_pending: float
 
 
 async def fetch_external_tickets(conn: Connection, node: Node) -> list[ExternalTicket]:

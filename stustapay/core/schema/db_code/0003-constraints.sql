@@ -72,25 +72,6 @@ alter table tse_signature add constraint tse_signature_set
 
 alter table customer_info add constraint donation_positive check (donation >= 0);
 
-create or replace function check_button_references_locked_products(
-    product_id bigint
-) returns boolean as
-$$
-<<locals>> declare
-    is_locked boolean;
-begin
-    select
-        product.is_locked
-    into locals.is_locked
-    from
-        product
-    where
-        id = check_button_references_locked_products.product_id;
-    return locals.is_locked;
-end
-$$ language plpgsql
-    set search_path = "$user", public;
-
 create or replace function check_button_references_max_one_non_fixed_price_product(
     button_id bigint,
     product_id bigint
@@ -190,10 +171,6 @@ end
 $$ language plpgsql
     set search_path = "$user", public;
 
-
-alter table till_button_product add constraint references_only_locked_products
-    check (check_button_references_locked_products(product_id));
-
 alter table till_button_product add constraint references_max_one_variable_price_product
     check (check_button_references_max_one_non_fixed_price_product(button_id, product_id));
 
@@ -203,25 +180,25 @@ alter table till_button_product add constraint references_max_one_returnable_pro
 alter table till_button_product add constraint references_max_one_voucher_product
     check (check_button_references_max_one_voucher_product(button_id, product_id));
 
-create or replace function check_till_layout_contains_tickets_of_unique_restrictions(
+create or replace function check_till_layout_contains_tickets_of_unique_user_tag_variants(
     layout_id bigint,
     ticket_id bigint
 ) returns boolean as
 $$
 <<locals>> declare
-    restrictions            text[];
+    user_tag_variant_ids            bigint[];
     n_current_tickets_in_layout int;
 begin
     select
-        t.restrictions
-    into locals.restrictions
+        t.user_tag_variant_ids
+    into locals.user_tag_variant_ids
     from
         ticket t
     where
-        t.id = check_till_layout_contains_tickets_of_unique_restrictions.ticket_id;
+        t.id = check_till_layout_contains_tickets_of_unique_user_tag_variants.ticket_id;
 
-    if array_length(locals.restrictions, 1) > 1 then
-        raise 'ticket in till layout has more than one restriction set';
+    if array_length(locals.user_tag_variant_ids, 1) > 1 then
+        raise 'ticket in till layout has more than one user tag variant set';
     end if;
 
     select
@@ -231,12 +208,12 @@ begin
         ticket t
         join till_layout_to_ticket tltt on t.id = tltt.ticket_id
     where
-        t.id != check_till_layout_contains_tickets_of_unique_restrictions.ticket_id
-        and tltt.layout_id = check_till_layout_contains_tickets_of_unique_restrictions.layout_id
-        and (t.restrictions = locals.restrictions);
+        t.id != check_till_layout_contains_tickets_of_unique_user_tag_variants.ticket_id
+        and tltt.layout_id = check_till_layout_contains_tickets_of_unique_user_tag_variants.layout_id
+        and (t.user_tag_variant_ids = locals.user_tag_variant_ids);
 
     if locals.n_current_tickets_in_layout > 0 then
-        raise '% tickets in layout with same restrictions: %', locals.n_current_tickets_in_layout, locals.restrictions;
+        raise '% tickets in layout with same user tag variants: %', locals.n_current_tickets_in_layout, locals.user_tag_variant_ids;
     end if;
 
     return locals.n_current_tickets_in_layout < 1;
@@ -244,8 +221,8 @@ end
 $$ language plpgsql
     set search_path = "$user", public;
 
-alter table till_layout_to_ticket add constraint unique_restriction_ticket_per_layout
-    check (check_till_layout_contains_tickets_of_unique_restrictions(layout_id, ticket_id));
+alter table till_layout_to_ticket add constraint unique_user_tag_variant_ticket_per_layout
+    check (check_till_layout_contains_tickets_of_unique_user_tag_variants(layout_id, ticket_id));
 
 -- not null constraints do not work if the data is populated by a pre insert trigger, constraints are
 -- checked before any trigger runs
@@ -374,6 +351,7 @@ alter table till_button add constraint name_is_unique check(check_unique_in_tree
 alter table till_layout add constraint name_is_unique check(check_unique_in_tree(id, 'till_layout', 'name', name, node_id));
 alter table till_profile add constraint name_is_unique check(check_unique_in_tree(id, 'till_profile', 'name', name, node_id));
 alter table till add constraint name_is_unique check(check_unique_in_tree(id, 'till', 'name', name, node_id));
+alter table cash_register add constraint name_is_unique check(check_unique_in_tree(id, 'cash_register', 'name', name, node_id));
 alter table user_role add constraint name_is_unique check(check_unique_in_tree(id, 'user_role', 'name', name, node_id));
 alter table tse add constraint name_is_unique check(check_unique_in_tree(id, 'tse', 'name', name, node_id));
 alter table tax_rate add constraint name_is_unique check(check_unique_in_tree(id, 'tax_rate', 'name', name, node_id));
@@ -387,24 +365,41 @@ alter table event add constraint end_date_gt_start_date
 alter table customer_info add constraint account_name_charset
     check ( account_name ~ '^[a-zA-Z0-9\.''\:\?,\-\(\)\/ ÄäÖöÜüßÉéèàùâáêėîíôóûÇğçčćëİïÁϋğÑñãŞÇşı&\$%]+$' );
 
-create or replace function check_user_to_role_terminals_only_at_event_node(
-    node_id bigint,
-    terminal_only bool
-) returns boolean as
+create or replace function check_user_role_assignable_role_insert() returns trigger as
 $$
-<<locals>> declare
-    is_event_node bool;
 begin
-    if not terminal_only then
-        return true;
+    if exists (
+        select 1
+        from user_role
+        where id = new.assigner_role_id
+          and can_assign_all_roles
+    ) then
+        raise exception 'Cannot add explicit assignable roles when can_assign_all_roles is set';
     end if;
+    return new;
+end;
+$$ language plpgsql;
 
-    select n.event_id is not null into locals.is_event_node
-    from node n
-    where n.id = check_user_to_role_terminals_only_at_event_node.node_id;
+create trigger user_role_to_assignable_role_no_explicit_when_all
+    before insert or update on user_role_to_assignable_role
+    for each row execute function check_user_role_assignable_role_insert();
 
-    return locals.is_event_node;
-end
-$$ language plpgsql
-    set search_path = "$user", public;
-alter table user_to_role add constraint user_to_role_terminals_only_at_event_node check(check_user_to_role_terminals_only_at_event_node(node_id, terminal_only));
+create or replace function check_user_role_can_assign_all_roles() returns trigger as
+$$
+begin
+    if new.can_assign_all_roles and exists (
+        select 1
+        from user_role_to_assignable_role
+        where assigner_role_id = new.id
+    ) then
+        raise exception 'Cannot set can_assign_all_roles when explicit assignable roles exist';
+    end if;
+    return new;
+end;
+$$ language plpgsql;
+
+create trigger user_role_can_assign_all_roles_no_explicit
+    before insert or update of can_assign_all_roles on user_role
+    for each row
+    when (new.can_assign_all_roles)
+    execute function check_user_role_can_assign_all_roles();

@@ -5,7 +5,7 @@
     "license": {
       "name": "AGPL-3.0"
     },
-    "version": "0.1.0"
+    "version": "2026.2.1"
   },
   "paths": {
     "/auth/login": {
@@ -323,6 +323,57 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CustomerPortalApiConfig"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized"
+          },
+          "403": {
+            "description": "forbidden"
+          },
+          "404": {
+            "description": "not found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/event-design": {
+      "get": {
+        "tags": [
+          "base"
+        ],
+        "summary": "get event design for the configured node",
+        "operationId": "get_event_design",
+        "parameters": [
+          {
+            "name": "base_url",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Base Url"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventDesign"
                 }
               }
             }
@@ -736,6 +787,18 @@
             "type": "integer",
             "title": "Vouchers"
           },
+          "activated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Activated At"
+          },
           "user_tag_id": {
             "anyOf": [
               {
@@ -769,15 +832,21 @@
             ],
             "title": "User Tag Comment"
           },
-          "restriction": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/ProductRestriction"
-              },
-              {
-                "type": "null"
-              }
-            ]
+          "user_tag_variant_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "User Tag Variant Ids",
+            "default": []
+          },
+          "user_tag_variant_names": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "User Tag Variant Names",
+            "default": []
           },
           "tag_history": {
             "items": {
@@ -894,7 +963,6 @@
           "vouchers",
           "user_tag_id",
           "user_tag_uid",
-          "restriction",
           "tag_history",
           "iban",
           "account_name",
@@ -946,6 +1014,10 @@
           "test_mode_message": {
             "type": "string",
             "title": "Test Mode Message"
+          },
+          "event_name": {
+            "type": "string",
+            "title": "Event Name"
           },
           "data_privacy_url": {
             "type": "string",
@@ -1005,12 +1077,24 @@
           "node_id": {
             "type": "integer",
             "title": "Node Id"
+          },
+          "feedback_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Feedback Url"
           }
         },
         "type": "object",
         "required": [
           "test_mode",
           "test_mode_message",
+          "event_name",
           "data_privacy_url",
           "contact_email",
           "about_page_url",
@@ -1037,6 +1121,42 @@
               }
             ],
             "title": "Bon Logo Blob Id"
+          },
+          "app_logo_blob_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "App Logo Blob Id"
+          },
+          "customer_logo_blob_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Customer Logo Blob Id"
+          },
+          "wristband_guide_blob_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wristband Guide Blob Id"
           }
         },
         "type": "object",
@@ -1091,6 +1211,10 @@
             "type": "number",
             "title": "Tax Rate"
           },
+          "vouchers_redeemed": {
+            "type": "integer",
+            "title": "Vouchers Redeemed"
+          },
           "item_id": {
             "type": "integer",
             "title": "Item Id"
@@ -1113,6 +1237,7 @@
           "tax_rate_id",
           "tax_name",
           "tax_rate",
+          "vouchers_redeemed",
           "item_id",
           "total_tax",
           "total_price"
@@ -1816,12 +1941,12 @@
             "type": "integer",
             "title": "Tax Rate Id"
           },
-          "restrictions": {
+          "user_tag_variant_ids": {
             "items": {
-              "$ref": "#/components/schemas/ProductRestriction"
+              "type": "integer"
             },
             "type": "array",
-            "title": "Restrictions"
+            "title": "User Tag Variant Ids"
           },
           "is_locked": {
             "type": "boolean",
@@ -1830,6 +1955,10 @@
           "is_returnable": {
             "type": "boolean",
             "title": "Is Returnable"
+          },
+          "is_deposit": {
+            "type": "boolean",
+            "title": "Is Deposit"
           },
           "target_account_id": {
             "anyOf": [
@@ -1858,6 +1987,9 @@
             "type": "number",
             "title": "Tax Rate"
           },
+          "tax_type": {
+            "$ref": "#/components/schemas/TaxType"
+          },
           "type": {
             "$ref": "#/components/schemas/ProductType"
           },
@@ -1879,24 +2011,18 @@
           "price",
           "fixed_price",
           "tax_rate_id",
-          "restrictions",
+          "user_tag_variant_ids",
           "is_locked",
           "is_returnable",
+          "is_deposit",
           "node_id",
           "id",
           "tax_name",
           "tax_rate",
+          "tax_type",
           "type"
         ],
         "title": "Product"
-      },
-      "ProductRestriction": {
-        "type": "string",
-        "enum": [
-          "under_16",
-          "under_18"
-        ],
-        "title": "ProductRestriction"
       },
       "ProductType": {
         "type": "string",
@@ -1952,6 +2078,16 @@
           "total_no_tax"
         ],
         "title": "TaxRateAggregation"
+      },
+      "TaxType": {
+        "type": "string",
+        "enum": [
+          "regular_vat",
+          "reduced_vat",
+          "no_tax",
+          "transparent"
+        ],
+        "title": "TaxType"
       },
       "UserTagHistoryEntry": {
         "properties": {

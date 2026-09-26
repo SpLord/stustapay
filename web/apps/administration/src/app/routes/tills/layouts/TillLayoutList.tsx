@@ -1,16 +1,17 @@
-import { selectTillLayoutAll, useDeleteTillLayoutMutation, useListTillLayoutsQuery } from "@/api";
-import { TillLayoutRoutes } from "@/app/routes";
-import { ListLayout } from "@/components";
-import { useCurrentNode, useCurrentUserHasPrivilege, useRenderNode } from "@/hooks";
 import { Delete as DeleteIcon, Edit as EditIcon } from "@mui/icons-material";
 import { Link } from "@mui/material";
 import { DataGrid, GridActionsCellItem, GridColDef } from "@stustapay/framework";
-import { Loading } from "@stustapay/components";
 import { useOpenModal } from "@stustapay/modal-provider";
-import { TillLayout } from "@stustapay/models";
+import { useLiveQuery } from "@tanstack/react-db";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 import { Link as RouterLink, useNavigate } from "react-router-dom";
+
+import { TillLayoutRoutes } from "@/app/routes";
+import { ListLayout } from "@/components";
+import { TillLayout } from "@/db/api/generated";
+import { getTillLayoutCollection } from "@/db/collections";
+import { useCurrentNode, useCurrentUserHasPrivilege, useRenderNode } from "@/hooks";
 
 export const TillLayoutList: React.FC = () => {
   const { t } = useTranslation();
@@ -19,21 +20,11 @@ export const TillLayoutList: React.FC = () => {
   const navigate = useNavigate();
   const openModal = useOpenModal();
 
-  const { layouts, isLoading: isTillsLoading } = useListTillLayoutsQuery(
-    { nodeId: currentNode.id },
-    {
-      selectFromResult: ({ data, ...rest }) => ({
-        ...rest,
-        layouts: data ? selectTillLayoutAll(data) : undefined,
-      }),
-    }
+  const { data: layouts, isLoading: isTillsLoading } = useLiveQuery(
+    (q) => q.from({ layouts: getTillLayoutCollection(currentNode.id) }),
+    [currentNode.id]
   );
-  const [deleteTill] = useDeleteTillLayoutMutation();
   const { dataGridNodeColumn } = useRenderNode();
-
-  if (isTillsLoading) {
-    return <Loading />;
-  }
 
   const openConfirmDeleteDialog = (layoutId: number) => {
     openModal({
@@ -41,9 +32,7 @@ export const TillLayoutList: React.FC = () => {
       title: t("layout.delete"),
       content: t("layout.deleteDescription"),
       onConfirm: () => {
-        deleteTill({ nodeId: currentNode.id, layoutId })
-          .unwrap()
-          .catch(() => undefined);
+        getTillLayoutCollection(currentNode.id).delete(layoutId);
       },
     });
   };
@@ -93,10 +82,11 @@ export const TillLayoutList: React.FC = () => {
     <ListLayout title={t("layout.layouts")} routes={TillLayoutRoutes}>
       <DataGrid
         autoHeight
+        loading={isTillsLoading}
         rows={layouts ?? []}
         columns={columns}
         disableRowSelectionOnClick
-        sx={{ p: 1, boxShadow: (theme) => theme.shadows[1] }}
+        sx={{ boxShadow: (theme) => theme.shadows[1] }}
       />
     </ListLayout>
   );

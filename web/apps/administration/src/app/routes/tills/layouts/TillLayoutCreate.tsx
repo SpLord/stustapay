@@ -1,10 +1,12 @@
-import { useCreateTillLayoutMutation } from "@/api";
-import { useCurrentNode } from "@/hooks";
 import { NewTillLayout, NewTillLayoutSchema } from "@stustapay/models";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
-import { TillLayoutChange } from "./TillLayoutChange";
+
 import { withPrivilegeGuard } from "@/app/layout";
+import { generateId, getTillLayoutCollection } from "@/db/collections";
+import { useCurrentNode } from "@/hooks";
+
+import { TillLayoutChange } from "./TillLayoutChange";
 
 const initialValues: NewTillLayout = {
   name: "",
@@ -16,7 +18,6 @@ const initialValues: NewTillLayout = {
 export const TillLayoutCreate: React.FC = withPrivilegeGuard("node_administration", () => {
   const { t } = useTranslation();
   const { currentNode } = useCurrentNode();
-  const [createLayout] = useCreateTillLayoutMutation();
 
   return (
     <TillLayoutChange
@@ -24,7 +25,13 @@ export const TillLayoutCreate: React.FC = withPrivilegeGuard("node_administratio
       submitLabel={t("add")}
       initialValues={initialValues}
       validationSchema={NewTillLayoutSchema}
-      onSubmit={(layout) => createLayout({ nodeId: currentNode.id, newTillLayout: layout })}
+      onSubmit={(layout) =>
+        getTillLayoutCollection(currentNode.id).insert({
+          ...layout,
+          id: generateId(),
+          node_id: currentNode.id,
+        })
+      }
     />
   );
 });

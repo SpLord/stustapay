@@ -1,11 +1,12 @@
-import { UserTagDetailRead } from "@/api";
-import { AccountRoutes, UserTagRoutes } from "@/app/routes";
-import { useRenderNode } from "@/hooks";
 import { Link } from "@mui/material";
 import { DataGrid, GridColDef } from "@stustapay/framework";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 import { Link as RouterLink } from "react-router-dom";
+
+import { UserTagDetailRead } from "@/api";
+import { CustomerRoutes, UserTagRoutes } from "@/app/routes";
+import { useRenderNode } from "@/hooks";
 
 export interface UserTagTableProps {
   userTags: UserTagDetailRead[];
@@ -42,7 +43,7 @@ export const UserTagTable: React.FC<UserTagTableProps> = ({ userTags }) => {
       align: "right",
       renderCell: (params) =>
         params.row.account_id ? (
-          <Link component={RouterLink} to={AccountRoutes.detail(params.row.account_id)}>
+          <Link component={RouterLink} to={CustomerRoutes.detail(params.row.account_id)}>
             {t("userTag.account")}
           </Link>
         ) : (
@@ -55,6 +56,12 @@ export const UserTagTable: React.FC<UserTagTableProps> = ({ userTags }) => {
       headerName: t("userTag.comment"),
       flex: 1,
     },
+    {
+      field: "variant_names",
+      headerName: t("userTag.variants"),
+      flex: 1,
+      valueFormatter: (value) => ((value as string[] | undefined) ?? []).join(", "),
+    },
     dataGridNodeColumn,
   ];
 
@@ -64,7 +71,7 @@ export const UserTagTable: React.FC<UserTagTableProps> = ({ userTags }) => {
       rows={userTags}
       columns={columns}
       disableRowSelectionOnClick
-      sx={{ p: 1, boxShadow: (theme) => theme.shadows[1] }}
+      sx={{ boxShadow: (theme) => theme.shadows[1] }}
     />
   );
 };

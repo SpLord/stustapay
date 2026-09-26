@@ -3,9 +3,10 @@ package de.stustapay.stustapay.ui.user
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ionspin.kotlin.bignum.integer.BigInteger
-import com.ionspin.kotlin.bignum.integer.toBigInteger
 import dagger.hilt.android.lifecycle.HiltViewModel
+import de.stustapay.api.models.AssignableUserRolesAtNode
 import de.stustapay.api.models.UserInfo
+import de.stustapay.api.models.UserRoleAssignmentPayload
 import de.stustapay.api.models.UserTag
 import de.stustapay.libssp.model.NfcTag
 import de.stustapay.libssp.net.Response
@@ -24,6 +25,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -71,16 +73,16 @@ class UserViewModel @Inject constructor(
     val userStatus = userRepository.status
     val userRoles = userRepository.userRoles
 
-    val availableRoles = terminalConfigRepository.terminalConfigState.map { state ->
+    val availableRolesByNode = terminalConfigRepository.terminalConfigState.map { state ->
         if (state is TerminalConfigState.Success) {
-            state.config.availableRoles
+            state.config.availableRolesByNode
         } else {
             listOf()
         }
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(3000),
-        initialValue = listOf(),
+        initialValue = listOf<AssignableUserRolesAtNode>(),
     )
 
     private val _status = MutableStateFlow<UserRequestState>(UserRequestState.Idle)
@@ -89,8 +91,18 @@ class UserViewModel @Inject constructor(
     private val _currentUser = MutableStateFlow<UserInfo?>(null)
     val currentUser = _currentUser.asStateFlow()
 
-    private val _currentTag = MutableStateFlow(NfcTag(0.toBigInteger(), null))
+    private val _currentTag = MutableStateFlow<NfcTag?>(null)
     val currentTag = _currentTag.asStateFlow()
+
+    val isEditingSelf = combine(_currentUser, userRepository.userState) { editedUser, loggedInState ->
+        editedUser != null &&
+            loggedInState is UserState.LoggedIn &&
+            editedUser.id == loggedInState.user.id
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = false,
+    )
 
     fun clearErrors() {
         userStatus.update { null }
@@ -101,21 +113,23 @@ class UserViewModel @Inject constructor(
     }
 
     suspend fun checkLogin(tag: NfcTag) {
+        _currentTag.update { tag }
         userRepository.checkLogin(tag)
     }
 
-    suspend fun login(tag: NfcTag, roleID: BigInteger) {
-        userRepository.login(tag, roleID)
+    suspend fun login(tag: NfcTag, roleID: BigInteger): Boolean {
+        return userRepository.login(tag, roleID)
     }
 
     suspend fun logout() {
+        _currentTag.update { null }
         userRepository.logout()
     }
 
     fun idleState() {
         _status.update { UserRequestState.Idle }
         _currentUser.update { null }
-        _currentTag.update { NfcTag(0.toBigInteger(), null) }
+        _currentTag.update { null }
     }
 
     suspend fun checkCreate(tag: NfcTag): Boolean {
@@ -124,6 +138,7 @@ class UserViewModel @Inject constructor(
                 display(tag)
                 true
             }
+
             is Response.Error -> false
         }
     }
@@ -132,12 +147,12 @@ class UserViewModel @Inject constructor(
         login: String,
         displayName: String,
         tag: NfcTag,
-        roles: List<BigInteger>,
+        roleAssignments: List<UserRoleAssignmentPayload>,
         description: String
     ) {
         _status.update { UserRequestState.Fetching }
         when (val res = userRepository.create(
-            login, displayName, tag, roles, description
+            login, displayName, tag, roleAssignments, description
         )) {
             is UserCreateState.Created -> {
                 _status.update { UserRequestState.Done }
@@ -147,19 +162,30 @@ class UserViewModel @Inject constructor(
                 _status.update { UserRequestState.Failed(res.msg) }
             }
         }
+        checkCreate(tag)
     }
 
-    suspend fun update(tag: NfcTag, roles: List<BigInteger>) {
+    suspend fun update(tag: NfcTag?, roleAssignments: List<UserRoleAssignmentPayload>): Boolean {
+        if (tag == null) {
+            _status.update { UserRequestState.Failed("no currentTag value passed!") }
+            return false
+        }
         _status.update { UserRequestState.Fetching }
-        when (val res = userRepository.update(tag, roles)) {
+        val success = when (val res = userRepository.update(tag, roleAssignments)) {
             is UserUpdateState.Created -> {
                 _status.update { UserRequestState.Done }
+                true
             }
 
             is UserUpdateState.Error -> {
                 _status.update { UserRequestState.Failed(res.msg) }
+                false
             }
         }
+        if (success) {
+            checkCreate(tag)
+        }
+        return success
     }
 
     suspend fun display(tag: NfcTag) {
@@ -230,4 +256,3 @@ private fun userUiState(
         }
     }
 }
-

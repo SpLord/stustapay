@@ -1,25 +1,18 @@
-import {
-  selectCashierById,
-  selectTillById,
-  selectCashRegisterAll,
-  useDeleteRegisterMutation,
-  useListCashRegistersAdminQuery,
-  useListCashiersQuery,
-  useListTillsQuery,
-  CashRegister,
-} from "@/api";
-import { CashierRoutes, CashRegistersRoutes, TillRoutes } from "@/app/routes";
-import { ListLayout } from "@/components";
-import { useCurrentNode, useCurrentUserHasPrivilege, useCurrentUserHasPrivilegeAtNode, useRenderNode } from "@/hooks";
 import { Delete as DeleteIcon, Edit as EditIcon, SwapHoriz as SwapHorizIcon } from "@mui/icons-material";
 import { Link } from "@mui/material";
 import { DataGrid, GridActionsCellItem, GridColDef } from "@stustapay/framework";
-import { Loading } from "@stustapay/components";
 import { useOpenModal } from "@stustapay/modal-provider";
 import { getUserName } from "@stustapay/models";
+import { ArrayElement } from "@stustapay/utils";
+import { eq, useLiveQuery } from "@tanstack/react-db";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 import { Link as RouterLink, useNavigate } from "react-router-dom";
+
+import { CashRegistersRoutes, TillRoutes, UserRoutes } from "@/app/routes";
+import { ListLayout } from "@/components";
+import { getCashRegisterCollection, getTillCollection, getUserCollection } from "@/db/collections";
+import { useCurrentNode, useCurrentUserHasPrivilege, useCurrentUserHasPrivilegeAtNode, useRenderNode } from "@/hooks";
 
 export const CashRegisterList: React.FC = () => {
   const { t } = useTranslation();
@@ -30,22 +23,27 @@ export const CashRegisterList: React.FC = () => {
   const openModal = useOpenModal();
   const { dataGridNodeColumn } = useRenderNode();
 
-  const { data: tills } = useListTillsQuery({ nodeId: currentNode.id });
-  const { data: cashiers } = useListCashiersQuery({ nodeId: currentNode.id });
-  const { registers, isLoading } = useListCashRegistersAdminQuery(
-    { nodeId: currentNode.id },
-    {
-      selectFromResult: ({ data, ...rest }) => ({
-        ...rest,
-        registers: data ? selectCashRegisterAll(data) : undefined,
-      }),
-    }
+  const { data: registers, isLoading } = useLiveQuery(
+    (q) =>
+      q
+        .from({ registers: getCashRegisterCollection(currentNode.id) })
+        .join(
+          { tills: getTillCollection(currentNode.id) },
+          ({ registers, tills }) => eq(registers.current_till_id, tills.id),
+          "left" as const
+        )
+        .join(
+          { users: getUserCollection(currentNode.id) },
+          ({ registers, users }) => eq(registers.current_cashier_id, users.id),
+          "left" as const
+        )
+        .select(({ registers, tills, users }) => ({
+          ...registers,
+          till: tills,
+          cashier: users,
+        })),
+    [currentNode.id]
   );
-  const [deleteRegister] = useDeleteRegisterMutation();
-
-  if (isLoading) {
-    return <Loading />;
-  }
 
   const openConfirmDeleteDialog = (registerId: number) => {
     openModal({
@@ -53,46 +51,24 @@ export const CashRegisterList: React.FC = () => {
       title: t("register.deleteRegister"),
       content: t("register.deleteRegisterDescription"),
       onConfirm: () => {
-        deleteRegister({ nodeId: currentNode.id, registerId })
-          .unwrap()
-          .catch(() => undefined);
+        getCashRegisterCollection(currentNode.id).delete(registerId);
       },
     });
   };
 
-  const renderTill = (id: number | null) => {
-    if (id == null || !tills) {
-      return "";
-    }
-    const till = selectTillById(tills, id);
-    if (!till) {
-      return "";
+  const renderCashier = (cashier: ArrayElement<NonNullable<typeof registers>>["cashier"]) => {
+    if (cashier?.id == null || cashier.login == null) {
+      return null;
     }
 
     return (
-      <Link component={RouterLink} to={TillRoutes.detail(till.id)}>
-        {till.name}
+      <Link component={RouterLink} to={UserRoutes.detail(cashier.id, cashier.node_id ?? currentNode.id)}>
+        {getUserName({ login: cashier.login, display_name: cashier.display_name ?? "" })}
       </Link>
     );
   };
 
-  const renderCashier = (id: number | null) => {
-    if (id == null || !cashiers) {
-      return "";
-    }
-    const cashier = selectCashierById(cashiers, id);
-    if (!cashier) {
-      return "";
-    }
-
-    return (
-      <Link component={RouterLink} to={CashierRoutes.detail(cashier.id, cashier.node_id)}>
-        {getUserName(cashier)}
-      </Link>
-    );
-  };
-
-  const columns: GridColDef<CashRegister>[] = [
+  const columns: GridColDef<ArrayElement<NonNullable<typeof registers>>>[] = [
     {
       field: "name",
       headerName: t("register.name"),
@@ -107,13 +83,18 @@ export const CashRegisterList: React.FC = () => {
       field: "current_cashier_id",
       headerName: t("register.currentCashier"),
       width: 200,
-      renderCell: (params) => renderCashier(params.row.current_cashier_id),
+      renderCell: (params) => renderCashier(params.row.cashier),
     },
     {
       field: "current_till_id",
       headerName: t("register.currentTill"),
       width: 200,
-      renderCell: (params) => renderTill(params.row.current_till_id),
+      renderCell: (params) =>
+        params.row.till ? (
+          <Link component={RouterLink} to={TillRoutes.detail(params.row.till.id, params.row.till.node_id)}>
+            {params.row.till.name}
+          </Link>
+        ) : null,
     },
     {
       field: "balance",
@@ -160,10 +141,11 @@ export const CashRegisterList: React.FC = () => {
     <ListLayout title={t("register.registers")} routes={CashRegistersRoutes}>
       <DataGrid
         autoHeight
+        loading={isLoading}
         rows={registers ?? []}
         columns={columns}
         disableRowSelectionOnClick
-        sx={{ p: 1, boxShadow: (theme) => theme.shadows[1] }}
+        sx={{ boxShadow: (theme) => theme.shadows[1] }}
       />
     </ListLayout>
   );

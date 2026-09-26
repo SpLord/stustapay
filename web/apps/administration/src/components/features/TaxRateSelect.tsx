@@ -1,7 +1,10 @@
-import { TaxRate, selectTaxRateAll, useListTaxRatesQuery } from "@/api";
-import { useCurrentNode } from "@/hooks";
 import { Select, SelectProps } from "@stustapay/components";
+import { useLiveQuery } from "@tanstack/react-db";
 import * as React from "react";
+
+import { TaxRate } from "@/api";
+import { getTaxRateCollection } from "@/db/collections";
+import { useCurrentNode } from "@/hooks";
 
 export interface TaxRateSelectProps extends Omit<
   SelectProps<TaxRate, false>,
@@ -13,14 +16,9 @@ export interface TaxRateSelectProps extends Omit<
 
 export const TaxRateSelect: React.FC<TaxRateSelectProps> = ({ value, onChange, ...props }) => {
   const { currentNode } = useCurrentNode();
-  const { taxRates } = useListTaxRatesQuery(
-    { nodeId: currentNode.id },
-    {
-      selectFromResult: ({ data, ...rest }) => ({
-        ...rest,
-        taxRates: data ? selectTaxRateAll(data) : [],
-      }),
-    }
+  const { data: taxRates } = useLiveQuery(
+    (q) => q.from({ taxRates: getTaxRateCollection(currentNode.id) }),
+    [currentNode.id]
   );
 
   const handleChange = React.useCallback(

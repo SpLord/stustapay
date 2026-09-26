@@ -6,7 +6,7 @@ from sftkit.service import Service, with_db_transaction
 
 from stustapay.bon.bon import BonJson, generate_dummy_bon_json
 from stustapay.core.config import Config
-from stustapay.core.schema.audit_logs import AuditLog, AuditLogDetail, AuditType
+from stustapay.core.schema.audit_logs import AuditLogDetail, AuditType
 from stustapay.core.schema.media import EventDesign, MimeType, NewBlob
 from stustapay.core.schema.tree import (
     NewEvent,
@@ -16,16 +16,13 @@ from stustapay.core.schema.tree import (
     ObjectType,
     RestrictedEventSettings,
 )
-from stustapay.core.schema.user import CurrentUser, Privilege
+from stustapay.core.schema.user import CurrentUser, NodePrivilege
 from stustapay.core.service.auth import AuthService
-from stustapay.core.service.common.audit_logs import (
-    create_audit_log,
-    fetch_audit_log,
-    fetch_audit_logs,
-)
+from stustapay.core.service.common.audit_logs import create_audit_log, fetch_audit_logs
 from stustapay.core.service.common.decorators import requires_node, requires_user
 from stustapay.core.service.common.error import InvalidArgument, NotFound
 from stustapay.core.service.media import delete_blob, store_blob
+from stustapay.core.service.terminal import TerminalService
 from stustapay.core.service.tree.common import (
     fetch_event_design,
     fetch_event_logo,
@@ -171,7 +168,7 @@ async def _create_system_accounts(conn: Connection, node_id: int):
 
 async def _create_system_tax_rates(conn: Connection, node_id: int):
     await conn.execute(
-        "insert into tax_rate (name, rate, description, node_id) values ('none', 0, 'No Tax', $1)",
+        "insert into tax_rate (name, rate, description, node_id, tax_type) values ('none', 0, 'No Tax', $1, 'no_tax')",
         node_id,
     )
 
@@ -250,22 +247,25 @@ async def create_event(conn: Connection, parent_id: int, event: NewEvent) -> Nod
     #  only exist at an event node
     event_id = await conn.fetchval(
         "insert into event (currency_identifier, sumup_topup_enabled, max_account_balance, ust_id, bon_issuer, "
-        "bon_address, bon_title, customer_portal_contact_email, sepa_enabled, sepa_sender_name, sepa_sender_iban, "
+        "bon_street, bon_zip, bon_city, bon_country, bon_title, customer_portal_contact_email, sepa_enabled, sepa_sender_name, sepa_sender_iban, "
         "sepa_description, sepa_allowed_country_codes, customer_portal_url, customer_portal_about_page_url, "
         "customer_portal_data_privacy_url, sumup_payment_enabled, sumup_api_key, sumup_affiliate_key, "
         "sumup_merchant_code, start_date, end_date, daily_end_time, email_enabled, email_default_sender, "
         "email_smtp_host, email_smtp_port, email_smtp_username, email_smtp_password, payout_sender, "
         " sumup_oauth_client_id, sumup_oauth_client_secret, pretix_presale_enabled, pretix_shop_url, pretix_api_key, "
-        " pretix_organizer, pretix_event, pretix_ticket_ids) "
-        "values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, "
-        " $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38)"
+        " pretix_organizer, pretix_event, pretix_ticket_ids, customer_portal_feedback_url, headwind_enabled, headwind_url, headwind_username, headwind_password) "
+        "values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, "
+        " $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44, $45, $46)"
         "returning id",
         event.currency_identifier,
         event.sumup_topup_enabled,
         event.max_account_balance,
         event.ust_id,
         event.bon_issuer,
-        event.bon_address,
+        event.bon_street,
+        event.bon_zip,
+        event.bon_city,
+        event.bon_country,
         event.bon_title,
         event.customer_portal_contact_email,
         event.sepa_enabled,
@@ -298,6 +298,11 @@ async def create_event(conn: Connection, parent_id: int, event: NewEvent) -> Nod
         event.pretix_organizer,
         event.pretix_event,
         event.pretix_ticket_ids,
+        event.customer_portal_feedback_url,
+        event.headwind_enabled,
+        event.headwind_url,
+        event.headwind_username,
+        event.headwind_password,
     )
     await _sync_optional_event_metadata(conn, event_id, event)
 
@@ -316,15 +321,17 @@ async def update_event(conn: Connection, node: Node, event: NewEvent) -> Node:
 
     await conn.fetchval(
         "update event set currency_identifier = $2, sumup_topup_enabled = $3, max_account_balance = $4, "
-        "   customer_portal_contact_email = $5, ust_id = $6, bon_issuer = $7, bon_address = $8, bon_title = $9, "
-        "   sepa_enabled = $10, sepa_sender_name = $11, sepa_sender_iban = $12, sepa_description = $13, "
-        "   sepa_allowed_country_codes = $14, customer_portal_url = $15, customer_portal_about_page_url = $16,"
-        "   customer_portal_data_privacy_url = $17, sumup_payment_enabled = $18, sumup_api_key = $19, "
-        "   sumup_affiliate_key = $20, sumup_merchant_code = $21, start_date = $22, end_date = $23, "
-        "   daily_end_time = $24, email_enabled = $25, email_default_sender = $26, email_smtp_host = $27, "
-        "   email_smtp_port = $28, email_smtp_username = $29, email_smtp_password = $30, "
-        "   payout_sender = $31, sumup_oauth_client_id = $32, sumup_oauth_client_secret = $33, pretix_presale_enabled = $34,"
-        "   pretix_shop_url = $35, pretix_api_key = $36, pretix_organizer = $37, pretix_event = $38, pretix_ticket_ids = $39 "
+        "   customer_portal_contact_email = $5, ust_id = $6, bon_issuer = $7, "
+        "   bon_street = $8, bon_zip = $9, bon_city = $10, bon_country = $11, bon_title = $12, "
+        "   sepa_enabled = $13, sepa_sender_name = $14, sepa_sender_iban = $15, sepa_description = $16, "
+        "   sepa_allowed_country_codes = $17, customer_portal_url = $18, customer_portal_about_page_url = $19,"
+        "   customer_portal_data_privacy_url = $20, sumup_payment_enabled = $21, sumup_api_key = $22, "
+        "   sumup_affiliate_key = $23, sumup_merchant_code = $24, start_date = $25, end_date = $26, "
+        "   daily_end_time = $27, email_enabled = $28, email_default_sender = $29, email_smtp_host = $30, "
+        "   email_smtp_port = $31, email_smtp_username = $32, email_smtp_password = $33, "
+        "   payout_sender = $34, sumup_oauth_client_id = $35, sumup_oauth_client_secret = $36, pretix_presale_enabled = $37,"
+        "   pretix_shop_url = $38, pretix_api_key = $39, pretix_organizer = $40, pretix_event = $41, pretix_ticket_ids = $42, customer_portal_feedback_url = $43, "
+        "   headwind_enabled = $44, headwind_url = $45, headwind_username = $46, headwind_password = $47 "
         "where id = $1",
         event_id,
         event.currency_identifier,
@@ -333,7 +340,10 @@ async def update_event(conn: Connection, node: Node, event: NewEvent) -> Node:
         event.customer_portal_contact_email,
         event.ust_id,
         event.bon_issuer,
-        event.bon_address,
+        event.bon_street,
+        event.bon_zip,
+        event.bon_city,
+        event.bon_country,
         event.bon_title,
         event.sepa_enabled,
         event.sepa_sender_name,
@@ -365,6 +375,11 @@ async def update_event(conn: Connection, node: Node, event: NewEvent) -> Node:
         event.pretix_organizer,
         event.pretix_event,
         event.pretix_ticket_ids,
+        event.customer_portal_feedback_url,
+        event.headwind_enabled,
+        event.headwind_url,
+        event.headwind_username,
+        event.headwind_password,
     )
     await conn.execute("delete from translation_text where event_id = $1", event_id)
     await _sync_optional_event_metadata(conn, event_id, event)
@@ -374,13 +389,16 @@ async def update_event(conn: Connection, node: Node, event: NewEvent) -> Node:
 
 
 class TreeService(Service[Config]):
-    def __init__(self, db_pool: asyncpg.Pool, config: Config, auth_service: AuthService):
+    def __init__(
+        self, db_pool: asyncpg.Pool, config: Config, auth_service: AuthService, terminal_service: TerminalService
+    ):
         super().__init__(db_pool, config)
         self.auth_service = auth_service
+        self.terminal_service = terminal_service
 
     @with_db_transaction
     @requires_node()
-    @requires_user(privileges=[Privilege.node_administration])
+    @requires_user(node_privileges=[NodePrivilege.node_administration])
     async def create_node(self, conn: Connection, node: Node, current_user: CurrentUser, new_node: NewNode) -> Node:
         created_node = await create_node(conn=conn, parent_id=node.id, new_node=new_node)
         await create_audit_log(
@@ -394,14 +412,8 @@ class TreeService(Service[Config]):
 
     @with_db_transaction
     @requires_node()
-    @requires_user(privileges=[Privilege.node_administration])
-    async def update_node(
-        self,
-        conn: Connection,
-        node: Node,
-        current_user: CurrentUser,
-        updated_node: NewNode,
-    ) -> Node:
+    @requires_user(node_privileges=[NodePrivilege.node_administration])
+    async def update_node(self, conn: Connection, node: Node, current_user: CurrentUser, updated_node: NewNode) -> Node:
         await conn.execute(
             "update node set name = $2, description = $3 where id = $1",
             node.id,
@@ -429,7 +441,7 @@ class TreeService(Service[Config]):
 
     @with_db_transaction
     @requires_node()
-    @requires_user(privileges=[Privilege.node_administration])
+    @requires_user(node_privileges=[NodePrivilege.node_administration])
     async def create_event(self, conn: Connection, node: Node, current_user: CurrentUser, event: NewEvent) -> Node:
         new_node = await create_event(conn=conn, parent_id=node.id, event=event)
         await create_audit_log(
@@ -443,7 +455,7 @@ class TreeService(Service[Config]):
 
     @with_db_transaction
     @requires_node(event_only=True)
-    @requires_user(privileges=[Privilege.node_administration])
+    @requires_user(node_privileges=[NodePrivilege.node_administration])
     async def update_event(self, conn: Connection, node: Node, current_user: CurrentUser, event: NewEvent) -> Node:
         updated_node = await update_event(conn=conn, node=node, event=event)
         await create_audit_log(
@@ -457,7 +469,7 @@ class TreeService(Service[Config]):
 
     @with_db_transaction
     @requires_node(event_only=True)
-    @requires_user(privileges=[Privilege.node_administration])
+    @requires_user(node_privileges=[NodePrivilege.node_administration])
     async def update_bon_logo(self, conn: Connection, node: Node, image: NewBlob):
         if image.mime_type != MimeType.svg.value:
             raise InvalidArgument("Only svg logos are supported")
@@ -484,7 +496,7 @@ class TreeService(Service[Config]):
 
     @with_db_transaction
     @requires_node(event_only=True)
-    @requires_user(privileges=[Privilege.node_administration])
+    @requires_user(node_privileges=[NodePrivilege.node_administration])
     async def update_app_logo(self, conn: Connection, node: Node, image: NewBlob):
         self._validate_image_mime_type(image.mime_type)
         await conn.execute(
@@ -504,7 +516,7 @@ class TreeService(Service[Config]):
 
     @with_db_transaction
     @requires_node(event_only=True)
-    @requires_user(privileges=[Privilege.node_administration])
+    @requires_user(node_privileges=[NodePrivilege.node_administration])
     async def update_customer_logo(self, conn: Connection, node: Node, image: NewBlob):
         self._validate_image_mime_type(image.mime_type)
         await conn.execute(
@@ -526,7 +538,7 @@ class TreeService(Service[Config]):
 
     @with_db_transaction
     @requires_node(event_only=True)
-    @requires_user(privileges=[Privilege.node_administration])
+    @requires_user(node_privileges=[NodePrivilege.node_administration])
     async def update_wristband_guide(self, conn: Connection, node: Node, image: NewBlob):
         self._validate_image_mime_type(image.mime_type)
         await conn.execute(
@@ -554,19 +566,19 @@ class TreeService(Service[Config]):
 
     @with_db_transaction(read_only=True)
     @requires_node(event_only=True)
-    @requires_user(privileges=[Privilege.node_administration])
+    @requires_user(node_privileges=[NodePrivilege.node_administration])
     async def get_restricted_event_settings(self, *, conn: Connection, node: Node) -> RestrictedEventSettings:
         return await fetch_restricted_event_settings_for_node(conn=conn, node_id=node.id)
 
     @with_db_transaction(read_only=True)
     @requires_node(event_only=True)
-    @requires_user(privileges=[])
+    @requires_user(node_privileges=[])
     async def get_event_design(self, *, conn: Connection, node: Node) -> EventDesign:
         return await fetch_event_design(conn=conn, node_id=node.id)
 
     @with_db_transaction(read_only=True)
     @requires_node(event_only=True)
-    @requires_user(privileges=[Privilege.node_administration])
+    @requires_user(node_privileges=[NodePrivilege.node_administration])
     async def generate_test_bon(self, *, conn: Connection, node: Node) -> BonJson:
         assert node.event_node_id is not None
         event = await fetch_restricted_event_settings_for_node(conn=conn, node_id=node.id)
@@ -574,14 +586,14 @@ class TreeService(Service[Config]):
 
     @with_db_transaction(read_only=True)
     @requires_node(event_only=True)
-    @requires_user(privileges=[Privilege.node_administration])
+    @requires_user(node_privileges=[NodePrivilege.node_administration])
     async def check_pretix_connection(self, *, conn: Connection, node: Node) -> BonJson:
         event = await fetch_restricted_event_settings_for_node(conn=conn, node_id=node.id)
         return await pretix.check_connection(event)
 
     @with_db_transaction(read_only=True)
     @requires_node(event_only=True)
-    @requires_user(privileges=[Privilege.node_administration])
+    @requires_user(node_privileges=[NodePrivilege.node_administration])
     async def generate_test_revenue_report(self, *, conn: Connection, node: Node) -> bytes:
         event = await fetch_restricted_event_settings_for_node(conn=conn, node_id=node.id)
         logo = await fetch_event_logo(conn=conn, node_id=node.id)
@@ -589,13 +601,13 @@ class TreeService(Service[Config]):
 
     @with_db_transaction(read_only=True)
     @requires_node(event_only=True)
-    @requires_user(privileges=[Privilege.node_administration])
+    @requires_user(node_privileges=[NodePrivilege.node_administration])
     async def generate_revenue_report(self, *, conn: Connection, node: Node) -> bytes:
         return await generate_revenue_report(conn=conn, node=node)
 
     @with_db_transaction(read_only=True)
     @requires_node(event_only=True)
-    @requires_user(privileges=[Privilege.node_administration])
+    @requires_user(node_privileges=[NodePrivilege.node_administration])
     async def generate_test_daily_report(self, *, conn: Connection, node: Node) -> bytes:
         event = await fetch_restricted_event_settings_for_node(conn=conn, node_id=node.id)
         logo = await fetch_event_logo(conn=conn, node_id=node.id)
@@ -603,7 +615,7 @@ class TreeService(Service[Config]):
 
     @with_db_transaction(read_only=True)
     @requires_node(event_only=True)
-    @requires_user(privileges=[Privilege.node_administration])
+    @requires_user(node_privileges=[NodePrivilege.node_administration])
     async def generate_daily_report(
         self,
         *,
@@ -624,21 +636,31 @@ class TreeService(Service[Config]):
 
     @with_db_transaction(read_only=True)
     @requires_node(event_only=True)
-    @requires_user(privileges=[Privilege.node_administration])
+    @requires_user(node_privileges=[NodePrivilege.node_administration])
     async def generate_payout_report(self, *, conn: Connection, node: Node) -> bytes:
         return await generate_payout_report(conn=conn, node=node)
 
     @with_db_transaction
     @requires_node(event_only=True)
-    @requires_user(privileges=[Privilege.node_administration])
+    @requires_user(node_privileges=[NodePrivilege.node_administration])
     async def archive_node(self, *, conn: Connection, node: Node, current_user: CurrentUser):
         if node.read_only:
             raise InvalidArgument("Node is already read only")
 
-        await conn.execute(
-            "update node set read_only = true where id = $1 or $1 = any(parent_ids)",
-            node.id,
+        # deregister all terminals from the node
+        terminals = await conn.fetch(
+            "select t.id, t.node_id from terminal t where t.node_id = any($1)",
+            node.ids_to_root,
         )
+        for terminal in terminals:
+            terminal_id = terminal["id"]
+            terminal_node_id = terminal["node_id"]
+            terminal_node = await fetch_node(conn=conn, node_id=terminal_node_id)
+            await self.terminal_service.logout_terminal_id(
+                conn=conn, current_user=current_user, node=terminal_node, terminal_id=terminal_id
+            )
+
+        await conn.execute("update node set read_only = true where id = $1 or $1 = any(parent_ids)", node.id)
         await conn.execute(
             "update event set customer_portal_url = '' "
             "where id in ("
@@ -646,6 +668,7 @@ class TreeService(Service[Config]):
             ")",
             node.id,
         )
+
         await create_audit_log(
             conn=conn,
             log_type=AuditType.node_archived,
@@ -656,7 +679,7 @@ class TreeService(Service[Config]):
 
     @with_db_transaction
     @requires_node()
-    @requires_user(privileges=[Privilege.node_administration])
+    @requires_user(node_privileges=[NodePrivilege.node_administration])
     async def delete_node(self, *, conn: Connection, node: Node, current_user: CurrentUser):
         await conn.execute("delete from node where id = $1", node.id)
         # TODO: AUDIT_DELETE
@@ -670,7 +693,7 @@ class TreeService(Service[Config]):
 
     @with_db_transaction
     @requires_node(event_only=True)
-    @requires_user(privileges=[Privilege.node_administration])
+    @requires_user(node_privileges=[NodePrivilege.node_administration])
     async def sumup_auth_code_flow(self, *, conn: Connection, node: Node, authorization_code: str):
         event_settings = await fetch_restricted_event_settings_for_node(conn=conn, node_id=node.id)
 
@@ -688,12 +711,6 @@ class TreeService(Service[Config]):
 
     @with_db_transaction(read_only=True)
     @requires_node()
-    @requires_user(privileges=[Privilege.node_administration])
-    async def list_audit_logs(self, *, conn: Connection, node: Node) -> list[AuditLog]:
+    @requires_user(node_privileges=[NodePrivilege.node_administration])
+    async def list_audit_logs(self, *, conn: Connection, node: Node) -> list[AuditLogDetail]:
         return await fetch_audit_logs(conn=conn, node=node)
-
-    @with_db_transaction(read_only=True)
-    @requires_node()
-    @requires_user(privileges=[Privilege.node_administration])
-    async def get_audit_log(self, *, conn: Connection, node: Node, audit_log_id: int) -> AuditLogDetail:
-        return await fetch_audit_log(conn=conn, node=node, audit_log_id=audit_log_id)

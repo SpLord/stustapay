@@ -1,18 +1,20 @@
-import { AccountRead } from "@/api";
-import { AccountRoutes, UserTagRoutes } from "@/app/routes";
-import { useRenderNode } from "@/hooks";
 import { Link } from "@mui/material";
+import { DataGrid, GridColDef } from "@stustapay/framework";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 import { Link as RouterLink } from "react-router-dom";
-import { formatUserTagUid } from "@stustapay/models";
-import { DataGrid, GridColDef } from "@stustapay/framework";
+
+import { AccountRead } from "@/api";
+import { SystemAccountRoutes } from "@/app/routes";
+import { UserTagCell, userTagValueGetter } from "@/components/table/UserTagCell";
+import { useRenderNode } from "@/hooks";
 
 export interface AccountTableProps {
   accounts: AccountRead[];
+  loading?: boolean;
 }
 
-export const AccountTable: React.FC<AccountTableProps> = ({ accounts }) => {
+export const AccountTable: React.FC<AccountTableProps> = ({ accounts, loading = false }) => {
   const { t } = useTranslation();
   const { dataGridNodeColumn } = useRenderNode();
 
@@ -21,7 +23,7 @@ export const AccountTable: React.FC<AccountTableProps> = ({ accounts }) => {
       field: "name",
       headerName: t("account.name"),
       renderCell: (params) => (
-        <Link component={RouterLink} to={AccountRoutes.detail(params.row.id)}>
+        <Link component={RouterLink} to={SystemAccountRoutes.detail(params.row.id)}>
           {params.row.name}
         </Link>
       ),
@@ -36,11 +38,8 @@ export const AccountTable: React.FC<AccountTableProps> = ({ accounts }) => {
       field: "user_tag_id",
       headerName: t("account.user_tag_uid") as string,
       align: "right",
-      renderCell: (params) => (
-        <Link component={RouterLink} to={UserTagRoutes.detail(params.row.user_tag_id)}>
-          {formatUserTagUid(params.row.user_tag_uid_hex)}
-        </Link>
-      ),
+      valueGetter: (_, row) => userTagValueGetter(row),
+      renderCell: ({ row }) => <UserTagCell userTag={row} />,
       width: 100,
     },
     {
@@ -66,10 +65,11 @@ export const AccountTable: React.FC<AccountTableProps> = ({ accounts }) => {
   return (
     <DataGrid
       autoHeight
+      loading={loading}
       rows={accounts}
       columns={columns}
       disableRowSelectionOnClick
-      sx={{ p: 1, boxShadow: (theme) => theme.shadows[1] }}
+      sx={{ boxShadow: (theme) => theme.shadows[1] }}
     />
   );
 };

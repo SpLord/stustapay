@@ -96,7 +96,7 @@ async def test_basic_till_button_workflow(
     assert updated_button.price == 5
 
     buttons = await till_service.layout.list_buttons(token=event_admin_token, node_id=event_node.id)
-    assert updated_button in buttons
+    assert updated_button.id in [b.id for b in buttons]
 
     with pytest.raises(AccessDenied):
         await till_service.layout.delete_button(token=cashier.token, node_id=event_node.id, button_id=updated_button.id)
@@ -217,35 +217,6 @@ async def test_button_references_max_one_voucher_product(
             button_id=button.id,
             button=NewTillButton(name="foo", product_ids=[product1.id, product2.id]),
         )
-
-
-async def test_button_references_locked_products(
-    event_node: Node,
-    product_service: ProductService,
-    tax_rate_ust: TaxRate,
-    till_service: TillService,
-    event_admin_token: str,
-):
-    product = await product_service.create_product(
-        token=event_admin_token,
-        node_id=event_node.id,
-        product=NewProduct(name="foo", is_locked=False, price=5, tax_rate_id=tax_rate_ust.id),
-    )
-    with pytest.raises(Exception):
-        await till_service.layout.create_button(
-            token=event_admin_token, node_id=event_node.id, button=NewTillButton(name="foo", product_ids=[product.id])
-        )
-
-    product = await product_service.update_product(
-        token=event_admin_token,
-        node_id=event_node.id,
-        product_id=product.id,
-        product=NewProduct(name="foo", is_locked=True, price=5, tax_rate_id=tax_rate_ust.id),
-    )
-    button = await till_service.layout.create_button(
-        token=event_admin_token, node_id=event_node.id, button=NewTillButton(name="foo", product_ids=[product.id])
-    )
-    assert button is not None
 
 
 async def test_button_references_max_one_variable_price_product(

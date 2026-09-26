@@ -1,25 +1,23 @@
-import { Privilege, User, selectUserAll, useListUsersQuery } from "@/api";
-import { useCurrentNode } from "@/hooks";
 import { Select, SelectProps } from "@stustapay/components";
 import { getUserName } from "@stustapay/models";
+import { useLiveQuery } from "@tanstack/react-db";
 import * as React from "react";
+
+import { EventPrivilege, NodePrivilege, User } from "@/api";
+import { getUserCollection } from "@/db/collections";
+import { useCurrentNode } from "@/hooks";
 
 export type UserSelectProps = {
   value: number;
   onChange: (userId: number) => void;
-  filterPrivilege?: Privilege;
+  filterPrivilege?: EventPrivilege | NodePrivilege;
 } & Omit<SelectProps<User, false>, "options" | "formatOption" | "multiple" | "value" | "onChange">;
 
 export const UserSelect: React.FC<UserSelectProps> = ({ value, onChange, filterPrivilege, ...props }) => {
   const { currentNode } = useCurrentNode();
-  const { users } = useListUsersQuery(
-    { nodeId: currentNode.id, filterPrivilege },
-    {
-      selectFromResult: ({ data, ...rest }) => ({
-        ...rest,
-        users: data ? selectUserAll(data) : [],
-      }),
-    }
+  const { data: users = [] } = useLiveQuery(
+    (q) => q.from({ users: getUserCollection(currentNode.id, { filterPrivilege }) }),
+    [currentNode.id, filterPrivilege]
   );
 
   const handleChange = React.useCallback(

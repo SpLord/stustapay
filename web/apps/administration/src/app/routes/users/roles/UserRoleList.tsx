@@ -1,15 +1,19 @@
-import { UserRole, selectUserRoleAll, useDeleteUserRoleMutation, useListUserRolesQuery } from "@/api";
-import { UserRoleRoutes } from "@/app/routes";
-import { ListLayout } from "@/components";
-import { useCurrentNode, useCurrentUserHasPrivilege, useCurrentUserHasPrivilegeAtNode, useRenderNode } from "@/hooks";
 import { Delete as DeleteIcon, Edit as EditIcon } from "@mui/icons-material";
 import { Link } from "@mui/material";
 import { DataGrid, GridActionsCellItem, GridColDef } from "@stustapay/framework";
-import { Loading } from "@stustapay/components";
 import { useOpenModal } from "@stustapay/modal-provider";
+import { ArrayElement } from "@stustapay/utils";
+import { useLiveQuery } from "@tanstack/react-db";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, Link as RouterLink } from "react-router-dom";
+
+import { UserRoleRoutes } from "@/app/routes";
+import { ListLayout } from "@/components";
+import { getUserRoleCollection } from "@/db/collections";
+import { useCurrentNode, useCurrentUserHasPrivilege, useCurrentUserHasPrivilegeAtNode, useRenderNode } from "@/hooks";
+
+import { PrivilegeOverviewCell } from "./components/PrivilegeOverviewCell";
 
 export const UserRoleList: React.FC = () => {
   const { t } = useTranslation();
@@ -19,21 +23,11 @@ export const UserRoleList: React.FC = () => {
   const navigate = useNavigate();
   const openModal = useOpenModal();
 
-  const { userRoles, isLoading } = useListUserRolesQuery(
-    { nodeId: currentNode.id },
-    {
-      selectFromResult: ({ data, ...rest }) => ({
-        ...rest,
-        userRoles: data ? selectUserRoleAll(data) : undefined,
-      }),
-    }
+  const { data: userRoles, isLoading } = useLiveQuery(
+    (q) => q.from({ userRoles: getUserRoleCollection(currentNode.id) }),
+    [currentNode.id]
   );
-  const [deleteUserRole] = useDeleteUserRoleMutation();
   const { dataGridNodeColumn } = useRenderNode();
-
-  if (isLoading) {
-    return <Loading />;
-  }
 
   const openConfirmDeleteDialog = (userRoleId: number) => {
     openModal({
@@ -41,14 +35,12 @@ export const UserRoleList: React.FC = () => {
       title: t("userRole.delete"),
       content: t("userRole.deleteDescription"),
       onConfirm: () => {
-        deleteUserRole({ nodeId: currentNode.id, userRoleId })
-          .unwrap()
-          .catch(() => undefined);
+        getUserRoleCollection(currentNode.id).delete(userRoleId);
       },
     });
   };
 
-  const columns: GridColDef<UserRole>[] = [
+  const columns: GridColDef<ArrayElement<NonNullable<typeof userRoles>>>[] = [
     {
       field: "name",
       headerName: t("userRole.name"),
@@ -60,14 +52,23 @@ export const UserRoleList: React.FC = () => {
       minWidth: 200,
     },
     {
-      field: "is_privileged",
-      headerName: t("userRole.isPrivileged"),
+      field: "can_assign_all_roles",
+      headerName: t("userRole.canAssignAllRoles"),
+      description: t("userRole.canAssignAllRolesDescription"),
       type: "boolean",
     },
     {
       field: "privileges",
-      headerName: t("userPrivileges"),
+      headerName: t("userRole.privileges"),
       flex: 1,
+      sortable: false,
+      valueGetter: (_, row) => [...row.event_privileges, ...row.node_privileges].join(", "),
+      renderCell: (params) => (
+        <PrivilegeOverviewCell
+          eventPrivileges={params.row.event_privileges}
+          nodePrivileges={params.row.node_privileges}
+        />
+      ),
     },
     dataGridNodeColumn,
   ];
@@ -101,10 +102,11 @@ export const UserRoleList: React.FC = () => {
     <ListLayout title={t("userRoles")} routes={UserRoleRoutes}>
       <DataGrid
         autoHeight
+        loading={isLoading}
         rows={userRoles ?? []}
         columns={columns}
         disableRowSelectionOnClick
-        sx={{ p: 1, boxShadow: (theme) => theme.shadows[1] }}
+        sx={{ boxShadow: (theme) => theme.shadows[1] }}
       />
     </ListLayout>
   );

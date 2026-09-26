@@ -1,6 +1,6 @@
-import { Node, NodeSeenByUser, ObjectType, Privilege } from "@/api";
 import {
   AccountBalance as AccountBalanceIcon,
+  AdminPanelSettings as AdminPanelSettingsIcon,
   ConfirmationNumber as ConfirmationNumberIcon,
   Nfc as NfcIcon,
   Person as PersonIcon,
@@ -11,9 +11,9 @@ import {
   Smartphone as SmartphoneIcon,
 } from "@mui/icons-material";
 import * as React from "react";
-import { NavigationTreeItem } from "./NavigationTreeItem";
+
+import { EventPrivilege, Node, NodePrivilege, NodeSeenByUser, ObjectType } from "@/api";
 import {
-  CashierRoutes,
   CustomerRoutes,
   ProductRoutes,
   SumUpTransactionRoutes,
@@ -21,18 +21,21 @@ import {
   TicketRoutes,
   TillRoutes,
   TseRoutes,
+  UserRoleRoutes,
   UserRoutes,
   UserTagRoutes,
   UserToRoleRoutes,
 } from "@/app/routes";
 import { i18n } from "@/i18n";
 
+import { NavigationTreeItem } from "./NavigationTreeItem";
+
 type NodeMenuItem = {
   route: (node: Node) => string;
   icon: React.FC;
   label: string;
   requiresEvent?: boolean;
-  requiredPrivileges?: Privilege[];
+  requiredPrivileges?: (EventPrivilege | NodePrivilege)[];
   requiresOneOfObjectType?: ObjectType[];
   additionalRequirements?: (node: Node) => boolean;
 };
@@ -42,19 +45,18 @@ export const nodeMenuEntryDefinitions: NodeMenuItem[] = [
     route: (node) => UserRoutes.list(node.id),
     label: i18n.t("users"),
     icon: PersonIcon,
-    requiresOneOfObjectType: ["user", "user_role"],
+    requiresOneOfObjectType: ["user"],
   },
   {
-    route: (node) => CashierRoutes.list(node.id),
-    label: i18n.t("cashiers"),
-    icon: PersonIcon,
-    requiresOneOfObjectType: ["user", "user_role"],
-    requiresEvent: true,
+    route: (node) => UserRoleRoutes.list(node.id),
+    label: i18n.t("userRoles"),
+    icon: AdminPanelSettingsIcon,
+    requiresOneOfObjectType: ["user_role"],
   },
   {
     route: (node) => UserToRoleRoutes.list(node.id),
     label: i18n.t("userToRoles"),
-    icon: PersonIcon,
+    icon: AdminPanelSettingsIcon,
   },
   {
     route: (node) => ProductRoutes.list(node.id),
@@ -136,7 +138,11 @@ export const isMenuEntryValidAtNode = (entry: NodeMenuItem, node: NodeSeenByUser
   if (
     entry.requiredPrivileges != null &&
     entry.requiredPrivileges.length > 0 &&
-    !entry.requiredPrivileges.every((privilege) => node.privileges_at_node.includes(privilege))
+    !entry.requiredPrivileges.every(
+      (privilege) =>
+        node.node_privileges_at_node.includes(privilege as NodePrivilege) ||
+        node.event_privileges_at_node.includes(privilege as EventPrivilege)
+    )
   ) {
     return false;
   }

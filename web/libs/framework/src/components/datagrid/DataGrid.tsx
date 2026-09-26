@@ -1,17 +1,15 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-import * as React from "react";
 import {
   DataGrid as MuiDataGrid,
   GridValidRowModel,
   type DataGridProps as MuiDataGridProps,
   type GridColDef as MuiGridColDef,
-  GridToolbarContainer,
-  GridToolbarQuickFilter,
   GridColTypeDef,
 } from "@mui/x-data-grid";
 import { GridBaseColDef } from "@mui/x-data-grid/internals";
-import { useOptionalCurrencyIdentifier } from "../../core/currency/CurrencyProvider";
+import * as React from "react";
+
 import { createCurrencyFormatter } from "../../core/currency/createCurrencyFormatter";
+import { useOptionalCurrencyIdentifier } from "../../core/currency/CurrencyProvider";
 
 export { GridActionsCellItem } from "@mui/x-data-grid";
 
@@ -25,14 +23,6 @@ export type DataGridProps<R extends GridValidRowModel = any> = Omit<MuiDataGridP
   React.RefAttributes<HTMLDivElement> & {
     readonly columns: GridColDef<R>[];
   };
-
-const Toolbar = () => {
-  return (
-    <GridToolbarContainer>
-      <GridToolbarQuickFilter />
-    </GridToolbarContainer>
-  );
-};
 
 export const DataGrid = <R extends GridValidRowModel = any>({ columns, ...props }: DataGridProps<R>) => {
   const currencyIdentifier = useOptionalCurrencyIdentifier();
@@ -61,7 +51,7 @@ export const DataGrid = <R extends GridValidRowModel = any>({ columns, ...props 
       disableColumnFilter
       disableColumnSelector
       disableDensitySelector
-      slots={{ toolbar: Toolbar }}
+      showToolbar
       columns={modifiedColumns}
       {...props}
     />
