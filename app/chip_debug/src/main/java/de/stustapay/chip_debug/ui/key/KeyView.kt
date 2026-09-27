@@ -73,7 +73,11 @@ fun KeyView(navigateBack: () -> Unit, viewModel: KeyViewModel = hiltViewModel())
             Spacer(modifier = Modifier.height(8.dp))
 
             Row {
-                Button(onClick = { viewModel.save(keyInput) }) {
+                Button(onClick = {
+                    if (viewModel.save(keyInput)) {
+                        keyInput = ""
+                    }
+                }) {
                     Text("Speichern")
                 }
                 Spacer(modifier = Modifier.width(16.dp))
@@ -88,6 +92,14 @@ fun KeyView(navigateBack: () -> Unit, viewModel: KeyViewModel = hiltViewModel())
             errorMessage?.let {
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(text = it, color = Color.Red)
+            }
+
+            if (!viewModel.storageAvailable) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Schlüsselspeicher nicht verfügbar — Schlüssel gilt nur bis zum App-Neustart",
+                    color = Color.Red,
+                )
             }
 
             Spacer(modifier = Modifier.height(24.dp))

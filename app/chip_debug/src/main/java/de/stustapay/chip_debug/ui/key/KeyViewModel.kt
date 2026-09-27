@@ -17,6 +17,9 @@ import javax.inject.Inject
 class KeyViewModel @Inject constructor(
     private val keyRepository: KeyRepository,
 ) : ViewModel() {
+    /** False when the encrypted store is unavailable; the key is then in-memory only. */
+    val storageAvailable: Boolean = keyRepository.storageAvailable
+
     /** Never the key itself: first 4 hex chars of SHA-256(key bytes), or null if unset. */
     val fingerprint: StateFlow<String?> = keyRepository.key0
         .map { key ->
@@ -30,12 +33,11 @@ class KeyViewModel @Inject constructor(
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage = _errorMessage.asStateFlow()
 
-    fun save(hex: String) {
-        _errorMessage.value = if (keyRepository.setKey0Hex(hex)) {
-            null
-        } else {
-            "Ungültig: 32 Hex-Zeichen erwartet"
-        }
+    /** Returns true on success (caller should then clear the plaintext input). */
+    fun save(hex: String): Boolean {
+        val ok = keyRepository.setKey0Hex(hex)
+        _errorMessage.value = if (ok) null else "Ungültig: 32 Hex-Zeichen erwartet"
+        return ok
     }
 
     fun delete() {
