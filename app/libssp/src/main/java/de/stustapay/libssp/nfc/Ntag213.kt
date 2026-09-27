@@ -73,13 +73,15 @@ class Ntag213(
         return byteArrayOf(p[0], p[1], p[2], p[4], p[5], p[6], p[7])
     }
 
-    fun readUid(): ULong {
+    private fun bytesToULong(bytes: ByteArray): ULong {
         var uid = 0uL
-        for (b in readUidBytes()) uid = (uid shl 8) or b.toUByte().toULong()
+        for (b in bytes) uid = (uid shl 8) or b.toUByte().toULong()
         return uid
     }
 
-    data class AuthResult(val creds: Ntag213Credentials.Credentials, val legacy: Boolean)
+    fun readUid(): ULong = bytesToULong(readUidBytes())
+
+    data class AuthResult(val creds: Ntag213Credentials.Credentials, val legacy: Boolean, val uid: ByteArray)
     data class ReadResult(val tag: NfcTag, val legacy: Boolean)
 
     /**
@@ -90,19 +92,25 @@ class Ntag213(
      */
     fun authenticate(key0: BitVector, acceptLegacy: Boolean = Ntag213Credentials.ACCEPT_LEGACY_BANDS): AuthResult {
         if (!isConnected) throw TagConnectionException()
-        val creds = Ntag213Credentials.derive(key0, readUidBytes())
+        val uid = readUidBytes()
+        val creds = Ntag213Credentials.derive(key0, uid)
         try {
             cmdPwdAuth(creds.pwd, creds.pack)
-            return AuthResult(creds, legacy = false)
+            return AuthResult(creds, legacy = false, uid = uid)
         } catch (e: TagAuthException) {
-            throw e // PACK mismatch: the band answers with a foreign PACK
+            throw e // PACK mismatch: the band answered — right PWD, foreign PACK — never retry
         } catch (e: IOException) {
+            // NAK, either as a transport exception or (some readers) a short data answer.
             if (looksLocked(e)) throw TagLockedException("Band gesperrt (AUTHLIM)")
         }
         if (acceptLegacy) {
+            // A failed PWD_AUTH HALTs a real NTAG213 — it must be re-activated before the next
+            // attempt, or the legacy PWD_AUTH would NAK regardless of whether it is correct.
+            transport.close()
+            transport.connect()
             try {
                 cmdPwdAuth(Ntag213Credentials.LEGACY.pwd, Ntag213Credentials.LEGACY.pack)
-                return AuthResult(Ntag213Credentials.LEGACY, legacy = true)
+                return AuthResult(Ntag213Credentials.LEGACY, legacy = true, uid = uid)
             } catch (e: Exception) { /* fall through */ }
         }
         throw TagAuthException("PWD_AUTH rejected")
@@ -114,7 +122,7 @@ class Ntag213(
     /** Read UID + PIN. Always authenticates — a band that cannot authenticate is not ours. */
     fun readTag(key0: BitVector, acceptLegacy: Boolean = Ntag213Credentials.ACCEPT_LEGACY_BANDS): ReadResult {
         val auth = authenticate(key0, acceptLegacy)
-        val uid = readUid()
+        val uid = bytesToULong(auth.uid)
         val pinPages = cmdRead(PIN_PAGE_START.toUByte())
         val sb = StringBuilder()
         for (i in 0 until PIN_MAX_LENGTH) {
@@ -236,9 +244,10 @@ class Ntag213(
         val resp = transport.transceive(cmd)
 
         // A successful PWD_AUTH answers with exactly the 2-byte PACK.
-        // Anything else (NAK, empty, garbage) means the password was rejected.
+        // Anything else (NAK as short data, empty, garbage) is a NAK, not a PACK mismatch —
+        // some real readers surface a failed PWD_AUTH this way instead of an IOException.
         if (resp.size != 2) {
-            throw TagAuthException("PWD_AUTH rejected (response ${resp.size} bytes)")
+            throw TagNakException("PWD_AUTH rejected (response ${resp.size} bytes)")
         }
         if (expectedPack != null) {
             if (expectedPack.size != 2) throw IllegalArgumentException("PACK must be 2 bytes")
