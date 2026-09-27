@@ -16,6 +16,15 @@ class FakeNtag213(uid: ByteArray) : Ntag213Transport {
     var negativeAuthCount = 0
     override var isConnected = true
 
+    /** A failed PWD_AUTH HALTs a real NTAG213: it must be re-activated (connect()) before anything else works. */
+    var halted = false
+
+    /** Real hardware can also NAK a PWD_AUTH with a short data answer instead of a transport IOException. */
+    var nakAsData = false
+
+    /** Total number of PWD_AUTH (0x1B) commands the emulator has seen, for asserting "no retry" behaviour. */
+    var pwdAuthAttempts = 0
+
     init {
         require(uid.size == 7)
         pages[0] = byteArrayOf(uid[0], uid[1], uid[2], (0x88 xor uid[0].toInt() xor uid[1].toInt() xor uid[2].toInt()).toByte())
@@ -47,11 +56,12 @@ class FakeNtag213(uid: ByteArray) : Ntag213Transport {
         setPwd(c.pwd); setPack(c.pack); setAuth0(4); setProt(true); setAuthLim(3)
     }
 
-    override fun connect() { isConnected = true; authenticated = false }
+    override fun connect() { isConnected = true; authenticated = false; halted = false }
     override fun close() { isConnected = false; authenticated = false }
 
     override fun transceive(cmd: ByteArray): ByteArray {
         if (!isConnected) throw IOException("not connected")
+        if (halted) throw IOException("halted")
         return when (cmd[0].toInt() and 0xFF) {
             0x60 -> byteArrayOf(0x00, 0x04, 0x04, 0x02, 0x01, 0x00, 0x0F, 0x03)
             0x30 -> {
@@ -75,9 +85,15 @@ class FakeNtag213(uid: ByteArray) : Ntag213Transport {
             }
             0x1B -> {
                 if (cmd.size != 5) throw IOException("NAK bad pwd frame")
+                pwdAuthAttempts++
                 if (locked()) throw IOException("NAK auth locked")
                 val ok = cmd.copyOfRange(1, 5).contentEquals(pages[43])
-                if (!ok) { negativeAuthCount++; throw IOException("NAK wrong pwd") }
+                if (!ok) {
+                    negativeAuthCount++
+                    halted = true
+                    if (nakAsData) return byteArrayOf(0x00)
+                    throw IOException("NAK wrong pwd")
+                }
                 authenticated = true
                 negativeAuthCount = 0
                 pages[44].copyOfRange(0, 2)

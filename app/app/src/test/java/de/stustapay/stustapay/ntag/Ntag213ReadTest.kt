@@ -66,4 +66,37 @@ class Ntag213ReadTest {
         val f = tag(); f.provisionNew(key0, "AB12")
         assertEquals("AB12", Ntag213(f).readTag(key0).tag.pin)
     }
+
+    @Test
+    fun readTag_legacyBand_acceptedAfterHalt() {
+        // The failed derived-key attempt HALTs the emulator (default: NAK surfaces as IOException);
+        // authenticate() must re-activate the tag before trying the legacy password.
+        val f = tag()
+        f.pages[4] = "AB12".toByteArray(); f.setPwd(Ntag213Credentials.LEGACY.pwd); f.setPack(Ntag213Credentials.LEGACY.pack); f.setAuth0(4)
+        val r = Ntag213(f).readTag(key0)
+        assertEquals("AB12", r.tag.pin)
+        assertEquals(true, r.legacy)
+    }
+
+    @Test
+    fun readTag_legacyBand_acceptedWhenNakAsData() {
+        // Some real readers see a NAK as a short data answer (e.g. one 0x00 byte) instead of a
+        // transport exception; that must be treated the same as an IOException NAK.
+        val f = tag()
+        f.pages[4] = "AB12".toByteArray(); f.setPwd(Ntag213Credentials.LEGACY.pwd); f.setPack(Ntag213Credentials.LEGACY.pack); f.setAuth0(4)
+        f.nakAsData = true
+        val r = Ntag213(f).readTag(key0)
+        assertEquals("AB12", r.tag.pin)
+        assertEquals(true, r.legacy)
+    }
+
+    @Test
+    fun readTag_packMismatch_noLegacyFallback() {
+        // Right PWD, wrong PACK: the band answered as ours (or a spoof knowing our PWD but not
+        // able to fake the PACK check) — this is a definite rejection, never a legacy retry.
+        val f = tag(); f.provisionNew(key0, "ABCD1234EFGH5678")
+        f.setPack(byteArrayOf(0xAA.toByte(), 0xBB.toByte()))
+        assertThrows(TagAuthException::class.java) { Ntag213(f).readTag(key0) }
+        assertEquals(1, f.pwdAuthAttempts)
+    }
 }

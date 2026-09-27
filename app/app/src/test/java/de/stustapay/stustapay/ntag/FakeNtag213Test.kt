@@ -46,7 +46,9 @@ class FakeNtag213Test {
         val t = FakeNtag213(uid)
         t.setPwd(byteArrayOf(1, 2, 3, 4)); t.setPack(byteArrayOf(9, 9)); t.setAuth0(4); t.setProt(true); t.setAuthLim(1) // 2^1 = 2 Versuche
         assertThrows(IOException::class.java) { t.transceive(byteArrayOf(0x1B, 0, 0, 0, 0)) }
+        t.connect() // real hardware HALTs after a failed PWD_AUTH — re-activate before the next attempt
         assertThrows(IOException::class.java) { t.transceive(byteArrayOf(0x1B, 0, 0, 0, 0)) }
+        t.connect()
         // ab jetzt auch mit richtigem Passwort gesperrt
         assertThrows(IOException::class.java) { t.transceive(byteArrayOf(0x1B, 1, 2, 3, 4)) }
     }
