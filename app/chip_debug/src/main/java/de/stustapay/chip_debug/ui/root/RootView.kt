@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import de.stustapay.chip_debug.ui.key.KeyView
 import de.stustapay.chip_debug.ui.nav.NavChangeHandler
 import de.stustapay.chip_debug.ui.nav.navigateDestination
 import de.stustapay.chip_debug.ui.provision.NfcProvisionView
@@ -55,6 +56,13 @@ fun RootView(uictrl: SysUiController? = null) {
         }
         composable(RootNavDests.verify.route) {
             NfcVerifyView(
+                navigateBack = {
+                    navController.navigateDestination(RootNavDests.startpage)
+                }
+            )
+        }
+        composable(RootNavDests.key.route) {
+            KeyView(
                 navigateBack = {
                     navController.navigateDestination(RootNavDests.startpage)
                 }

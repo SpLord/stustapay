@@ -4,6 +4,7 @@
     <string name="root_item_write">Schreiben</string>
     <string name="root_item_provision">Band beschreiben</string>
     <string name="root_item_verify">Prüfen</string>
+    <string name="root_item_key">Schlüssel</string>
     <string name="root_item_restart_app">App Neustarten</string>
 
     <string name="nfc_scan_prompt">📡 Chip scannen</string>

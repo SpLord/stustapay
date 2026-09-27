@@ -11,4 +11,5 @@ object RootNavDests : NavDestinations() {
     val write = NavDest("write")
     val provision = NavDest("provision")
     val verify = NavDest("verify")
+    val key = NavDest("key")
 }
