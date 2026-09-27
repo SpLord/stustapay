@@ -6,13 +6,10 @@ data class NfcTag(
     val uid: BigInteger,
     val pin: String?,
 ) {
+    /** Never includes the PIN itself — only whether one is set. Used implicitly by any log line
+     *  that stringifies an [NfcScanResult] carrying this tag (e.g. [NfcScanResult.Read]). */
     override fun toString(): String {
-        val uidHex = uidHex()
-        return if (pin == null) {
-            uidHex
-        } else {
-            "$uidHex: $pin"
-        }
+        return "${uidHex()} pin=${if (pin == null) "null" else "<set>"}"
     }
 
     fun uidHex(): String {

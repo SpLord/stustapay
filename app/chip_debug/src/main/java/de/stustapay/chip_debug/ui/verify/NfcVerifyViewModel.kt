@@ -33,11 +33,11 @@ class NfcVerifyViewModel @Inject constructor(
     }
 
     /**
-     * Continuously scans for a band and shows its NTAG213 protection status. A MIFARE-Ultralight
-     * AES band cannot answer a Status request (see [NfcScanFailure.STATUS_NTAG_ONLY]) — for those
-     * we fall back to the original UID/PIN read used before this screen understood NTAG213 status,
-     * so MIFARE-AES verification behaviour is unchanged. That fallback needs a second tap of the
-     * same band, since the first tap's scan request ("Status") already produced a result.
+     * Continuously scans for a band and shows its protection status. A single Status request
+     * covers both chip families in one tap: NfcHandler answers it with [NfcScanResult.Status] for
+     * NTAG213 (AUTH0/PROT/AUTHLIM/legacy) and with the plain [NfcScanResult.Read] a Read request
+     * would produce for MIFARE-Ultralight AES (which has no protection-status concept), so MIFARE
+     * verification behaviour is unchanged.
      */
     fun scan(vibrator: Vibrator) {
         stop()
@@ -61,30 +61,17 @@ class NfcVerifyViewModel @Inject constructor(
                         )
                     }
 
-                    is NfcScanResult.Fail -> {
-                        val reason = res.reason
-                        if (reason is NfcScanFailure.Other && reason.msg == NfcScanFailure.STATUS_NTAG_ONLY) {
-                            emitLegacyRead(vibrator)
-                        } else {
-                            _result.emit(NfcDebugScanResult.Failure(reason))
-                        }
+                    is NfcScanResult.Read -> {
+                        // MIFARE-Ultralight AES band (unchanged legacy verify display).
+                        vibrator.vibrate(VibrationEffect.createOneShot(300, 200))
+                        _result.emit(NfcDebugScanResult.ReadSuccess(res.tag))
                     }
+
+                    is NfcScanResult.Fail -> _result.emit(NfcDebugScanResult.Failure(res.reason))
 
                     else -> _result.emit(NfcDebugScanResult.None)
                 }
             }
-        }
-    }
-
-    private suspend fun emitLegacyRead(vibrator: Vibrator) {
-        when (val res = nfcRepository.read()) {
-            is NfcScanResult.Read -> {
-                vibrator.vibrate(VibrationEffect.createOneShot(300, 200))
-                _result.emit(NfcDebugScanResult.ReadSuccess(res.tag))
-            }
-
-            is NfcScanResult.Fail -> _result.emit(NfcDebugScanResult.Failure(res.reason))
-            else -> _result.emit(NfcDebugScanResult.None)
         }
     }
 }

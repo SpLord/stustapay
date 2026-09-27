@@ -122,8 +122,8 @@ fun NfcVerifyView(navigateBack: () -> Unit, viewModel: NfcVerifyViewModel = hilt
                             is NfcScanFailure.Other -> Text("Failure: ${reason.msg}")
                             is NfcScanFailure.Incompatible -> Text("Tag incompatible")
                             is NfcScanFailure.Lost -> Text("Tag lost")
-                            is NfcScanFailure.Auth -> Text("Band gehört nicht zu diesem Schlüssel — prüfe den eingetragenen Schlüssel")
-                            is NfcScanFailure.Locked -> Text("Locked: ${reason.msg}")
+                            is NfcScanFailure.Auth -> Text("Band gehört nicht zu diesem Schlüssel — prüfe den eingetragenen Schlüssel oder provisioniere das Band neu")
+                            is NfcScanFailure.Locked -> Text("Gesperrt: ${reason.msg}")
                         }
                     }
                 }

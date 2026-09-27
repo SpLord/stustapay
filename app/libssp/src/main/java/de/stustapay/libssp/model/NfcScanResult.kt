@@ -48,20 +48,17 @@ sealed interface NfcScanResult {
         override fun msg(): String {
             return "status read"
         }
+
+        /** Never includes the PIN itself — only whether one is set (e.g. for log lines that
+         *  stringify the whole result). */
+        override fun toString(): String {
+            return "Status(uid=$uid, pin=${if (pin == null) "null" else "<set>"}, auth0=$auth0, prot=$prot, authLim=$authLim, legacy=$legacy)"
+        }
     }
 }
 
 sealed interface NfcScanFailure {
     fun msg(): String
-
-    companion object {
-        /**
-         * [Other.msg] used by the MIFARE-AES dispatch path when it receives a
-         * [NfcScanRequest.Status] request (status is NTAG213-only). Shared as a constant so
-         * callers can match on it without duplicating the German string literal.
-         */
-        const val STATUS_NTAG_ONLY = "Status nur für NTAG213"
-    }
 
     object NoKey : NfcScanFailure {
         override fun msg(): String {

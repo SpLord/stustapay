@@ -162,7 +162,12 @@ class NfcHandler @Inject constructor(
                     dataSource.setScanResult(NfcScanResult.Test(log))
                 }
                 is NfcScanRequest.Status -> {
-                    dataSource.setScanResult(NfcScanResult.Fail(NfcScanFailure.Other(NfcScanFailure.STATUS_NTAG_ONLY)))
+                    // MIFARE-Ultralight AES has no protection-status concept to report (unlike
+                    // NTAG213's AUTH0/PROT/AUTHLIM) — answer exactly like a Read request instead
+                    // of failing, so the verify screen gets its (single-tap) MIFARE result the
+                    // same way a Read request would. chip_debug passes one key for both.
+                    tag.connect()
+                    dataSource.setScanResult(NfcScanResult.Read(tag.fastRead(req.dataProtKey, req.dataProtKey)))
                 }
             }
         } finally {
@@ -210,11 +215,19 @@ class NfcHandler @Inject constructor(
                 dataSource.setScanResult(NfcScanResult.Fail(NfcScanFailure.Other("Test not supported for NTAG")))
             }
             is NfcScanRequest.Status -> {
+                // readTag() gives us the UID already (as NfcTag.uid, a BigInteger built from the
+                // same bytes tag.readUid() would re-read) -- reuse it via a lossless decimal
+                // round-trip instead of spending a third NFC command on a repeat UID read.
+                //
+                // readStatus() re-authenticates (a second PWD_AUTH) rather than reusing readTag()'s
+                // session; avoiding that would need a new Ntag213 API (e.g. an authenticated
+                // "read status without re-auth" method), which is out of scope here. Two PWD_AUTHs
+                // on the same connection are safe (see Ntag213Status flow test / class docs).
                 val r = tag.readTag(req.dataProtKey)
                 val s = tag.readStatus(req.dataProtKey)
                 dataSource.setScanResult(
                     NfcScanResult.Status(
-                        uid = tag.readUid(),
+                        uid = r.tag.uid.toString().toULong(),
                         pin = r.tag.pin,
                         auth0 = s.auth0,
                         prot = s.prot,
