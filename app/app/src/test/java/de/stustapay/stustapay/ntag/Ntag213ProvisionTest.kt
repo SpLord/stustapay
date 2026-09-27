@@ -115,6 +115,18 @@ class Ntag213ProvisionTest {
         assertThrows(IllegalArgumentException::class.java) { Ntag213(f).provisionTag("A".repeat(17), key0) }
         assertArrayEquals(pinBefore, f.pinBytes()); assertArrayEquals(pwdBefore, f.pwd()); assertArrayEquals(packBefore, f.pack())
     }
+
+    @Test
+    fun provision_invalidPin_costsNoAuthAttempt() {
+        // Foreign protected band (different event key0): an invalid PIN must be rejected before
+        // any PWD_AUTH is attempted, so it never burns a negative-auth attempt on a band that
+        // was never going to accept our key0 anyway.
+        val f = tag(); f.provisionNew(otherKey, "XYZ")
+
+        assertThrows(IllegalArgumentException::class.java) { Ntag213(f).provisionTag("EMOJI😀", key0) }
+
+        assertEquals(0, f.negativeAuthCount)
+    }
 }
 
 /** Wraps a FakeNtag213 and throws IOException on the N-th WRITE (tag pulled away). */

@@ -179,6 +179,9 @@ class Ntag213(
      */
     fun provisionTag(pin: String, key0: BitVector, legacy: Ntag213Credentials.Credentials? = Ntag213Credentials.LEGACY) {
         if (!isConnected) throw TagConnectionException()
+        // Validate before any auth attempt: an invalid PIN must never burn a negative-auth
+        // attempt on a band that was going to be rejected anyway (see writePin()).
+        validatePin(pin)
         val creds = Ntag213Credentials.derive(key0, readUidBytes())
 
         // A failed PWD_AUTH HALTs a real NTAG213 -- it must be re-activated (close/connect)
@@ -243,11 +246,15 @@ class Ntag213(
             false
         }
 
-    private fun writePin(pin: String) {
+    private fun validatePin(pin: String) {
         require(
             pin.isNotEmpty() && pin.length <= PIN_MAX_LENGTH &&
                 pin.all { it in 'A'..'Z' || it in 'a'..'z' || it in '0'..'9' }
         ) { "PIN must be 1-16 ASCII letters/digits" }
+    }
+
+    private fun writePin(pin: String) {
+        validatePin(pin)
         val pinAscii = pin.toByteArray(Charsets.US_ASCII)
         val pinBytes = ByteArray(PIN_MAX_LENGTH)
         pinAscii.copyInto(pinBytes, endIndex = pinAscii.size)

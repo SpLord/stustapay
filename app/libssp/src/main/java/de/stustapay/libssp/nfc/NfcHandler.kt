@@ -100,15 +100,19 @@ class NfcHandler @Inject constructor(
         } catch (e: TagLostException) {
             dataSource.setScanResult(NfcScanResult.Fail(NfcScanFailure.Lost("Band zu kurz gehalten")))
         } catch (e: TagAuthException) {
-            dataSource.setScanResult(NfcScanResult.Fail(NfcScanFailure.Auth("Authentifizierung fehlgeschlagen")))
+            dataSource.setScanResult(NfcScanResult.Fail(NfcScanFailure.Auth("Band nicht für dieses Event provisioniert oder gesperrt")))
         } catch (e: TagLockedException) {
-            dataSource.setScanResult(NfcScanResult.Fail(NfcScanFailure.Auth("Band gesperrt oder nicht für dieses Event provisioniert")))
+            dataSource.setScanResult(NfcScanResult.Fail(NfcScanFailure.Locked("Band gesperrt — bitte an der Kasse tauschen")))
         } catch (e: TagIncompatibleException) {
             dataSource.setScanResult(NfcScanResult.Fail(NfcScanFailure.Incompatible("Chip nicht unterstützt")))
         } catch (e: TagConnectionException) {
             dataSource.setScanResult(NfcScanResult.Fail(NfcScanFailure.Lost("Verbindung verloren")))
+        } catch (e: TagNakException) {
+            dataSource.setScanResult(NfcScanResult.Fail(NfcScanFailure.Auth("Band nicht für dieses Event provisioniert oder gesperrt")))
         } catch (e: IOException) {
             dataSource.setScanResult(NfcScanResult.Fail(NfcScanFailure.Lost("Bitte nochmal scannen")))
+        } catch (e: IllegalArgumentException) {
+            dataSource.setScanResult(NfcScanResult.Fail(NfcScanFailure.Other(e.message ?: "Ungültige Eingabe")))
         } catch (e: Exception) {
             e.printStackTrace()
             dataSource.setScanResult(NfcScanResult.Fail(NfcScanFailure.Other(e.localizedMessage ?: "Fehler")))
@@ -165,29 +169,34 @@ class NfcHandler @Inject constructor(
 
     private fun handleNtag213Tag(tag: Ntag213) {
         val req = dataSource.getScanRequest() ?: return
+        tag.connect()
         when (req) {
             is NfcScanRequest.Read -> {
-                tag.connect()
                 val key0 = req.dataProtKey ?: run {
                     dataSource.setScanResult(NfcScanResult.Fail(NfcScanFailure.NoKey))
                     return
                 }
-                dataSource.setScanResult(NfcScanResult.Read(tag.readTag(key0).tag))
+                val r = tag.readTag(key0)
+                if (r.legacy) {
+                    Log.w("NfcHandler", "legacy NTAG213 band (uid ${r.tag.uid.toString(16).take(6)}…) — bitte neu provisionieren")
+                }
+                dataSource.setScanResult(NfcScanResult.Read(r.tag, legacy = r.legacy))
             }
             is NfcScanRequest.Write -> {
-                tag.connect()
-                if (req.dataProtKey == null) {
-                    dataSource.setScanResult(NfcScanResult.Fail(NfcScanFailure.Auth("Key required for write")))
+                val key0 = req.dataProtKey ?: run {
+                    dataSource.setScanResult(NfcScanResult.Fail(NfcScanFailure.NoKey))
                     return
                 }
-                tag.provisionTag(req.pin ?: "WWWWWWWWWWWWWWWW", req.dataProtKey)
+                val pin = req.pin ?: run {
+                    dataSource.setScanResult(NfcScanResult.Fail(NfcScanFailure.Other("PIN required for NTAG213")))
+                    return
+                }
+                tag.provisionTag(pin, key0)
                 dataSource.setScanResult(NfcScanResult.Write)
             }
             is NfcScanRequest.Rewrite -> {
-                tag.connect()
                 val ser = tag.readUid()
-                val pin = uid_map[ser]
-                if (pin == null) {
+                val pin = uid_map[ser] ?: run {
                     dataSource.setScanResult(NfcScanResult.Fail(NfcScanFailure.Other("UID not found")))
                     return
                 }

@@ -3,7 +3,8 @@ package de.stustapay.libssp.model
 sealed interface NfcScanResult {
     fun msg(): String
     data class Read(
-        val tag: NfcTag
+        val tag: NfcTag,
+        val legacy: Boolean = false
     ) : NfcScanResult {
         override fun msg(): String {
             return "read ${tag.uidHex()}"
@@ -63,6 +64,12 @@ sealed interface NfcScanFailure {
     data class Auth(val msg: String) : NfcScanFailure {
         override fun msg(): String {
             return "auth fail: $msg"
+        }
+    }
+
+    data class Locked(val msg: String) : NfcScanFailure {
+        override fun msg(): String {
+            return "locked: $msg"
         }
     }
 }

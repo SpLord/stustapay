@@ -158,6 +158,7 @@ fun NfcProvisionView(
                         is NfcScanFailure.Incompatible -> Text("Chip nicht kompatibel", color = Color.Red)
                         is NfcScanFailure.Lost -> Text("Band zu kurz gehalten", color = Color.Red)
                         is NfcScanFailure.Auth -> Text("Auth fehlgeschlagen", color = Color.Red)
+                        is NfcScanFailure.Locked -> Text("Gesperrt: ${reason.msg}", color = Color.Red)
                     }
                 }
             }

@@ -152,6 +152,12 @@ class NfcScanDialogViewModel @Inject constructor(
                                     reason.msg,
                                 )
                             }
+
+                            is NfcScanFailure.Locked -> _scanState.update {
+                                NfcScanUiState.Error(
+                                    reason.msg,
+                                )
+                            }
                         }
 
                         is NfcScanResult.Test -> {
