@@ -180,7 +180,7 @@ class NfcHandler @Inject constructor(
                     dataSource.setScanResult(NfcScanResult.Fail(NfcScanFailure.Auth("Key required for write")))
                     return
                 }
-                tag.provisionTag(req.pin ?: "WWWWWWWWWWWWWWWW", req.dataProtKey, req.uidRetrKey)
+                tag.provisionTag(req.pin ?: "WWWWWWWWWWWWWWWW", req.dataProtKey)
                 dataSource.setScanResult(NfcScanResult.Write)
             }
             is NfcScanRequest.Rewrite -> {
@@ -191,7 +191,7 @@ class NfcHandler @Inject constructor(
                     dataSource.setScanResult(NfcScanResult.Fail(NfcScanFailure.Other("UID not found")))
                     return
                 }
-                tag.writeTag(pin, req.dataProtKey, req.uidRetrKey)
+                tag.writeTag(pin, req.dataProtKey)
                 dataSource.setScanResult(NfcScanResult.Write)
             }
             is NfcScanRequest.Test -> {

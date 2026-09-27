@@ -43,7 +43,12 @@ class Ntag213(
         const val USER_BYTES = 144 // (39 - 4 + 1) * 4
         const val PIN_PAGE_START = 4  // store PIN in first user pages (4-7 = 16 bytes)
         const val PIN_MAX_LENGTH = 16
-        const val AUTH0_PAGE = 41
+        const val CFG0_PAGE = 41           // byte 3 = AUTH0
+        const val CFG1_PAGE = 42           // byte 0 = ACCESS: PROT(0x80) CFGLCK(0x40) NFC_CNT_EN(0x10) NFC_CNT_PWD_PROT(0x08) AUTHLIM(0x07)
+        const val ACCESS_PROT = 0x80
+        const val ACCESS_CFGLCK = 0x40
+        const val ACCESS_AUTHLIM_MASK = 0x07
+        const val AUTHLIM_VALUE = 3        // datasheet: limit = 2^AUTHLIM negative attempts
         const val PWD_PAGE = 43
         const val PACK_PAGE = 44
 
@@ -132,95 +137,89 @@ class Ntag213(
         return ReadResult(NfcTag(uid.toBigInteger(), sb.toString().ifEmpty { null }), auth.legacy)
     }
 
+    data class Ntag213Status(val auth0: Int, val prot: Boolean, val authLim: Int)
+
     /**
-     * Write PIN to user memory pages 4-7, and optionally set PWD_AUTH password.
+     * Provision or migrate a band. Order is chosen so that every interruption leaves a state
+     * from which a re-run converges:
+     *   1. gain write access with derived creds (already migrated) -> else legacy creds (not yet
+     *      migrated) -> else none (fresh band, AUTH0 = 0xFF, writes need no auth)
+     *   2. write PIN (pages 4-7)                                     (readable/writable in every start state)
+     *   3. write PWD (43) + PACK (44)                                 (from now on derived creds work)
+     *   4. CFG1: PROT = 1, AUTHLIM = 3, CFGLCK untouched              (reads >= 4 need auth)
+     *   5. CFG0: AUTH0 = 4                                            (writes >= 4 need auth)
+     * CFG1 is written before CFG0 on purpose: AUTH0 gates writes to pages >= itself immediately,
+     * including the config pages themselves, so setting it first would lock an unauthenticated
+     * (fresh) band out of the following CFG1 write. Setting it last is always safe.
+     * A re-run after step 3 succeeds via derived-PWD write access; before step 3 via legacy/none.
      */
-    fun writeTag(pin: String, key0: BitVector, key1: BitVector) {
-        if (!isConnected) { throw TagConnectionException() }
+    fun provisionTag(pin: String, key0: BitVector, legacy: Ntag213Credentials.Credentials? = Ntag213Credentials.LEGACY) {
+        if (!isConnected) throw TagConnectionException()
+        val creds = Ntag213Credentials.derive(key0, readUidBytes())
 
-        // Authenticate first
-        val pwd = ByteArray(4)
-        for (i in 0 until 4) {
-            pwd[i] = key0.gbe(i.toULong()).toByte()
-        }
-        val pack = ByteArray(2) { key1.gbe(it.toULong()).toByte() }
-
-        cmdPwdAuth(pwd, pack)
-
-        // Write PIN to pages 4-7 (16 bytes, padded with zeros)
-        val pinBytes = ByteArray(PIN_MAX_LENGTH)
-        for (i in pin.indices) {
-            if (i < PIN_MAX_LENGTH) {
-                pinBytes[i] = pin[i].code.toByte()
+        // A failed PWD_AUTH HALTs a real NTAG213 -- it must be re-activated (close/connect)
+        // before the next attempt, or every following command (including the next PWD_AUTH and
+        // the writes below) would NAK regardless of whether the credential is correct.
+        if (!tryAuth(creds)) {
+            transport.close(); transport.connect()
+            if (legacy == null || !tryAuth(legacy)) {
+                transport.close(); transport.connect()
             }
         }
-        for (page in 0 until 4) {
-            val offset = page * 4
-            cmdWrite(
-                (PIN_PAGE_START + page).toUByte(),
-                pinBytes[offset].toUByte(),
-                pinBytes[offset + 1].toUByte(),
-                pinBytes[offset + 2].toUByte(),
-                pinBytes[offset + 3].toUByte()
-            )
-        }
+
+        writePin(pin)
+        cmdWrite(PWD_PAGE.toUByte(), creds.pwd[0].toUByte(), creds.pwd[1].toUByte(), creds.pwd[2].toUByte(), creds.pwd[3].toUByte())
+        cmdWrite(PACK_PAGE.toUByte(), creds.pack[0].toUByte(), creds.pack[1].toUByte(), 0x00u, 0x00u)
+
+        val cfg1 = cmdRead(CFG1_PAGE.toUByte())
+        // keep NFC_CNT_EN / NFC_CNT_PWD_PROT bits, never set CFGLCK, set PROT, set AUTHLIM
+        val keepMask = (ACCESS_PROT or ACCESS_CFGLCK or ACCESS_AUTHLIM_MASK).inv() and 0xFF
+        val newAccess = ((cfg1[0].toInt() and keepMask) or ACCESS_PROT or AUTHLIM_VALUE) and 0xFF
+        cmdWrite(CFG1_PAGE.toUByte(), newAccess.toUByte(), cfg1[1].toUByte(), cfg1[2].toUByte(), cfg1[3].toUByte())
+
+        val cfg0 = cmdRead(CFG0_PAGE.toUByte())
+        cmdWrite(CFG0_PAGE.toUByte(), cfg0[0].toUByte(), cfg0[1].toUByte(), cfg0[2].toUByte(), PIN_PAGE_START.toUByte())
+    }
+
+    /** Rewrite the PIN on an already provisioned band (chip_debug "Rewrite"). */
+    fun writeTag(pin: String, key0: BitVector) {
+        authenticate(key0)
+        writePin(pin)
+    }
+
+    /** Current protection configuration of a band. Requires authentication (band must be ours). */
+    fun readStatus(key0: BitVector): Ntag213Status {
+        authenticate(key0)
+        val cfg0 = cmdRead(CFG0_PAGE.toUByte()); val cfg1 = cmdRead(CFG1_PAGE.toUByte())
+        val access = cfg1[0].toInt() and 0xFF
+        return Ntag213Status(cfg0[3].toInt() and 0xFF, (access and ACCESS_PROT) != 0, access and ACCESS_AUTHLIM_MASK)
     }
 
     /**
-     * Provision a new NTAG213 tag: write password, PACK, set AUTH0 protection, then write PIN.
-     * Handles both fresh tags (no auth) and already-provisioned tags (auth required).
+     * Attempt PWD_AUTH purely to gain write access while (re-)provisioning. Unlike
+     * authenticate()/readTag(), the PACK is deliberately *not* validated here: a band that was
+     * interrupted between writing PWD (43) and PACK (44) already has the new PWD but a stale
+     * PACK, and a PWD match alone -- derived from our secret key0 -- is proof enough that this is
+     * our own band for the purpose of resuming a write; the PACK gets (re)written right after.
+     * Only IOException (incl. TagNakException) means "this credential is not it"; anything else
+     * is unexpected and propagates.
      */
-    fun provisionTag(pin: String, key0: BitVector, key1: BitVector) {
-        if (!isConnected) { throw TagConnectionException() }
-
-        val pwd = ByteArray(4)
-        for (i in 0 until 4) {
-            pwd[i] = key0.gbe(i.toULong()).toByte()
-        }
-        val pack = ByteArray(2) { key1.gbe(it.toULong()).toByte() }
-
-        // Try PWD_AUTH first — tag might already be provisioned from a previous attempt
+    private fun tryAuth(c: Ntag213Credentials.Credentials): Boolean =
         try {
-            cmdPwdAuth(pwd, pack)
-        } catch (_: Exception) {
-            // Auth failed or not needed (fresh tag) — continue without auth
+            cmdPwdAuth(c.pwd, null)
+            true
+        } catch (e: IOException) {
+            false
         }
 
-        // Write PWD (page 43)
-        cmdWrite(
-            PWD_PAGE.toUByte(),
-            pwd[0].toUByte(), pwd[1].toUByte(), pwd[2].toUByte(), pwd[3].toUByte()
-        )
-
-        // Write PACK (page 44) - 2 bytes PACK + 2 bytes zero
-        cmdWrite(
-            PACK_PAGE.toUByte(),
-            pack[0].toUByte(), pack[1].toUByte(), 0x00u, 0x00u
-        )
-
-        // Set AUTH0 in CFG0 (page 41): protect from page 4 onwards
-        val cfg0 = cmdRead(AUTH0_PAGE.toUByte())
-        cmdWrite(
-            AUTH0_PAGE.toUByte(),
-            cfg0[0].toUByte(), cfg0[1].toUByte(), cfg0[2].toUByte(),
-            PIN_PAGE_START.toUByte() // AUTH0 = page 4
-        )
-
-        // Write PIN to pages 4-7
+    private fun writePin(pin: String) {
         val pinBytes = ByteArray(PIN_MAX_LENGTH)
-        for (i in pin.indices) {
-            if (i < PIN_MAX_LENGTH) {
-                pinBytes[i] = pin[i].code.toByte()
-            }
-        }
+        pin.toByteArray(Charsets.US_ASCII).copyInto(pinBytes, endIndex = minOf(pin.length, PIN_MAX_LENGTH))
         for (page in 0 until 4) {
-            val offset = page * 4
+            val o = page * 4
             cmdWrite(
                 (PIN_PAGE_START + page).toUByte(),
-                pinBytes[offset].toUByte(),
-                pinBytes[offset + 1].toUByte(),
-                pinBytes[offset + 2].toUByte(),
-                pinBytes[offset + 3].toUByte()
+                pinBytes[o].toUByte(), pinBytes[o + 1].toUByte(), pinBytes[o + 2].toUByte(), pinBytes[o + 3].toUByte()
             )
         }
     }
