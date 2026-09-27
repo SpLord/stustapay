@@ -113,16 +113,40 @@ class Ntag213(
             // attempt, or the legacy PWD_AUTH would NAK regardless of whether it is correct.
             transport.close()
             transport.connect()
-            try {
-                cmdPwdAuth(Ntag213Credentials.LEGACY.pwd, Ntag213Credentials.LEGACY.pack)
-                return AuthResult(Ntag213Credentials.LEGACY, legacy = true, uid = uid)
-            } catch (e: Exception) { /* fall through */ }
+            // Legacy bands always have PROT = 0 (the pre-migration provisioning never set it),
+            // so page 41 (CFG0) is always plain-readable there. A band that refuses even this
+            // unauthenticated read is already protected under a foreign key0 -- trying the legacy
+            // password on it would only burn another negative-auth attempt (AUTHLIM) on a band
+            // that was never going to accept it, risking a lockout if the same band is rescanned
+            // a few times (e.g. a guest's band from another event, presented at the till).
+            if (canReadCfg0Unauthenticated()) {
+                try {
+                    cmdPwdAuth(Ntag213Credentials.LEGACY.pwd, Ntag213Credentials.LEGACY.pack)
+                    return AuthResult(Ntag213Credentials.LEGACY, legacy = true, uid = uid)
+                } catch (e: Exception) { /* fall through */ }
+            } else {
+                transport.close(); transport.connect()
+            }
         }
         throw TagAuthException("PWD_AUTH rejected")
     }
 
     /** Emulator marks a locked band explicitly; real readers just NAK. */
     private fun looksLocked(e: IOException): Boolean = e.message?.contains("locked", ignoreCase = true) == true
+
+    /**
+     * True if page 41 (CFG0) can be read without authentication. Legacy bands (PROT = 0) and
+     * fresh bands (AUTH0 = 0xFF) always answer; a band already protected under a foreign key0
+     * NAKs. Used to skip the legacy PWD_AUTH attempt (and its negative-auth cost) entirely on
+     * such a foreign protected band -- see authenticate()/provisionTag().
+     */
+    private fun canReadCfg0Unauthenticated(): Boolean =
+        try {
+            cmdRead(CFG0_PAGE.toUByte())
+            true
+        } catch (e: IOException) {
+            false
+        }
 
     /** Read UID + PIN. Always authenticates — a band that cannot authenticate is not ours. */
     fun readTag(key0: BitVector, acceptLegacy: Boolean = Ntag213Credentials.ACCEPT_LEGACY_BANDS): ReadResult {
@@ -160,9 +184,15 @@ class Ntag213(
         // A failed PWD_AUTH HALTs a real NTAG213 -- it must be re-activated (close/connect)
         // before the next attempt, or every following command (including the next PWD_AUTH and
         // the writes below) would NAK regardless of whether the credential is correct.
+        //
+        // Legacy bands always have PROT = 0, so an unauthenticated read of page 41 (CFG0) tells
+        // apart "may be legacy" from "already protected under a foreign key0" without spending a
+        // second negative-auth attempt on a band that was never going to accept the legacy
+        // password anyway (see authenticate()/canReadCfg0Unauthenticated()).
         if (!tryAuth(creds)) {
             transport.close(); transport.connect()
-            if (legacy == null || !tryAuth(legacy)) {
+            val mayBeLegacy = legacy != null && canReadCfg0Unauthenticated()
+            if (!mayBeLegacy || !tryAuth(legacy!!)) {
                 transport.close(); transport.connect()
             }
         }
@@ -209,12 +239,18 @@ class Ntag213(
             cmdPwdAuth(c.pwd, null)
             true
         } catch (e: IOException) {
+            if (looksLocked(e)) throw TagLockedException("Band gesperrt (AUTHLIM)")
             false
         }
 
     private fun writePin(pin: String) {
+        require(
+            pin.isNotEmpty() && pin.length <= PIN_MAX_LENGTH &&
+                pin.all { it in 'A'..'Z' || it in 'a'..'z' || it in '0'..'9' }
+        ) { "PIN must be 1-16 ASCII letters/digits" }
+        val pinAscii = pin.toByteArray(Charsets.US_ASCII)
         val pinBytes = ByteArray(PIN_MAX_LENGTH)
-        pin.toByteArray(Charsets.US_ASCII).copyInto(pinBytes, endIndex = minOf(pin.length, PIN_MAX_LENGTH))
+        pinAscii.copyInto(pinBytes, endIndex = pinAscii.size)
         for (page in 0 until 4) {
             val o = page * 4
             cmdWrite(
