@@ -91,6 +91,17 @@ class Ntag213ReadTest {
     }
 
     @Test
+    fun readTag_foreignProtectedBand_costsOneAttempt() {
+        // A band provisioned under a different event key0 is already protected (AUTH0/PROT set),
+        // so the derived-key attempt NAKs. The legacy credential must never be tried on it either
+        // -- reading page 41 (CFG0) unauthenticated fails first, which is enough to tell it apart
+        // from a legacy band (always PROT = 0) without spending a second negative-auth attempt.
+        val f = tag(); f.provisionNew(otherKey, "XYZOTHER")
+        assertThrows(TagAuthException::class.java) { Ntag213(f).readTag(key0) }
+        assertEquals(1, f.negativeAuthCount)
+    }
+
+    @Test
     fun readTag_packMismatch_noLegacyFallback() {
         // Right PWD, wrong PACK: the band answered as ours (or a spoof knowing our PWD but not
         // able to fake the PACK check) — this is a definite rejection, never a legacy retry.

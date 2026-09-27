@@ -60,6 +60,20 @@ class Ntag213ProvisionTest {
     }
 
     @Test
+    fun provision_legacyTag_resumesFromEveryIntermediateState() {
+        // Same as provision_resumesFromEveryIntermediateState, but starting from a legacy band.
+        for (failAfter in 1..8) {
+            val f = tag()
+            f.pages[4] = "AB12".toByteArray(); f.setPwd(Ntag213Credentials.LEGACY.pwd); f.setPack(Ntag213Credentials.LEGACY.pack); f.setAuth0(4)
+            val flaky = FlakyTransport(f, failAfterWrites = failAfter)
+            try { Ntag213(flaky).provisionTag("AB12", key0) } catch (e: java.io.IOException) {}
+            f.close(); f.connect()
+            Ntag213(f).provisionTag("AB12", key0)
+            assertProvisioned(f, "AB12")
+        }
+    }
+
+    @Test
     fun readStatus_reportsProtection() {
         val f = tag(); Ntag213(f).provisionTag("ABCD1234EFGH5678", key0)
         val s = Ntag213(f).readStatus(key0)
@@ -85,6 +99,21 @@ class Ntag213ProvisionTest {
         assertArrayEquals(pinBefore, f.pinBytes())
         assertArrayEquals(pwdBefore, f.pwd())
         assertArrayEquals(packBefore, f.pack())
+        // A protected foreign band must cost at most one negative-auth attempt: the legacy
+        // credential must never even be tried once page 41 (CFG0) itself refuses to be read.
+        assertEquals(1, f.negativeAuthCount)
+    }
+
+    @Test
+    fun provision_rejectsInvalidPin_writesNothing() {
+        val f = tag()
+        val pinBefore = f.pinBytes(); val pwdBefore = f.pwd(); val packBefore = f.pack()
+
+        assertThrows(IllegalArgumentException::class.java) { Ntag213(f).provisionTag("EMOJI😀", key0) }
+        assertArrayEquals(pinBefore, f.pinBytes()); assertArrayEquals(pwdBefore, f.pwd()); assertArrayEquals(packBefore, f.pack())
+
+        assertThrows(IllegalArgumentException::class.java) { Ntag213(f).provisionTag("A".repeat(17), key0) }
+        assertArrayEquals(pinBefore, f.pinBytes()); assertArrayEquals(pwdBefore, f.pwd()); assertArrayEquals(packBefore, f.pack())
     }
 }
 
