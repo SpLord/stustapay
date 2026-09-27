@@ -101,6 +101,8 @@ class NfcHandler @Inject constructor(
             dataSource.setScanResult(NfcScanResult.Fail(NfcScanFailure.Lost("Band zu kurz gehalten")))
         } catch (e: TagAuthException) {
             dataSource.setScanResult(NfcScanResult.Fail(NfcScanFailure.Auth("Authentifizierung fehlgeschlagen")))
+        } catch (e: TagLockedException) {
+            dataSource.setScanResult(NfcScanResult.Fail(NfcScanFailure.Auth("Band gesperrt oder nicht für dieses Event provisioniert")))
         } catch (e: TagIncompatibleException) {
             dataSource.setScanResult(NfcScanResult.Fail(NfcScanFailure.Incompatible("Chip nicht unterstützt")))
         } catch (e: TagConnectionException) {
@@ -166,8 +168,11 @@ class NfcHandler @Inject constructor(
         when (req) {
             is NfcScanRequest.Read -> {
                 tag.connect()
-                val nfcTag = tag.readTag(req.dataProtKey, req.uidRetrKey)
-                dataSource.setScanResult(NfcScanResult.Read(nfcTag))
+                val key0 = req.dataProtKey ?: run {
+                    dataSource.setScanResult(NfcScanResult.Fail(NfcScanFailure.NoKey))
+                    return
+                }
+                dataSource.setScanResult(NfcScanResult.Read(tag.readTag(key0).tag))
             }
             is NfcScanRequest.Write -> {
                 tag.connect()

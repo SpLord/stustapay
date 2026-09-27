@@ -65,77 +65,63 @@ class Ntag213(
         }
     }
 
-    /** Read the 7-byte UID from pages 0-1 (always readable, no auth needed). */
-    fun readUid(): ULong {
-        if (!isConnected) { throw TagConnectionException() }
-        val uidPages = cmdRead(0x00u)
-        if (uidPages.size < 8) {
-            throw TagIncompatibleException("short read of UID pages")
-        }
+    /** 7-byte UID from pages 0-1 (always readable). */
+    fun readUidBytes(): ByteArray {
+        if (!isConnected) throw TagConnectionException()
+        val p = cmdRead(0x00u)
+        if (p.size < 8) throw TagIncompatibleException("short read of UID pages")
+        return byteArrayOf(p[0], p[1], p[2], p[4], p[5], p[6], p[7])
+    }
 
-        // NTAG213 UID layout in pages 0-1:
-        // Page 0: UID0 UID1 UID2 BCC0
-        // Page 1: UID3 UID4 UID5 UID6
+    fun readUid(): ULong {
         var uid = 0uL
-        uid = uid or (uidPages[0].toUByte().toULong() shl 48)
-        uid = uid or (uidPages[1].toUByte().toULong() shl 40)
-        uid = uid or (uidPages[2].toUByte().toULong() shl 32)
-        uid = uid or (uidPages[4].toUByte().toULong() shl 24)
-        uid = uid or (uidPages[5].toUByte().toULong() shl 16)
-        uid = uid or (uidPages[6].toUByte().toULong() shl 8)
-        uid = uid or (uidPages[7].toUByte().toULong())
+        for (b in readUidBytes()) uid = (uid shl 8) or b.toUByte().toULong()
         return uid
     }
 
+    data class AuthResult(val creds: Ntag213Credentials.Credentials, val legacy: Boolean)
+    data class ReadResult(val tag: NfcTag, val legacy: Boolean)
+
     /**
-     * Read UID from pages 0-1 and PIN from user memory pages 4-7.
-     * If [authenticate] is true, performs PWD_AUTH before reading protected pages.
+     * PWD_AUTH with the band-specific credentials; during the transition (ACCEPT_LEGACY_BANDS)
+     * a band provisioned with the old global password is accepted too and flagged legacy.
+     * A NAK on the right password can also mean "locked by AUTHLIM" — on real hardware both look
+     * the same, so the caller shows one message naming both causes.
      */
-    fun readTag(key0: BitVector?, key1: BitVector?): NfcTag {
-        if (!isConnected) { throw TagConnectionException() }
-
-        val uid = readUid()
-
-        // Try to read PIN from user memory — skip auth for unprovisioned tags
-        var pin: String? = null
+    fun authenticate(key0: BitVector, acceptLegacy: Boolean = Ntag213Credentials.ACCEPT_LEGACY_BANDS): AuthResult {
+        if (!isConnected) throw TagConnectionException()
+        val creds = Ntag213Credentials.derive(key0, readUidBytes())
         try {
-            val pinPages = cmdRead(PIN_PAGE_START.toUByte())
-            val sb = StringBuilder()
-            for (i in 0 until PIN_MAX_LENGTH) {
-                val c = pinPages[i].toInt().toChar()
-                if (c != 0.toChar() && c.isLetterOrDigit()) {
-                    sb.append(c)
-                }
-            }
-            if (sb.isNotEmpty()) {
-                pin = sb.toString()
-            }
-        } catch (e: Exception) {
-            // Pages might be auth-protected — try with PWD_AUTH if keys provided
-            if (key0 != null) {
-                try {
-                    val pwd = ByteArray(4) { key0.gbe(it.toULong()).toByte() }
-                    val pack = if (key1 != null) ByteArray(2) { key1.gbe(it.toULong()).toByte() } else null
-                    cmdPwdAuth(pwd, pack)
-
-                    val pinPages = cmdRead(PIN_PAGE_START.toUByte())
-                    val sb = StringBuilder()
-                    for (i in 0 until PIN_MAX_LENGTH) {
-                        val c = pinPages[i].toInt().toChar()
-                        if (c != 0.toChar() && c.isLetterOrDigit()) {
-                            sb.append(c)
-                        }
-                    }
-                    if (sb.isNotEmpty()) {
-                        pin = sb.toString()
-                    }
-                } catch (_: Exception) {
-                    // Auth failed — tag not provisioned, PIN stays null
-                }
-            }
+            cmdPwdAuth(creds.pwd, creds.pack)
+            return AuthResult(creds, legacy = false)
+        } catch (e: TagAuthException) {
+            throw e // PACK mismatch: the band answers with a foreign PACK
+        } catch (e: IOException) {
+            if (looksLocked(e)) throw TagLockedException("Band gesperrt (AUTHLIM)")
         }
+        if (acceptLegacy) {
+            try {
+                cmdPwdAuth(Ntag213Credentials.LEGACY.pwd, Ntag213Credentials.LEGACY.pack)
+                return AuthResult(Ntag213Credentials.LEGACY, legacy = true)
+            } catch (e: Exception) { /* fall through */ }
+        }
+        throw TagAuthException("PWD_AUTH rejected")
+    }
 
-        return NfcTag(uid.toBigInteger(), pin)
+    /** Emulator marks a locked band explicitly; real readers just NAK. */
+    private fun looksLocked(e: IOException): Boolean = e.message?.contains("locked", ignoreCase = true) == true
+
+    /** Read UID + PIN. Always authenticates — a band that cannot authenticate is not ours. */
+    fun readTag(key0: BitVector, acceptLegacy: Boolean = Ntag213Credentials.ACCEPT_LEGACY_BANDS): ReadResult {
+        val auth = authenticate(key0, acceptLegacy)
+        val uid = readUid()
+        val pinPages = cmdRead(PIN_PAGE_START.toUByte())
+        val sb = StringBuilder()
+        for (i in 0 until PIN_MAX_LENGTH) {
+            val c = pinPages[i].toInt().toChar()
+            if (c != 0.toChar() && c.isLetterOrDigit()) sb.append(c)
+        }
+        return ReadResult(NfcTag(uid.toBigInteger(), sb.toString().ifEmpty { null }), auth.legacy)
     }
 
     /**
