@@ -7,6 +7,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import de.stustapay.api.models.CompletedTopUp
 import de.stustapay.api.models.NewTopUp
 import de.stustapay.api.models.PaymentMethod
+import de.stustapay.api.models.PendingTopUp
 import de.stustapay.libssp.model.NfcTag
 import de.stustapay.libssp.net.Response
 import de.stustapay.libssp.util.ResourcesProvider
@@ -111,29 +112,29 @@ class TopUpViewModel @Inject constructor(
     /**
      * validates the amount so we can continue to checkout
      */
-    private suspend fun checkTopUp(newTopUp: NewTopUp): Boolean {
+    private suspend fun checkTopUp(newTopUp: NewTopUp): PendingTopUp? {
         // device-local checks
         if (!checkAmountLocal(newTopUp.amount)) {
-            return false
+            return null
         }
 
         // server-side check
         return when (val response = topUpApi.checkTopUp(newTopUp)) {
             is Response.OK -> {
                 _status.update { resourcesProvider.getString(R.string.common_action_topup_validated) }
-                true
+                response.data
             }
 
             is Response.Error.Service -> {
                 // TODO: if we remember the scanned tag, clear it here.
                 _status.update { response.msg() }
                 _errorMessage.update { response.msg() }
-                false
+                null
             }
 
             is Response.Error -> {
                 _status.update { response.msg() }
-                false
+                null
             }
         }
     }
@@ -141,11 +142,12 @@ class TopUpViewModel @Inject constructor(
     /**
      * creates a ec payment with new id for the current selected sum.
      */
-    private fun getECPayment(newTopUp: NewTopUp): ECPayment {
+    private fun getECPayment(newTopUp: NewTopUp, pendingTopUp: PendingTopUp): ECPayment {
         return ECPayment(
             id = newTopUp.uuid.toString(),
             amount = BigDecimal(newTopUp.amount),
             tag = NfcTag(newTopUp.customerTagUid, null),
+            customerAccountId = pendingTopUp.customerAccountId,
         )
     }
 
@@ -175,12 +177,13 @@ class TopUpViewModel @Inject constructor(
                 uuid = UUID.randomUUID(),
             )
 
-            if (!checkTopUp(newTopUp)) {
+            val pendingTopUp = checkTopUp(newTopUp)
+            if (pendingTopUp == null) {
                 // it already updates the status message
                 return
             }
 
-            val payment = getECPayment(newTopUp)
+            val payment = getECPayment(newTopUp, pendingTopUp)
 
             // pre-register the payment so the backend starts polling sumup
             // if the transaction has completed, but the callback to the POS terminal got missing
@@ -247,7 +250,7 @@ class TopUpViewModel @Inject constructor(
                 uuid = UUID.randomUUID(),
             )
 
-            if (!checkTopUp(newTopUp)) {
+            if (checkTopUp(newTopUp) == null) {
                 // it already updates the status message
                 return
             }

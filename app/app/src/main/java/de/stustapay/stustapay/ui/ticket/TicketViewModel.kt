@@ -374,6 +374,8 @@ class TicketViewModel @Inject constructor(
             id = newSale.uuid.toString(),
             amount = BigDecimal(checked.totalPrice),
             tag = NfcTag(firstTag.customerTagUid, firstTag.customerTagPin),
+            // new bands usually have no account yet; set when the band is already known
+            customerAccountId = firstTag.account?.id,
         )
 
         // register the sale so the backend can ask sumup for completion
