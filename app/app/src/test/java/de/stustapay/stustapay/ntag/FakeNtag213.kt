@@ -40,6 +40,13 @@ class FakeNtag213(uid: ByteArray) : Ntag213Transport {
     fun pinBytes(): ByteArray = pages[4] + pages[5] + pages[6] + pages[7]
     private fun locked(): Boolean = authLim() > 0 && negativeAuthCount >= (1 shl authLim())
 
+    fun provisionNew(key0: de.stustapay.libssp.util.BitVector, pin: String) {
+        val c = de.stustapay.libssp.nfc.Ntag213Credentials.derive(key0, pages[0].copyOfRange(0, 3) + pages[1])
+        val pinBytes = ByteArray(16); pin.toByteArray(Charsets.US_ASCII).copyInto(pinBytes)
+        for (i in 0 until 4) pages[4 + i] = pinBytes.copyOfRange(i * 4, i * 4 + 4)
+        setPwd(c.pwd); setPack(c.pack); setAuth0(4); setProt(true); setAuthLim(3)
+    }
+
     override fun connect() { isConnected = true; authenticated = false }
     override fun close() { isConnected = false; authenticated = false }
 

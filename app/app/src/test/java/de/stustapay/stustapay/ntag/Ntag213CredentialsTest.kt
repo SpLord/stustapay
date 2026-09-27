@@ -7,6 +7,7 @@ import de.stustapay.libssp.util.decodeHex
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertThrows
 import org.junit.Test
 
 class Ntag213CredentialsTest {
@@ -47,7 +48,7 @@ class Ntag213CredentialsTest {
 
     @Test
     fun derive_rejectsBadInput() {
-        try { Ntag213Credentials.derive(key0, hex("0102")); assert(false) } catch (e: IllegalArgumentException) {}
+        assertThrows(IllegalArgumentException::class.java) { Ntag213Credentials.derive(key0, hex("0102")) }
         assertEquals(4, Ntag213Credentials.LEGACY.pwd.size)
         assertArrayEquals(hex("00010203"), Ntag213Credentials.LEGACY.pwd)
         assertArrayEquals(hex("0001"), Ntag213Credentials.LEGACY.pack)
