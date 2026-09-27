@@ -251,8 +251,8 @@ class Ntag213(
 
         // A successful PWD_AUTH answers with exactly the 2-byte PACK.
         // Anything else (NAK, empty, garbage) means the password was rejected.
-        if (resp == null || resp.size != 2) {
-            throw TagAuthException("PWD_AUTH rejected (response ${resp?.size ?: 0} bytes)")
+        if (resp.size != 2) {
+            throw TagAuthException("PWD_AUTH rejected (response ${resp.size} bytes)")
         }
         if (expectedPack != null) {
             if (expectedPack.size != 2) throw IllegalArgumentException("PACK must be 2 bytes")
