@@ -24,4 +24,9 @@ val startpageItems = listOf(
         label = R.string.root_item_verify,
         navDestination = RootNavDests.verify,
     ),
+    StartpageItem(
+        iconId = de.stustapay.libssp.R.drawable.settings_24,
+        label = R.string.root_item_key,
+        navDestination = RootNavDests.key,
+    ),
 )

@@ -96,4 +96,5 @@ dependencies {
     implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1"
     implementation "com.ionspin.kotlin:bignum:$bignum_version"
     implementation "com.ionspin.kotlin:bignum-serialization-kotlinx:$bignum_version"
+    implementation "androidx.security:security-crypto:$security_crypto_version"
 }

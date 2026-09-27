@@ -474,7 +474,7 @@ class SumUp @Inject constructor(
         // wake up pin device
         SumUpAPI.prepareForCheckout()
 
-        val sumUpPayment = SumUpPayment.builder()
+        val sumUpPaymentBuilder = SumUpPayment.builder()
             // minimum 1.00
             .total(payment.amount).currency(SumUpPayment.Currency.EUR)
             // optional: include a tip amount in addition to the total
@@ -484,14 +484,21 @@ class SumUp @Inject constructor(
             //.receiptSMS("+00000000000")
             .addAdditionalInfo("Terminal", cfg.terminal.name)
             .addAdditionalInfo("TerminalID", cfg.terminal.id)
-            .addAdditionalInfo("Tag", payment.tag.toString())
+            // band UID only — the PIN must never leave the terminal
+            .addAdditionalInfo("Tag", payment.tag.uidHex())
             // stustapay order uuid
             .foreignTransactionId(payment.id)
             // optional: skip the success screen
             .skipSuccessScreen()
             // optional: skip the failed screen
             //.skipFailedScreen()
-            .build()
+
+        // customer account, so the card payment can be traced to band + customer in the admin UI
+        payment.customerAccountId?.let {
+            sumUpPaymentBuilder.addAdditionalInfo("Konto", it.toString())
+        }
+
+        val sumUpPayment = sumUpPaymentBuilder.build()
 
         _paymentStatus.update { SumUpState.Started(payment.id) }
 

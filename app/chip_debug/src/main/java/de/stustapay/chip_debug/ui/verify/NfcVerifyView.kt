@@ -18,6 +18,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -26,6 +27,10 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import de.stustapay.chip_debug.ui.nav.NavScaffold
 import de.stustapay.libssp.model.NfcScanFailure
+
+/** A fully-provisioned, current-generation NTAG213 band. */
+private fun isFullyProtected(s: NfcDebugScanResult.StatusSuccess): Boolean =
+    !s.legacy && s.prot && s.authLim == 3 && s.auth0 == 4
 
 @Composable
 fun NfcVerifyView(navigateBack: () -> Unit, viewModel: NfcVerifyViewModel = hiltViewModel()) {
@@ -83,18 +88,42 @@ fun NfcVerifyView(navigateBack: () -> Unit, viewModel: NfcVerifyViewModel = hilt
             ) {
                 when (val r = result) {
                     is NfcDebugScanResult.None -> Text("No results yet")
+
+                    // MIFARE-Ultralight AES band: unchanged legacy verify display.
                     is NfcDebugScanResult.ReadSuccess -> {
                         Text("PIN: ${r.tag.pin}")
                         Text("UID: ${r.tag.uid.toString(16)}")
                     }
 
+                    // NTAG213 band: protection status, never the PIN itself.
+                    is NfcDebugScanResult.StatusSuccess -> {
+                        val ok = isFullyProtected(r)
+                        val color = if (ok) Color(0xFF2E7D32) else Color(0xFFC62828)
+                        Text("UID: ${r.uid.toString(16).uppercase()}", color = color)
+                        Text("PIN vorhanden: ${if (r.hasPin) "ja" else "nein"}", color = color)
+                        Text("Leseschutz: ${if (r.prot) "AN" else "AUS"}", color = color)
+                        Text("Fehlversuchslimit: ${if (r.authLim == 3) "3" else "aus"}", color = color)
+                        Text("AUTH0: ${r.auth0}", color = color)
+                        Text(
+                            "Band-Version: ${if (r.legacy) "veraltet (Legacy)" else "aktuell"}",
+                            color = color
+                        )
+                        if (!ok) {
+                            Text(
+                                "Band veraltet — bitte neu provisionieren",
+                                color = Color(0xFFC62828)
+                            )
+                        }
+                    }
+
                     is NfcDebugScanResult.Failure -> {
                         when (val reason = r.reason) {
-                            is NfcScanFailure.NoKey -> Text("no secret key present")
+                            is NfcScanFailure.NoKey -> Text("Kein Schlüssel eingetragen — bitte unter „Schlüssel“ setzen")
                             is NfcScanFailure.Other -> Text("Failure: ${reason.msg}")
                             is NfcScanFailure.Incompatible -> Text("Tag incompatible")
                             is NfcScanFailure.Lost -> Text("Tag lost")
-                            is NfcScanFailure.Auth -> Text("Authentication failed")
+                            is NfcScanFailure.Auth -> Text("Band gehört nicht zu diesem Schlüssel — prüfe den eingetragenen Schlüssel oder provisioniere das Band neu")
+                            is NfcScanFailure.Locked -> Text("Gesperrt: ${reason.msg}")
                         }
                     }
                 }

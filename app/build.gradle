@@ -18,6 +18,7 @@ buildscript {
         navigation_compose_version = '2.9.8'
         activity_compose_version = '1.13.0'
         serialization_json_version = '1.8.0'
+        security_crypto_version = '1.1.0-alpha06'
         targetJavaVersion = JavaVersion.VERSION_17
         jvmTargetVersion = "17"
         kotlinLanguageVersion = "2.3"

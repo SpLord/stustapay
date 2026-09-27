@@ -32,24 +32,43 @@ class NfcVerifyViewModel @Inject constructor(
         _result.update { NfcDebugScanResult.None }
     }
 
+    /**
+     * Continuously scans for a band and shows its protection status. A single Status request
+     * covers both chip families in one tap: NfcHandler answers it with [NfcScanResult.Status] for
+     * NTAG213 (AUTH0/PROT/AUTHLIM/legacy) and with the plain [NfcScanResult.Read] a Read request
+     * would produce for MIFARE-Ultralight AES (which has no protection-status concept), so MIFARE
+     * verification behaviour is unchanged.
+     */
     fun scan(vibrator: Vibrator) {
         stop()
 
         job = viewModelScope.launch {
             val trying = true
             while (trying) {
-                val res = nfcRepository.read()
-                when (res) {
-                    is NfcScanResult.Read -> {
+                when (val res = nfcRepository.status()) {
+                    is NfcScanResult.Status -> {
                         vibrator.vibrate(VibrationEffect.createOneShot(300, 200))
                         _result.emit(
-                            NfcDebugScanResult.ReadSuccess(
-                                res.tag
+                            NfcDebugScanResult.StatusSuccess(
+                                uid = res.uid,
+                                // Never keep/display the PIN itself — only whether one is set.
+                                hasPin = !res.pin.isNullOrEmpty(),
+                                auth0 = res.auth0,
+                                prot = res.prot,
+                                authLim = res.authLim,
+                                legacy = res.legacy,
                             )
                         )
                     }
 
+                    is NfcScanResult.Read -> {
+                        // MIFARE-Ultralight AES band (unchanged legacy verify display).
+                        vibrator.vibrate(VibrationEffect.createOneShot(300, 200))
+                        _result.emit(NfcDebugScanResult.ReadSuccess(res.tag))
+                    }
+
                     is NfcScanResult.Fail -> _result.emit(NfcDebugScanResult.Failure(res.reason))
+
                     else -> _result.emit(NfcDebugScanResult.None)
                 }
             }
@@ -59,8 +78,20 @@ class NfcVerifyViewModel @Inject constructor(
 
 sealed interface NfcDebugScanResult {
     object None : NfcDebugScanResult
+
+    /** MIFARE-Ultralight AES verify result (unchanged behaviour, kept for that chip family). */
     data class ReadSuccess(
         val tag: NfcTag
+    ) : NfcDebugScanResult
+
+    /** NTAG213 protection status. */
+    data class StatusSuccess(
+        val uid: ULong,
+        val hasPin: Boolean,
+        val auth0: Int,
+        val prot: Boolean,
+        val authLim: Int,
+        val legacy: Boolean,
     ) : NfcDebugScanResult
 
     data class Failure(

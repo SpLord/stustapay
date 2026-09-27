@@ -4,69 +4,57 @@ import de.stustapay.libssp.model.NfcScanFailure
 import de.stustapay.libssp.model.NfcScanRequest
 import de.stustapay.libssp.model.NfcScanResult
 import de.stustapay.libssp.nfc.NfcDataSource
-import de.stustapay.libssp.util.BitVector
-import de.stustapay.libssp.util.decodeHex
-import kotlinx.coroutines.flow.MutableStateFlow
 import javax.inject.Inject
 import javax.inject.Singleton
 
 
 @Singleton
 class NfcRepository @Inject constructor(
-    private val nfcDataSource: NfcDataSource
+    private val nfcDataSource: NfcDataSource,
+    private val keys: KeyRepository,
 ) {
-    private val uidRetrKey =
-        MutableStateFlow<BitVector?>("000102030405060708090a0b0c0d0e0f".decodeHex())
-    private val dataProtKey =
-        MutableStateFlow<BitVector?>("000102030405060708090a0b0c0d0e0f".decodeHex())
-    private val oldDataProtKey =
-        MutableStateFlow<BitVector?>("000102030405060708090a0b0c0d0e0f".decodeHex())
+    // chip_debug uses one key for both dataProtKey and uidRetrKey (MF0AES/NTAG213 alike),
+    // sourced from the event key entered by staff via KeyRepository.
 
     suspend fun read(): NfcScanResult {
+        val k = keys.key0.value ?: return NfcScanResult.Fail(NfcScanFailure.NoKey)
         return nfcDataSource.scan(
-            NfcScanRequest.Read(
-                uidRetrKey.value ?: return NfcScanResult.Fail(
-                    NfcScanFailure.NoKey
-                ), dataProtKey.value
-            )
+            NfcScanRequest.Read(uidRetrKey = k, dataProtKey = k)
         )
     }
 
     suspend fun write(): NfcScanResult {
+        val k = keys.key0.value ?: return NfcScanResult.Fail(NfcScanFailure.NoKey)
         return nfcDataSource.scan(
-            NfcScanRequest.Write(
-                uidRetrKey.value ?: return NfcScanResult.Fail(NfcScanFailure.NoKey),
-                dataProtKey.value
-            )
+            NfcScanRequest.Write(uidRetrKey = k, dataProtKey = k)
         )
     }
 
     suspend fun writeWithPin(pin: String): NfcScanResult {
+        val k = keys.key0.value ?: return NfcScanResult.Fail(NfcScanFailure.NoKey)
         return nfcDataSource.scan(
-            NfcScanRequest.Write(
-                uidRetrKey.value ?: return NfcScanResult.Fail(NfcScanFailure.NoKey),
-                dataProtKey.value,
-                pin = pin
-            )
+            NfcScanRequest.Write(uidRetrKey = k, dataProtKey = k, pin = pin)
         )
     }
 
     suspend fun rewrite(): NfcScanResult {
+        val k = keys.key0.value ?: return NfcScanResult.Fail(NfcScanFailure.NoKey)
         return nfcDataSource.scan(
-            NfcScanRequest.Rewrite(
-                uidRetrKey.value ?: return NfcScanResult.Fail(NfcScanFailure.NoKey),
-                dataProtKey.value ?: return NfcScanResult.Fail(NfcScanFailure.NoKey),
-                oldDataProtKey.value ?: return NfcScanResult.Fail(NfcScanFailure.NoKey)
-            )
+            NfcScanRequest.Rewrite(uidRetrKey = k, dataProtKey = k, oldDataProtKey = k)
         )
     }
 
     suspend fun test(): NfcScanResult {
+        val k = keys.key0.value ?: return NfcScanResult.Fail(NfcScanFailure.NoKey)
         return nfcDataSource.scan(
-            NfcScanRequest.Test(
-                uidRetrKey.value ?: return NfcScanResult.Fail(NfcScanFailure.NoKey),
-                dataProtKey.value ?: return NfcScanResult.Fail(NfcScanFailure.NoKey)
-            )
+            NfcScanRequest.Test(uidRetrKey = k, dataProtKey = k)
+        )
+    }
+
+    suspend fun status(): NfcScanResult {
+        val k = keys.key0.value ?: return NfcScanResult.Fail(NfcScanFailure.NoKey)
+        return nfcDataSource.scan(
+            NfcScanRequest.Status(dataProtKey = k)
         )
     }
 }
