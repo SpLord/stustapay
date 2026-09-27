@@ -24,4 +24,8 @@ sealed interface NfcScanRequest {
         val uidRetrKey: BitVector,
         val dataProtKey: BitVector
     ) : NfcScanRequest
+
+    data class Status(
+        val dataProtKey: BitVector
+    ) : NfcScanRequest
 }

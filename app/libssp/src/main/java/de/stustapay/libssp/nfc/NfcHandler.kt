@@ -161,6 +161,9 @@ class NfcHandler @Inject constructor(
                     val log = tag.test(req.dataProtKey, req.uidRetrKey)
                     dataSource.setScanResult(NfcScanResult.Test(log))
                 }
+                is NfcScanRequest.Status -> {
+                    dataSource.setScanResult(NfcScanResult.Fail(NfcScanFailure.Other(NfcScanFailure.STATUS_NTAG_ONLY)))
+                }
             }
         } finally {
             try { tag.close() } catch (_: Exception) {}
@@ -205,6 +208,20 @@ class NfcHandler @Inject constructor(
             }
             is NfcScanRequest.Test -> {
                 dataSource.setScanResult(NfcScanResult.Fail(NfcScanFailure.Other("Test not supported for NTAG")))
+            }
+            is NfcScanRequest.Status -> {
+                val r = tag.readTag(req.dataProtKey)
+                val s = tag.readStatus(req.dataProtKey)
+                dataSource.setScanResult(
+                    NfcScanResult.Status(
+                        uid = tag.readUid(),
+                        pin = r.tag.pin,
+                        auth0 = s.auth0,
+                        prot = s.prot,
+                        authLim = s.authLim,
+                        legacy = r.legacy
+                    )
+                )
             }
         }
     }

@@ -160,6 +160,11 @@ class NfcScanDialogViewModel @Inject constructor(
                             NfcScanUiState.Error("result was 'test'")
                             trying = false
                         }
+
+                        is NfcScanResult.Status -> {
+                            // we should never get this anyway since we wanted to read...
+                            trying = false
+                        }
                     }
                 }
             } finally {

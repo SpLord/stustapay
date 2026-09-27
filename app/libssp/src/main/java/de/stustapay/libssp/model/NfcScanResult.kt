@@ -32,10 +32,36 @@ sealed interface NfcScanResult {
             return "got test results"
         }
     }
+
+    /**
+     * NTAG213 protection status (chip_debug "verify" screen). Never carries PWD/PACK/key0 —
+     * only [pin] (nullable) is potentially sensitive and callers must not display it verbatim.
+     */
+    data class Status(
+        val uid: ULong,
+        val pin: String?,
+        val auth0: Int,
+        val prot: Boolean,
+        val authLim: Int,
+        val legacy: Boolean
+    ) : NfcScanResult {
+        override fun msg(): String {
+            return "status read"
+        }
+    }
 }
 
 sealed interface NfcScanFailure {
     fun msg(): String
+
+    companion object {
+        /**
+         * [Other.msg] used by the MIFARE-AES dispatch path when it receives a
+         * [NfcScanRequest.Status] request (status is NTAG213-only). Shared as a constant so
+         * callers can match on it without duplicating the German string literal.
+         */
+        const val STATUS_NTAG_ONLY = "Status nur für NTAG213"
+    }
 
     object NoKey : NfcScanFailure {
         override fun msg(): String {
