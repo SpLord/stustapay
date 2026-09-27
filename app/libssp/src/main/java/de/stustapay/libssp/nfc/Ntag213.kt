@@ -28,21 +28,13 @@ import java.io.IOException
  *   PWD_AUTH: 0x1B + 4 bytes password -> returns 2 bytes PACK
  *   GET_VERSION: 0x60 -> returns chip identification
  */
-class Ntag213 : TagTechnology {
-    val nfcaTag: NfcA
-    private val rawTag: Tag
+class Ntag213(
+    private val transport: Ntag213Transport,
+    private val rawTag: Tag? = null,
+) : TagTechnology {
 
-    /** Create with a Tag — will get its own NfcA */
-    constructor(tag: Tag) {
-        rawTag = tag
-        nfcaTag = NfcA.get(tag)
-    }
-
-    /** Create with an already-connected NfcA — reuses the connection */
-    constructor(nfca: NfcA) {
-        rawTag = nfca.tag
-        nfcaTag = nfca
-    }
+    /** Production path: reuse an already connected NfcA (NfcHandler probe). */
+    constructor(nfca: NfcA) : this(NfcATransport(nfca), nfca.tag)
 
     companion object {
         const val NTAG213_PAGE_COUNT = 45
@@ -243,19 +235,19 @@ class Ntag213 : TagTechnology {
 
     private fun cmdRead(page: UByte): ByteArray {
         val cmd = byteArrayOf(0x30, page.toByte())
-        return nfcaTag.transceive(cmd)
+        return transport.transceive(cmd)
     }
 
     private fun cmdWrite(page: UByte, a: UByte, b: UByte, c: UByte, d: UByte) {
         val cmd = byteArrayOf(0xA2.toByte(), page.toByte(), a.toByte(), b.toByte(), c.toByte(), d.toByte())
-        nfcaTag.transceive(cmd)
+        transport.transceive(cmd)
     }
 
     private fun cmdPwdAuth(pwd: ByteArray, expectedPack: ByteArray?) {
         if (pwd.size != 4) throw IllegalArgumentException("PWD must be 4 bytes")
 
         val cmd = byteArrayOf(0x1B, pwd[0], pwd[1], pwd[2], pwd[3])
-        val resp = nfcaTag.transceive(cmd)
+        val resp = transport.transceive(cmd)
 
         // A successful PWD_AUTH answers with exactly the 2-byte PACK.
         // Anything else (NAK, empty, garbage) means the password was rejected.
@@ -272,7 +264,7 @@ class Ntag213 : TagTechnology {
 
     private fun cmdGetVersion(): ByteArray {
         val cmd = byteArrayOf(0x60)
-        return nfcaTag.transceive(cmd)
+        return transport.transceive(cmd)
     }
 
     // -- TagTechnology interface --
@@ -281,20 +273,16 @@ class Ntag213 : TagTechnology {
      * Connect to the tag. If already connected (from NfcHandler probe), skip.
      */
     override fun connect() {
-        if (!nfcaTag.isConnected) {
-            nfcaTag.connect()
-        }
+        transport.connect()
     }
 
     override fun close() {
-        nfcaTag.close()
+        transport.close()
     }
 
     override fun isConnected(): Boolean {
-        return nfcaTag.isConnected
+        return transport.isConnected
     }
 
-    override fun getTag(): Tag {
-        return rawTag
-    }
+    override fun getTag(): Tag = rawTag ?: throw IllegalStateException("no android Tag (test transport)")
 }
