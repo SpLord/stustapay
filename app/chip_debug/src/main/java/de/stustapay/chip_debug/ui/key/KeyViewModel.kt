@@ -17,8 +17,13 @@ import javax.inject.Inject
 class KeyViewModel @Inject constructor(
     private val keyRepository: KeyRepository,
 ) : ViewModel() {
-    /** False when the encrypted store is unavailable; the key is then in-memory only. */
-    val storageAvailable: Boolean = keyRepository.storageAvailable
+    /**
+     * False when the encrypted store is unavailable; the key is then in-memory only.
+     * Forwards live from [KeyRepository] since a runtime Keystore failure can flip this
+     * after construction (not just at startup).
+     */
+    val storageAvailable: Boolean
+        get() = keyRepository.storageAvailable
 
     /** Never the key itself: first 4 hex chars of SHA-256(key bytes), or null if unset. */
     val fingerprint: StateFlow<String?> = keyRepository.key0
